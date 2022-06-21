@@ -1,7 +1,11 @@
 #' Data download
 #'
-#' Download vulture project data from the Movebank repository, with some minor specifications. Note that you must specify your movebank credentials.
+#' Download vulture project data from the Israel vulture study Movebank repository, with some minor specifications. Note that you must specify your movebank credentials.
 #' @param loginObject A Movebank login object, created by passing a username and password to move::movebankLogin
+#' @param extraSensors Whether to include extra sensors. Defaults to FALSE.
+#' @param removeDup Whether to remove duplicated timestamps. Defaults to TRUE.
+#' @param dateTimeStartUTC a POSIXct object, in UTC. Will be converted to character assuming UTC.
+#' @param dateTimeEndUTC a POSIXct object, in UTC. Will be converted to character assuming UTC.
 #' @return A movestack
 #' @export
 downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
