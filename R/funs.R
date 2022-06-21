@@ -10,7 +10,7 @@
 #' @export
 downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
                              dateTimeStartUTC = NULL, dateTimeEndUTC = NULL){
-  move::getMovebankData(study = Ornitela_Vultures_Gyps_fulvus_TAU_UCLA_Israel,
+  move::getMovebankData(study = "Ornitela_Vultures_Gyps_fulvus_TAU_UCLA_Israel",
                   login = loginObject,
                   includeExtraSensors = FALSE,
                   deploymentAsIndividuals = FALSE,
