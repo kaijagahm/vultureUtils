@@ -1,3 +1,8 @@
+library(dplyr)
+library(checkmate)
+library(reshape)
+library(data.table)
+
 #' Data download
 #'
 #' Download vulture project data from the Israel vulture study Movebank repository, with some minor specifications. Note that you must specify your movebank credentials.
@@ -19,43 +24,50 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
                         timestamp_end = dateTimeEndUTC)
 }
 
+
+
+
 #' Create directed matrices
 #'
 #' Create directed matrices from vulture data
-#' @param Dataset the vulture dataset
-#' @param DistThreshold distance threshold for what is considered an "interaction"
+#' @param dataset the vulture dataset
+#' @param distThreshold distance threshold for what is considered an "interaction"
 #' @param sim # number of simulations?? not sure about this one.
 #' @param co #  number of co-occurrences? not sure about this one either.
 #' @return A list: "SimlDataPntCnt" = sim, "CoocurCountr" = co
 #' @export
-createDirectedMatrices <- function(Dataset, DistThreshold, sim = SimlDataPntCnt, co = CoocurCountr){
+createDirectedMatrices <- function(dataset, distThreshold, sim = SimlDataPntCnt, co = CoocurCountr){
+  checkmate::assertDataFrame(dataset)
 
   columnsToSelect <- c("ID", "coords.x2", "coords.x1", "Easting",
                        "Northing", "timegroup", "group")
 
+  checkmate::assertSubset(columnsToSelect, names(dataset))
+
   # Start a progress bar
-  pb <- txtProgressBar(min = 0, max = max(Dataset$timegroup), initial = 0, style = 3)
+  pb <- txtProgressBar(min = 0, max = max(dataset$timegroup), initial = 0, style = 3)
 
   # For each time group: -----------------------------------------------------
-  for(timgrpind in 1:max(Dataset$timegroup)){ # loop on all time groups
-    ## `timegroup` var in `Dataset` comes from analysis.
+  for(i in 1:max(dataset$timegroup)){ # loop on all time groups
 
-    # extract current time group (#18458 has a good example)
-    timegroupDF <- subset(Dataset, timegroup == timgrpind,
-                          select = columnsToSelect)
-
+    # extract current time group
+    timegroupDF <- dataset %>%
+      dplyr::filter(timegroup == i) %>%
+      dplyr::select(all_of(columnsToSelect))
 
     # Compute dyads and distances ---------------------------------------------
     # working within this time group: dyads and distances. Now we don't need `timegroup` but instead `group` (spatiotemporal).
     # further subset columns of interest
-    timegroupDF <- subset(timegroupDF, timegroup = timgrpind,
-                          select = c("ID", "coords.x2", "coords.x1", "group"))
+    timegroupDF <- timegroupDF %>%
+      dplyr::filter(timegroup == i) %>%
+      dplyr::select(ID, coords.x2, coords.x1, group)
     # these vultures were observed around the same time on the same day.
 
     # Put each vulture with each other vulture so that their locations can be compared to see who was close to each other:
-    DT <- reshape::expand.grid.df(timegroupDF, timegroupDF) # entire column written twice laterally (next to each other)
+    DT <- reshape::expand.grid.df(timegroupDF, timegroupDF)
 
-    names(DT)[5:7] <- c("ID2", "lat_secondInd", "long_secondInd") # rename cols.
+    # Rename columns
+    names(DT)[5:7] <- c("ID2", "lat_secondInd", "long_secondInd")
     # XXX KG note: should re-do this with a method other than numerical indexing.
 
     data.table::setDT(DT)[, dist_km := geosphere::distGeo(matrix(c(coords.x1, coords.x2), ncol = 2),
@@ -68,27 +80,29 @@ createDirectedMatrices <- function(Dataset, DistThreshold, sim = SimlDataPntCnt,
 
     # create all possible dyads of vultures in a long format:
 
+    # XXX KG what's going on here? could probably make this code more efficient.
     # Identify all self-association dyads with zero inter-location distance and same ID's.
-    PresentVultures <- subset(DT, dist_km == 0 &
-                                as.character(ID) == as.character(ID2),
-                              select = c("ID", "ID2"))
-    # These are the vultures present in this time group - selecting only ID and ID2 i.e. columns 1 & 5
-    PresentVultures <- as.data.frame(unique(PresentVultures$ID)) # all self-associating dyads
+    presentVultures <- DT %>%
+      dplyr::filter(dist_km == 0 & as.character(ID) == as.character(ID2)) %>%
+      dplyr::select(ID, ID2)
 
-    PresentVultures <- reshape::expand.grid.df(PresentVultures, PresentVultures, unique = F)
+    # These are the vultures present in this time group - selecting only ID and ID2 i.e. columns 1 & 5
+    presentVultures <- as.data.frame(unique(presentVultures$ID)) # all self-associating dyads
+
+    presentVultures <- reshape::expand.grid.df(presentVultures, presentVultures, unique = F)
     # transform back to rows of ID1 = ID2.
     # these are the dyads that have concurrent time point
-    names(PresentVultures) <- c("ID", "ID2") # these are all the vultures whose location was recorded around the same time including self.
+    names(presentVultures) <- c("ID", "ID2") # these are all the vultures whose location was recorded around the same time including self.
 
 
     # Loop on current dyads (including self) to update co-occurrences ---------
-    for(dyadcnt in 1:dim(PresentVultures)[1]){ # length just half since each dyad is counted twice AB and BA
-      Dyadind <- which(sim$ID == PresentVultures$ID[dyadcnt] &
-                         sim$ID2 == PresentVultures$ID2[dyadcnt])
+    for(dyadcnt in 1:nrow(presentVultures)){ # length just half since each dyad is counted twice AB and BA
+      Dyadind <- which(sim$ID == presentVultures$ID[dyadcnt] &
+                         sim$ID2 == presentVultures$ID2[dyadcnt])
       # In the above line: just identifying which row in the empty sim ID1 and ID2 dyads are the same as PresentVulture for one timegroup at a time.
       #identified all rows of self AND non-self association in same timegroup and 0 distance in sim (SimlDataPntCnt)
       ##gives which row number in sim (SimlDataPntCnt) has the same dyad
-      #Nitika - Identified all dyads from PresentVultures by subsetting all rows that had dist_km=0 and self-association
+      #Nitika - Identified all dyads from presentVultures by subsetting all rows that had dist_km=0 and self-association
 
       sim$counter[Dyadind] <- sim$counter[Dyadind] + 1 # Dyadind is the row number with that dyad
       # addint 1 to the frequency such that this dyad could've hung out close to each other because they were around at the same time.
@@ -97,11 +111,11 @@ createDirectedMatrices <- function(Dataset, DistThreshold, sim = SimlDataPntCnt,
     } # for loop on current dyads
 
     # Since self dyads appear only once, they should also be counted twice like AB and BA
-    SelfDyad <- which(PresentVultures$ID == PresentVultures$ID2) # since self dyads appear only once, another loop on them, so the diag will be counted twice like the rest.
+    SelfDyad <- which(presentVultures$ID == presentVultures$ID2) # since self dyads appear only once, another loop on them, so the diag will be counted twice like the rest.
 
     for(dyadcnt in SelfDyad){
-      Dyadind <- which(sim$ID == PresentVultures$ID[dyadcnt] &
-                         sim$ID2 == PresentVultures$ID2[dyadcnt])
+      Dyadind <- which(sim$ID == presentVultures$ID[dyadcnt] &
+                         sim$ID2 == presentVultures$ID2[dyadcnt])
       #sim$counter[Dyadind] <- sim$counter[Dyadind] + 1
       # Nitika: avoiding counting self dyads twice because we aren't keeping directed edges for non-self
     }
@@ -115,7 +129,7 @@ createDirectedMatrices <- function(Dataset, DistThreshold, sim = SimlDataPntCnt,
     InteractingSelf <- InteractingSelf[!duplicated(InteractingSelf$ID),]
     # just including self interactions once, not multiple times.
 
-    InteractingDyads <- subset(DT, (dist_km <= DistThreshold/1000) &
+    InteractingDyads <- subset(DT, (dist_km <= distThreshold/1000) &
                                  as.character(ID) != as.character(ID2))
     # not including self interactions
     # only here, in the interacting dyads, do we check if a dyad was spatially proximate.
@@ -124,7 +138,7 @@ createDirectedMatrices <- function(Dataset, DistThreshold, sim = SimlDataPntCnt,
     InteractingDyads <- InteractingDyads[!duplicated(InteractingDyads[, c("ID", "ID2")])]
 
     # for debugging:
-    if(dim(PresentVultures)[1] < dim(InteractingDyads)[1]){
+    if(dim(presentVultures)[1] < dim(InteractingDyads)[1]){
       break
     }
 
@@ -147,7 +161,7 @@ createDirectedMatrices <- function(Dataset, DistThreshold, sim = SimlDataPntCnt,
                 "Dyadind", "dyadcnt", "timegroupDF"))
 
     # Update the progressbar
-    setTxtProgressBar(pb, timgrpind)
+    setTxtProgressBar(pb, i)
 
   } # close loop over time groups
 
