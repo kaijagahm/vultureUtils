@@ -14,10 +14,18 @@ downloadVultures(
 }
 \arguments{
 \item{loginObject}{A Movebank login object, created by passing a username and password to move::movebankLogin}
+
+\item{extraSensors}{Whether to include extra sensors. Defaults to FALSE.}
+
+\item{removeDup}{Whether to remove duplicated timestamps. Defaults to TRUE.}
+
+\item{dateTimeStartUTC}{a POSIXct object, in UTC. Will be converted to character assuming UTC.}
+
+\item{dateTimeEndUTC}{a POSIXct object, in UTC. Will be converted to character assuming UTC.}
 }
 \value{
 A movestack
 }
 \description{
-Download vulture project data from the Movebank repository, with some minor specifications. Note that you must specify your movebank credentials.
+Download vulture project data from the Israel vulture study Movebank repository, with some minor specifications. Note that you must specify your movebank credentials.
 }
