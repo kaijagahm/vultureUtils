@@ -1,9 +1,4 @@
-library(dplyr)
-library(checkmate)
-library(reshape)
-library(data.table)
-library(sf)
-
+#' @importFrom rlang .data
 #' Data download
 #'
 #' Download vulture project data from the Israel vulture study Movebank repository, with some minor specifications. Note that you must specify your movebank credentials.
@@ -43,7 +38,7 @@ maskIsrael <- function(dataset, longCol = "location_long", latCol = "location_la
 
   # if not, convert it to an sf object
   if(issf == FALSE){
-    assertSubset(x = c(longCol, latCol), choices = names(dataset))
+    checkmate::assertSubset(x = c(longCol, latCol), choices = names(dataset))
     dataset_sf <- sf::st_as_sf(dataset, coords = c(longCol, latCol))
     dataset_sf <- sf::st_set_crs(dataset_sf, value = crs)
   }else{
@@ -82,7 +77,8 @@ createDirectedMatrices <- function(dataset, distThreshold, sim = SimlDataPntCnt,
   checkmate::assertSubset(columnsToSelect, names(dataset))
 
   # Start a progress bar
-  pb <- txtProgressBar(min = 0, max = max(dataset$timegroup), initial = 0, style = 3)
+  pb <- txtProgressBar(min = 0, max = max(dataset$timegroup),
+                       initial = 0, style = 3)
 
   # For each time group: -----------------------------------------------------
   for(i in 1:max(dataset$timegroup)){ # loop on all time groups
@@ -159,14 +155,14 @@ createDirectedMatrices <- function(dataset, distThreshold, sim = SimlDataPntCnt,
 
 
     # Set interacting dyads ---------------------------------------------------
-    InteractingSelf <- subset(DT, dist_km == 0 &
+    InteractingSelf <- data.table::subset(DT, dist_km == 0 &
                                 as.character(ID) == as.character(ID2))
     # just including self interactions once, not multiple times.
 
     InteractingSelf <- InteractingSelf[!duplicated(InteractingSelf$ID),]
     # just including self interactions once, not multiple times.
 
-    InteractingDyads <- subset(DT, (dist_km <= distThreshold/1000) &
+    InteractingDyads <- data.table::subset(DT, (dist_km <= distThreshold/1000) &
                                  as.character(ID) != as.character(ID2))
     # not including self interactions
     # only here, in the interacting dyads, do we check if a dyad was spatially proximate.
