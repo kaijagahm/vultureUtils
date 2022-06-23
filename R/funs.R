@@ -2,6 +2,7 @@ library(dplyr)
 library(checkmate)
 library(reshape)
 library(data.table)
+library(sf)
 
 #' Data download
 #'
@@ -24,7 +25,43 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
                         timestamp_end = dateTimeEndUTC)
 }
 
+#' Mask Israel
+#'
+#' Crop data to only include locations within Israel
+#' @param mask a polygon
+#' @param longCol the name of the column in the dataset containing longitude values
+#' @param latCol the name of the column in the dataset containing latitude values
+#' @param crs (To be passed to `st_set_crs()`). One of (i) character: a string accepted by GDAL, (ii) integer, a valid EPSG value (numeric), or (iii) an object of class crs.
+#' @return A movestack
+#' @export
+maskIsrael <- function(dataset, longCol = "location_long", latCol = "location_lat", crs){
+  # read in the Israel mask
+  mask <- sf::st_read("data/maskIsrael.kml", quiet = TRUE)
 
+  # check if the dataset is already an sf object
+  issf <- checkmate::testClass(dataset, "sf")
+
+  # if not, convert it to an sf object
+  if(issf == FALSE){
+    assertSubset(x = c(longCol, latCol), choices = names(dataset))
+    dataset_sf <- sf::st_as_sf(dataset, coords = c(longCol, latCol))
+    dataset_sf <- sf::st_set_crs(dataset_sf, value = crs)
+  }else{
+    dataset_sf <- dataset
+  }
+
+  # check the CRS: is it the same as the mask CRS?
+  same <- sf::st_crs(mask) == sf::st_crs(dataset_sf)
+  if(!same){
+    dataset_sf <- sf::st_transform(dataset_sf, crs = sf::st_crs(mask))
+  }
+
+  # mask the dataset
+  masked <- dataset_sf[mask, , op = sf::st_intersects]
+
+  # return the masked dataset
+  return(masked)
+}
 
 
 #' Create directed matrices
