@@ -23,10 +23,11 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
 #' Remove unnecessary vars
 #'
 #' Remove variables we don't need, so the data is smaller
-#' @param dataset a dataset to remove variables from
+#' @param dataset a dataset to remove variables from. Must be a data frame.
 #' @return A dataset, with variables removed
 #' @export
 removeUnnecessaryVars <- function(dataset){
+  checkmate::assertDataFrame(dataset) # must be a data frame
   newDataset <- dataset %>%
     dplyr::select(-any_of(c("sensor_type_id","taxon_canonical_name","nick_name","earliest_date_born","sensor","optional",
                             "sensor_type","mw_activity_count","eobs_accelerations_raw","eobs_acceleration_sampling_frequency_per_axis",
@@ -37,7 +38,7 @@ removeUnnecessaryVars <- function(dataset){
                             "eobs_start_timestamp","eobs_type_of_fix","eobs_used_time_to_get_fix","eobs_temperature",
                             "gps_dop","magnetic_field_raw_x","magnetic_field_raw_y","magnetic_field_raw_z","ornitela_transmission_protocol",
                             "tag_voltage","algorithm_marked_outlier","argos_altitude","argos_best_level","argos_lc","argos_iq",
-                            "argos_gdop","argos_error_radius","argos_calcul_freq","location_lat.1","location_long.1","timestamps","height_raw",
+                            "argos_gdop","argos_error_radius","argos_calcul_freq","timestamps","height_raw",
                             "barometric_pressure","barometric_height","battery_charging_current","eobs_activity","manually_marked_outlier",
                             "eobs_activity_samples", "acceleration_raw_y", "battery_charge_percent", "data_decoding_software","gps_vdop","height_above_ellipsoid",
                             'acceleration_raw_x','acceleration_raw_z',"acceleration_raw_z","eobs_horizontal_accuracy_estimate","eobs_speed_accuracy_estimate")

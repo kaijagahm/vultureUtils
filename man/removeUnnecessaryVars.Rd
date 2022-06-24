@@ -7,7 +7,7 @@
 removeUnnecessaryVars(dataset)
 }
 \arguments{
-\item{dataset}{a dataset to remove variables from}
+\item{dataset}{a dataset to remove variables from. Must be a data frame.}
 }
 \value{
 A dataset, with variables removed
