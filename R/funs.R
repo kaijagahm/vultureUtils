@@ -150,7 +150,7 @@ filterLocs <- function(df, speedThreshLower = NULL, speedThreshUpper = NULL){
     dplyr::filter(heading < 360 & heading > 0) # only reasonable headings, between 0 and 360.
 
   # only take locs that have at least 3 satellites
-  checkmate::assertChoice("gps_satellite_count")
+  checkmate::assertChoice("gps_satellite_count", names(df))
   df <- df %>%
     dplyr::filter(gps_satellite_count >= 3) # must have at least 3 satellites in order to triangulate.
 
