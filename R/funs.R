@@ -73,8 +73,8 @@ mostlyInIsrael <- function(dataset, israelDataset, thresh = 0.333, dateCol = "da
   checkmate::assertSubset(dateCol, names(dataset))
   checkmate::assertSubset(dateCol, names(israelDataset))
   # check that the `dateCol` columns actually are dates.
-  checkmate::assertDate(dataset[,dateCol])
-  checkmate::assertDate(israelDataset[,dateCol])
+  checkmate::assertClass(datDF %>% dplyr::pull({{dateCol}}), "Date")
+  checkmate::assertClass(datDFIsrael %>% dplyr::pull({{dateCol}}), "Date")
 
   # Look at date durations in the full dataset
   dates <- dataset %>%
