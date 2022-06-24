@@ -120,8 +120,8 @@ mostlyInIsrael <- function(dataset, israelDataset, thresh = 0.333, dateCol = "da
 
   # Compare the two dates and calculate proportion
   datesCompare <- dplyr::left_join(dates, datesInIsrael %>%
-                              dplyr::select(trackId,
-                                            "durationIsrael" = duration)) %>%
+                                     dplyr::select(trackId,
+                                                   "durationIsrael" = duration)) %>%
     dplyr::mutate(propIsrael = durationIsrael/duration) # compute proportion of days spent in Israel
 
   whichInIsraelLongEnough <- datesCompare %>%
@@ -130,6 +130,49 @@ mostlyInIsrael <- function(dataset, israelDataset, thresh = 0.333, dateCol = "da
     unique()
 
   return(whichInIsraelLongEnough)
+}
+
+#' Filter locs
+#'
+#' Filter dataset for reasonableness
+#' @param df a data frame to filter
+#' @param speedThreshLower a single numeric value, the lower limit for ground speed to be included (m/s)
+#' @param speedThreshUpper a single numeric value, the upper limit for ground speed to be included (m/s)
+#' @return A list of filtered data frames.
+#' @export
+filterLocs <- function(df, speedThreshLower = NULL, speedThreshUpper = NULL){
+  # check that df is a data frame
+  checkmate::assertDataFrame(df)
+
+  # filter out bad heading data
+  checkmate::assertChoice("heading", names(df))
+  df <- df %>%
+    dplyr::filter(heading < 360 & heading > 0) # only reasonable headings, between 0 and 360.
+
+  # only take locs that have at least 3 satellites
+  checkmate::assertChoice("gps_satellite_count")
+  df <- df %>%
+    dplyr::filter(gps_satellite_count >= 3) # must have at least 3 satellites in order to triangulate.
+
+  # Check threshold values for speed, and apply speed filters
+  checkmate::assertChoice("ground_speed", names(df))
+  checkmate::assertNumeric(speedThreshLower, null.ok = TRUE, len = 1)
+  checkmate::assertNumeric(speedThreshUpper, null.ok = TRUE, len = 1)
+
+  # if no speed thresholds are set, warn that we're not applying filtering.
+  if(is.null(speedThreshLower) & is.null(speedThreshUpper)){
+    warning("No speed thresholds set, so data will not be filtered for speed.")
+  }
+
+  # if at least one threshold is set, apply filtering
+  if(!is.null(speedThreshLower)){
+    df <- df %>%
+      dplyr::filter(ground_speed > speedThreshLower)
+  }
+  if(!is.null(speedThreshUpper)){
+    df <- df %>%
+      dplyr::filter(ground_speed < speedThreshUpper)
+  }
 }
 
 
@@ -152,7 +195,7 @@ createDirectedMatrices <- function(dataset, distThreshold, sim = SimlDataPntCnt,
 
   # Start a progress bar
   pb <- utils::txtProgressBar(min = 0, max = max(dataset$timegroup),
-                       initial = 0, style = 3)
+                              initial = 0, style = 3)
 
   # For each time group: -----------------------------------------------------
   for(i in 1:max(dataset$timegroup)){ # loop on all time groups

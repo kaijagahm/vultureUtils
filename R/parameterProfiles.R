@@ -8,8 +8,8 @@ coFeedingParams <- list(
   MinCoocurForValue = 2, # must co-occur twice in a row to be considered overlapping
 
   # Other variables
-  roostbuffer = 50, # buffer around roosting polygons (m)
-  feedBuff = 100 # buffer around feeding stations (m)
+  roostBuffer = 50, # buffer around roosting polygons (m)
+  feedingBuffer = 100 # buffer around feeding stations (m)
 )
 
 coFlightParams <- list(

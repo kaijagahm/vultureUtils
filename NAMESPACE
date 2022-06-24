@@ -3,6 +3,7 @@
 export("%>%")
 export(createDirectedMatrices)
 export(downloadVultures)
+export(filterLocs)
 export(maskIsrael)
 export(mostlyInIsrael)
 export(removeUnnecessaryVars)
