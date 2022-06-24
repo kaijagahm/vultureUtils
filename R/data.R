@@ -9,3 +9,16 @@
 #' }
 #' @source \url{}
 "mask"
+
+#' CRS for Israel shapefile
+#'
+#' The CRS for the Israel shapefile, saved separately because it doesn't seem to load properly...
+#'
+#' @format A crs object
+#' \describe{
+#'   \item{}{}
+#'   ...
+#' }
+#' @source \url{}
+"israelCRS"
+
