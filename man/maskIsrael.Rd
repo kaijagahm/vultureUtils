@@ -7,13 +7,13 @@
 maskIsrael(dataset, longCol = "location_long", latCol = "location_lat", crs)
 }
 \arguments{
+\item{dataset}{a dataset to mask}
+
 \item{longCol}{the name of the column in the dataset containing longitude values}
 
 \item{latCol}{the name of the column in the dataset containing latitude values}
 
 \item{crs}{(To be passed to `st_set_crs()`). One of (i) character: a string accepted by GDAL, (ii) integer, a valid EPSG value (numeric), or (iii) an object of class crs.}
-
-\item{mask}{a polygon}
 }
 \value{
 A movestack

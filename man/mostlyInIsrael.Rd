@@ -12,6 +12,8 @@ mostlyInIsrael(dataset, israelDataset, thresh = 0.333, dateCol = "dateOnly")
 \item{israelDataset}{the dataset after being masked to Israel (output of maskIsrael function)}
 
 \item{thresh}{proportion (between 0 and 1) of a vulture's total tracked days that it spent in Israel}
+
+\item{dateCol}{the name of the column containing dates (must be the same in `dataset` and `israelDataset`). Defaults to "dateOnly".}
 }
 \value{
 A vector of trackIds for vultures

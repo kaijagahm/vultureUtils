@@ -23,7 +23,7 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
 #' Mask Israel
 #'
 #' Crop data to only include locations within Israel
-#' @param mask a polygon
+#' @param dataset a dataset to mask
 #' @param longCol the name of the column in the dataset containing longitude values
 #' @param latCol the name of the column in the dataset containing latitude values
 #' @param crs (To be passed to `st_set_crs()`). One of (i) character: a string accepted by GDAL, (ii) integer, a valid EPSG value (numeric), or (iii) an object of class crs.
@@ -31,7 +31,7 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
 #' @export
 maskIsrael <- function(dataset, longCol = "location_long", latCol = "location_lat", crs){
   # read in the Israel mask
-  mask <- sf::st_read("data/maskIsrael.kml", quiet = TRUE)
+  load("data/mask.Rda")
 
   # check if the dataset is already an sf object
   issf <- checkmate::testClass(dataset, "sf")
@@ -46,13 +46,13 @@ maskIsrael <- function(dataset, longCol = "location_long", latCol = "location_la
   }
 
   # check the CRS: is it the same as the mask CRS?
-  same <- sf::st_crs(mask) == sf::st_crs(dataset_sf)
+  same <- sf::st_crs(maskIsrael) == sf::st_crs(dataset_sf)
   if(!same){
-    dataset_sf <- sf::st_transform(dataset_sf, crs = sf::st_crs(mask))
+    dataset_sf <- sf::st_transform(dataset_sf, crs = sf::st_crs(maskIsrael))
   }
 
   # mask the dataset
-  masked <- dataset_sf[mask, , op = sf::st_intersects]
+  masked <- dataset_sf[maskIsrael, , op = sf::st_intersects]
 
   # return the masked dataset
   return(masked)
@@ -64,6 +64,7 @@ maskIsrael <- function(dataset, longCol = "location_long", latCol = "location_la
 #' @param dataset the full dataset, before masking to Israel only
 #' @param israelDataset the dataset after being masked to Israel (output of maskIsrael function)
 #' @param thresh proportion (between 0 and 1) of a vulture's total tracked days that it spent in Israel
+#' @param dateCol the name of the column containing dates (must be the same in `dataset` and `israelDataset`). Defaults to "dateOnly".
 #' @return A vector of trackIds for vultures
 #' @export
 mostlyInIsrael <- function(dataset, israelDataset, thresh = 0.333, dateCol = "dateOnly"){
@@ -80,26 +81,26 @@ mostlyInIsrael <- function(dataset, israelDataset, thresh = 0.333, dateCol = "da
   dates <- dataset %>%
     dplyr::group_by(trackId) %>%
     dplyr::summarize(duration =
-                       as.numeric(max({{dateCol}}, na.rm = T) -
-                                    min({{dateCol}}, na.rm = T)))
+                       as.numeric(max(.data[[dateCol]], na.rm = T) -
+                                    min(.data[[dateCol]], na.rm = T)))
 
   # Look at date durations in the masked Israel dataset
   datesInIsrael <- datDFIsrael %>%
     as.data.frame() %>%
     dplyr::group_by(trackId) %>%
     dplyr::summarize(duration =
-                       as.numeric(max({{dateCol}}, na.rm = T) -
-                                    min({{dateCol}}, na.rm = T)))
+                       as.numeric(max(.data[[dateCol]], na.rm = T) -
+                                    min(.data[[dateCol]], na.rm = T)))
 
   # Compare the two dates and calculate proportion
-  datesCompare <- left_join(dates, datesInIsrael %>%
+  datesCompare <- dplyr::left_join(dates, datesInIsrael %>%
                               dplyr::select(trackId,
                                             "durationIsrael" = duration)) %>%
-    mutate(propIsrael = durationIsrael/duration) # compute proportion of days spent in Israel
+    dplyr::mutate(propIsrael = durationIsrael/duration) # compute proportion of days spent in Israel
 
   whichInIsraelLongEnough <- datesCompare %>%
     dplyr::filter(propIsrael > thresh) %>%
-    pull(trackId) %>%
+    dplyr::pull(trackId) %>%
     unique()
 
   return(whichInIsraelLongEnough)
@@ -124,7 +125,7 @@ createDirectedMatrices <- function(dataset, distThreshold, sim = SimlDataPntCnt,
   checkmate::assertSubset(columnsToSelect, names(dataset))
 
   # Start a progress bar
-  pb <- txtProgressBar(min = 0, max = max(dataset$timegroup),
+  pb <- utils::txtProgressBar(min = 0, max = max(dataset$timegroup),
                        initial = 0, style = 3)
 
   # For each time group: -----------------------------------------------------
@@ -241,7 +242,7 @@ createDirectedMatrices <- function(dataset, distThreshold, sim = SimlDataPntCnt,
                 "Dyadind", "dyadcnt", "timegroupDF"))
 
     # Update the progressbar
-    setTxtProgressBar(pb, i)
+    utils::setTxtProgressBar(pb, i)
 
   } # close loop over time groups
 
