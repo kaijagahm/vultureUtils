@@ -31,8 +31,7 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
 #' @export
 maskIsrael <- function(dataset, longCol = "location_long", latCol = "location_lat", crs){
   # read in the Israel mask
-  data("mask", envir = environment())
-  data("israelCRS", envir = environment())
+  data(mask)
 
   # check if the dataset is already an sf object
   issf <- checkmate::testClass(dataset, "sf")
@@ -47,9 +46,9 @@ maskIsrael <- function(dataset, longCol = "location_long", latCol = "location_la
   }
 
   # check the CRS: is it the same as the mask CRS?
-  same <- israelCRS == sf::st_crs(dataset_sf)
+  same <- sf::st_crs(mask) == sf::st_crs(dataset_sf)
   if(!same){
-    dataset_sf <- sf::st_transform(dataset_sf, crs = israelCRS)
+    dataset_sf <- sf::st_transform(dataset_sf, crs = sf::st_crs(mask))
   }
 
   # mask the dataset
