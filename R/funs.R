@@ -46,13 +46,13 @@ maskIsrael <- function(dataset, longCol = "location_long", latCol = "location_la
   }
 
   # check the CRS: is it the same as the mask CRS?
-  same <- sf::st_crs(maskIsrael) == sf::st_crs(dataset_sf)
+  same <- sf::st_crs(mask) == sf::st_crs(dataset_sf)
   if(!same){
-    dataset_sf <- sf::st_transform(dataset_sf, crs = sf::st_crs(maskIsrael))
+    dataset_sf <- sf::st_transform(dataset_sf, crs = sf::st_crs(mask))
   }
 
   # mask the dataset
-  masked <- dataset_sf[maskIsrael, , op = sf::st_intersects]
+  masked <- dataset_sf[mask, , op = sf::st_intersects]
 
   # return the masked dataset
   return(masked)
