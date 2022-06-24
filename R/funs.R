@@ -66,7 +66,7 @@ maskIsrael <- function(dataset, longCol = "location_long", latCol = "location_la
 #' @param thresh proportion (between 0 and 1) of a vulture's total tracked days that it spent in Israel
 #' @return A vector of trackIds for vultures
 #' @export
-mostlyInIsrael <- function(dataset, israelDataset, thresh, dateCol = "dateOnly"){
+mostlyInIsrael <- function(dataset, israelDataset, thresh = 0.333, dateCol = "dateOnly"){
   # check that the datasets contain "trackId" and `dateCol` columns
   checkmate::assertSubset("trackId", names(dataset))
   checkmate::assertSubset("trackId", names(israelDataset))

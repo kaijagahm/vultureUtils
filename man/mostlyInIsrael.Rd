@@ -4,7 +4,7 @@
 \alias{mostlyInIsrael}
 \title{Which mostly in Israel?}
 \usage{
-mostlyInIsrael(dataset, israelDataset, thresh, dateCol = "dateOnly")
+mostlyInIsrael(dataset, israelDataset, thresh = 0.333, dateCol = "dateOnly")
 }
 \arguments{
 \item{dataset}{the full dataset, before masking to Israel only}
