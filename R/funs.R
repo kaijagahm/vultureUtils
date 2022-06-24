@@ -132,6 +132,66 @@ mostlyInIsrael <- function(dataset, israelDataset, thresh = 0.333, dateCol = "da
   return(whichInIsraelLongEnough)
 }
 
+#' Clean data and extract metadata
+#'
+#' Extract metadata by tag, and filter/clean the dataset for speed, gps satellites, and heading
+#' @param df a data frame to filter
+#' @param speedLower a single numeric value, the lower limit for ground speed to be included (m/s)
+#' @param speedUpper a single numeric value, the upper limit for ground speed to be included (m/s)
+#' @return A list: "filteredData" = filtered dataset; "tagsMetadata" = tag-by-tag metadata
+#' @export
+cleanAndMetadata <- function(df, speedLower = NULL, speedUpper = NULL){
+  checkmate::assertDataFrame(df)
+  checkmate::assertNumeric(speedLower, null.ok = TRUE, len = 1)
+  checkmate::assertNumeric(speedUpper, null.ok = TRUE, len = 1)
+  checkmate::assertChoice("trackId", names(df))
+
+  # Split the dataset by individual
+  indivsList <- df %>%
+    as.data.frame() %>%
+    dplyr::mutate(trackId = as.character(trackId)) %>%
+    dplyr::group_by(trackId) %>%
+    split(f = as.factor(.$trackId))
+
+  # how many points for each individual, initially?
+  initialPoints <- unlist(lapply(indivsList, nrow))
+
+  # Apply filtering: speed, gps satellites, and heading
+  indivsListFiltered <- lapply(indivsList, function(x){
+    vultureUtils::filterLocs(x, speedThreshUpper = 120)
+  })
+
+  # how many points per individual after filtering?
+  finalPoints <- unlist(lapply(indivsListFiltered, nrow))
+
+  # save some metadata by tag
+  tagsMetadata1 <- data.frame(trackId = names(indivsList),
+                              initialPoints = initialPoints,
+                              finalPoints = finalPoints,
+                              propRemoved = (initialPoints-finalPoints)/initialPoints,
+                              row.names = NULL)
+
+  # save the rest of the metadata
+  indivsDFFiltered <- data.table::rbindlist(indivsListFiltered)
+  tagsMetadata2 <- indivsDFFiltered %>%
+    dplyr::group_by(trackId) %>%
+    dplyr::summarize(firstDay = min(dateOnly, na.rm = T),
+              lastDay = max(dateOnly, na.rm = T),
+              trackDurationDays = length(unique(dateOnly)), # number of unique days tracked
+              daysBetweenStartEnd = lastDay - firstDay) # total date range over which the individual was tracked
+
+  # join by trackId
+  if(nrow(tagsMetadata1) == nrow(tagsMetadata2)){
+    tagsMetadata <- dplyr::left_join(tagsMetadata1, tagsMetadata2, by = "trackId")
+  }else{
+    stop("Row counts don't match!")
+  }
+
+  # return
+  return(list("filteredData" = indivsDFFiltered,
+              "tagsMetadata" = tagsMetadata))
+}
+
 #' Filter locs
 #'
 #' Filter dataset for reasonableness
