@@ -1,4 +1,4 @@
-#' @importFrom rlang .data
+
 #' Data download
 #'
 #' Download vulture project data from the Israel vulture study Movebank repository, with some minor specifications. Note that you must specify your movebank credentials.
@@ -56,6 +56,53 @@ maskIsrael <- function(dataset, longCol = "location_long", latCol = "location_la
 
   # return the masked dataset
   return(masked)
+}
+
+#' Which mostly in Israel?
+#'
+#' Only include individuals that spent a certain proportion of their total time tracked in Israel
+#' @param dataset the full dataset, before masking to Israel only
+#' @param israelDataset the dataset after being masked to Israel (output of maskIsrael function)
+#' @param thresh proportion (between 0 and 1) of a vulture's total tracked days that it spent in Israel
+#' @return A vector of trackIds for vultures
+#' @export
+mostlyInIsrael <- function(dataset, israelDataset, thresh, dateCol = "dateOnly"){
+  # check that the datasets contain "trackId" and `dateCol` columns
+  checkmate::assertSubset("trackId", names(dataset))
+  checkmate::assertSubset("trackId", names(israelDataset))
+  checkmate::assertSubset(dateCol, names(dataset))
+  checkmate::assertSubset(dateCol, names(israelDataset))
+  # check that the `dateCol` columns actually are dates.
+  checkmate::assertDate(dataset[,dateCol])
+  checkmate::assertDate(israelDataset[,dateCol])
+
+  # Look at date durations in the full dataset
+  dates <- dataset %>%
+    dplyr::group_by(trackId) %>%
+    dplyr::summarize(duration =
+                       as.numeric(max({{dateCol}}, na.rm = T) -
+                                    min({{dateCol}}, na.rm = T)))
+
+  # Look at date durations in the masked Israel dataset
+  datesInIsrael <- datDFIsrael %>%
+    as.data.frame() %>%
+    dplyr::group_by(trackId) %>%
+    dplyr::summarize(duration =
+                       as.numeric(max({{dateCol}}, na.rm = T) -
+                                    min({{dateCol}}, na.rm = T)))
+
+  # Compare the two dates and calculate proportion
+  datesCompare <- left_join(dates, datesInIsrael %>%
+                              dplyr::select(trackId,
+                                            "durationIsrael" = duration)) %>%
+    mutate(propIsrael = durationIsrael/duration) # compute proportion of days spent in Israel
+
+  whichInIsraelLongEnough <- datesCompare %>%
+    dplyr::filter(propIsrael > thresh) %>%
+    pull(trackId) %>%
+    unique()
+
+  return(whichInIsraelLongEnough)
 }
 
 
@@ -156,14 +203,14 @@ createDirectedMatrices <- function(dataset, distThreshold, sim = SimlDataPntCnt,
 
     # Set interacting dyads ---------------------------------------------------
     InteractingSelf <- data.table::subset(DT, dist_km == 0 &
-                                as.character(ID) == as.character(ID2))
+                                            as.character(ID) == as.character(ID2))
     # just including self interactions once, not multiple times.
 
     InteractingSelf <- InteractingSelf[!duplicated(InteractingSelf$ID),]
     # just including self interactions once, not multiple times.
 
     InteractingDyads <- data.table::subset(DT, (dist_km <= distThreshold/1000) &
-                                 as.character(ID) != as.character(ID2))
+                                             as.character(ID) != as.character(ID2))
     # not including self interactions
     # only here, in the interacting dyads, do we check if a dyad was spatially proximate.
 
