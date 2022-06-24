@@ -31,7 +31,7 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
 #' @export
 maskIsrael <- function(dataset, longCol = "location_long", latCol = "location_lat", crs){
   # read in the Israel mask
-  load("data/mask.Rda")
+  data("mask", envir = environment())
 
   # check if the dataset is already an sf object
   issf <- checkmate::testClass(dataset, "sf")
