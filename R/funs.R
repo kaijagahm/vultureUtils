@@ -204,6 +204,11 @@ filterLocs <- function(df, speedThreshLower = NULL, speedThreshUpper = NULL){
   # check that df is a data frame
   checkmate::assertDataFrame(df)
 
+  # filter out bad gps data
+  checkmate::assertChoice("gps_time_to_fix", names(df))
+  df <- df %>%
+    dplyr::filter(gps_time_to_fix <= 89)
+
   # filter out bad heading data
   checkmate::assertChoice("heading", names(df))
   df <- df %>%
@@ -377,4 +382,56 @@ createDirectedMatrices <- function(dataset, distThreshold, sim = SimlDataPntCnt,
 
   return(list("SimlDataPntCnt" = sim, "CoocurCountr" = co))
 }
+
+#' Buffer feeding sites
 #'
+#' Buffer feeding sites by a specified number of meters
+#' @param feedingSites a data frame or an sf object
+#' @param feedingBuffer how much to buffer the feeding site, in m
+#' @param crsToSet if `feedingSites` is a data frame, what CRS to pass to sf::st_set_crs() (NOT transform!). If `feedingSites` is already an sf object, `crsToSet` will be overridden by whatever the object's CRS is, unless it is NA.
+#' @param returnCRS either "WGS84" (default) or "m" (returns in 32636, aka UTM36)
+#' @param lat if `feedingSites` is a data frame, the name of the column to use for latitude
+#' @param long if `feedingSites` is a data frame, the name of the column to use for longitude
+#' @return sf object containing feeding site polygons, buffered
+#' @export
+bufferFeedingSites <- function(feedingSites, feedingBuffer = 100,
+                               setCRS = "WGS84",
+                               returnCRS = "WGS84", latCol = "lat",
+                               longCol = "long"){
+
+  # Set up an sf object for use.
+  if("sf" %in% class(feedingSites)){ # If feedingSites is an sf object...
+    if(is.na(sf::st_crs(feedingSites))){ # only fill in crs if it is missing
+      message(paste0("`feedingSites` is already an sf object but has no CRS. Setting CRS to ", crsToSet, "."))
+      feedingSites <- sf::st_set_crs(feedingSites, crsToSet)
+    }
+  }else if(is.data.frame(feedingSites)){ # otherwise, if feedingSites is a data frame...
+    # make sure it contains the lat and long cols
+    checkmate::assertChoice(latCol, names(feedingSites))
+    checkmate::assertChoice(longCol, names(feedingSites))
+
+    # convert to an sf object
+    feedingSites <- feedingSites %>%
+      sf::st_as_sf(coords = c(longCol, latCol)) %>%
+      sf::st_set_crs(crsToSet) # assign the CRS
+
+  }else{ # otherwise, throw an error.
+    stop("`feedingSites` must be a data frame or an sf object.")
+  }
+
+  # Transform to meter-based CRS, using UTM region 36 (Israel), which is 32636.
+  feedingSitesMeters <- feedingSites %>%
+    sf::st_transform(32636)
+
+  # Buffer
+  checkmate::assertNumeric(feedingBuffer, len = 1)
+  feedingSitesBuffered <- sf::st_buffer(feedingSitesMeters, feedingBuffer) %>%
+    sf::st_union() %>%
+    sf::st_cast("POLYGON") # make the buffered areas into polygons
+
+  # Return polygons in the appropriate crs
+  toReturn <- feedingSitesBuffered %>%
+    sf::st_transform(returnCRS)
+
+  return(toReturn)
+}
