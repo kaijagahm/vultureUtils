@@ -65,7 +65,7 @@ maskIsrael <- function(dataset, longCol = "location_long", latCol = "location_la
   # if not, convert it to an sf object
   if(issf == FALSE){
     checkmate::assertSubset(x = c(longCol, latCol), choices = names(dataset))
-    dataset_sf <- sf::st_as_sf(dataset, coords = c(longCol, latCol))
+    dataset_sf <- sf::st_as_sf(dataset, coords = c(longCol, latCol), remove = FALSE)
     dataset_sf <- sf::st_set_crs(dataset_sf, value = crs)
   }else{
     dataset_sf <- dataset
@@ -250,10 +250,10 @@ filterLocs <- function(df, speedThreshLower = NULL, speedThreshUpper = NULL){
 #' @param co #  number of co-occurrences? not sure about this one either.
 #' @return A list: "SimlDataPntCnt" = sim, "CoocurCountr" = co
 #' @export
-createDirectedMatrices <- function(dataset, distThreshold, sim = SimlDataPntCnt, co = CoocurCountr){
+createDirectedMatrices <- function(dataset, distThreshold, sim = SimlDataPntCnt, co = CoocurCountr, latCol = "location_lat", longCol = "location_long"){
   checkmate::assertDataFrame(dataset)
 
-  columnsToSelect <- c("ID", "coords.x2", "coords.x1", "Easting",
+  columnsToSelect <- c("ID", latCol, longCol, "Easting",
                        "Northing", "timegroup", "group")
 
   checkmate::assertSubset(columnsToSelect, names(dataset))
@@ -412,7 +412,7 @@ bufferFeedingSites <- function(feedingSites, feedingBuffer = 100,
 
     # convert to an sf object
     feedingSites <- feedingSites %>%
-      sf::st_as_sf(coords = c(longCol, latCol)) %>%
+      sf::st_as_sf(coords = c(longCol, latCol), remove = FALSE) %>%
       sf::st_set_crs(crsToSet) # assign the CRS
 
   }else{ # otherwise, throw an error.
