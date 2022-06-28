@@ -132,6 +132,83 @@ mostlyInIsrael <- function(dataset, israelDataset, thresh = 0.333, dateCol = "da
   return(whichInIsraelLongEnough)
 }
 
+#' Create directed matrices (revised)
+#'
+#' Revised version of Nitika's function. In beta.
+#' @param dataset a time-grouped dataset to operate on. Must be a data frame.
+#' @param distThreshold a distance threshold for interactions (m)
+#' @param latCol character; the name of the column containing the latitude coordinates (WGS84 assumed). Default is "location_lat".
+#' @param longCol character; the name of the column containing the longitude coordinates (WGS84 assumed). Default is "location_long".
+#' @param idCol character; the name of the column containing unique individual identifiers. Default is "trackId".
+#' @return A list of edge lists (one per time group)
+#' @export
+createDirectedMatricesRevised <- function(dataset, distThreshold, latCol = "location_lat",
+                                   longCol = "location_long", idCol = "trackId"){
+  checkmate::assertDataFrame(dataset)
+  checkmate::assertCharacter(latCol, len = 1)
+  checkmate::assertCharacter(longCol, len = 1)
+  checkmate::assertCharacter(idCol, len = 1)
+  columnsToSelect <- c(idCol, latCol, longCol, "timegroup")
+
+  checkmate::assertSubset(columnsToSelect, names(dataset))
+
+  # Start a progress bar
+  pb <- utils::txtProgressBar(min = 0, max = max(dataset$timegroup),
+                              initial = 0, style = 3)
+
+  # List for storing the interaction data
+  interactions <- vector(mode = "list", length = max(dataset$timegroup))
+
+  # For each time group: -----------------------------------------------------
+  for(grp in unique(dataset$timegroup)){ # loop on all time groups
+    # extract current time group
+    timegroupDF <- dataset %>%
+      dplyr::filter(timegroup == grp) %>%
+      dplyr::select(all_of(columnsToSelect)) %>%
+      as.data.frame()
+
+    # If there are rows:
+    if(nrow(timegroupDF) > 1){
+      # Compute dyads and distances ---------------------------------------------
+      # Put each vulture with each other vulture so that their locations can be compared to see who was close to each other:
+      g1 <- timegroupDF[rep(1:nrow(timegroupDF), nrow(timegroupDF)),]
+      g2 <- timegroupDF[rep(1:nrow(timegroupDF), each = nrow(timegroupDF)),]
+
+      dist_geo <- geosphere::distGeo(g1[,c(longCol, latCol)],
+                          g2[,c(longCol, latCol)]) # vector of meter distances. Default is WGS84.
+      # `distGeo` is a highly accurate estimate of the shortest distance between two points on an ellipsoid (default is WGS84 ellipsoid). The shortest path between two points on an ellipsoid is called the geodesic.
+
+      # Create all possible dyads of vultures
+      dyadsDF <- data.frame(ID1 = g1$trackId,
+                            ID2 = g2$trackId,
+                            distGeo = dist_geo)
+
+      # Remove duplicates and self
+      dyadsDF <- dyadsDF %>%
+        dplyr::filter(ID1 < ID2)
+
+      interactingDyads <- dyadsDF %>%
+        dplyr::filter(distGeo <= distThreshold) # distThreshold should be in meters
+    }else{
+      # create empty data frame
+      interactingDyads <- data.frame(ID1 = character(),
+                                     ID2 = character(),
+                                     distGeo = numeric())
+    }
+
+    # Add the element to the list
+    interactions[[i]] <- interactingDyads
+
+    # Update the progressbar
+    utils::setTxtProgressBar(pb, i)
+
+  } # close loop over time groups
+  names(interactions) <- unique(dataset$timegroup)
+
+  return(interactions)
+}
+
+
 #' Clean data and extract metadata
 #'
 #' Extract metadata by tag, and filter/clean the dataset for speed, gps satellites, and heading
@@ -158,7 +235,8 @@ cleanAndMetadata <- function(df, speedLower = NULL, speedUpper = NULL){
 
   # Apply filtering: speed, gps satellites, and heading
   indivsListFiltered <- lapply(indivsList, function(x){
-    vultureUtils::filterLocs(x, speedThreshUpper = 120)
+    vultureUtils::filterLocs(x, speedThreshUpper = speedUpper,
+                             speedThreshLower = speedLower)
   })
 
   # how many points per individual after filtering?

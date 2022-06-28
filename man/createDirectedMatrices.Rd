@@ -8,7 +8,9 @@ createDirectedMatrices(
   dataset,
   distThreshold,
   sim = SimlDataPntCnt,
-  co = CoocurCountr
+  co = CoocurCountr,
+  latCol = "location_lat",
+  longCol = "location_long"
 )
 }
 \arguments{
