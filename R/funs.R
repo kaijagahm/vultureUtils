@@ -197,6 +197,7 @@ createDirectedMatricesRevised <- function(dataset, distThreshold, latCol = "loca
     }
 
     # Add the element to the list
+    i <- which(unique(timegroupDF$timegroup) == grp)
     interactions[[i]] <- interactingDyads
 
     # Update the progressbar
