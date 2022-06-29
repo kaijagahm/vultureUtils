@@ -143,7 +143,7 @@ mostlyInIsrael <- function(dataset, israelDataset, thresh = 0.333, dateCol = "da
 #' @return A list of edge lists (one per time group)
 #' @export
 createDirectedMatricesRevised <- function(dataset, distThreshold, latCol = "location_lat",
-                                   longCol = "location_long", idCol = "trackId"){
+                                          longCol = "location_long", idCol = "trackId"){
   checkmate::assertDataFrame(dataset)
   checkmate::assertCharacter(latCol, len = 1)
   checkmate::assertCharacter(longCol, len = 1)
@@ -175,7 +175,7 @@ createDirectedMatricesRevised <- function(dataset, distThreshold, latCol = "loca
       g2 <- timegroupDF[rep(1:nrow(timegroupDF), each = nrow(timegroupDF)),]
 
       dist_geo <- geosphere::distGeo(g1[,c(longCol, latCol)],
-                          g2[,c(longCol, latCol)]) # vector of meter distances. Default is WGS84.
+                                     g2[,c(longCol, latCol)]) # vector of meter distances. Default is WGS84.
       # `distGeo` is a highly accurate estimate of the shortest distance between two points on an ellipsoid (default is WGS84 ellipsoid). The shortest path between two points on an ellipsoid is called the geodesic.
 
       # Create all possible dyads of vultures
@@ -293,9 +293,9 @@ cleanAndMetadata <- function(df, speedLower = NULL, speedUpper = NULL){
   tagsMetadata2 <- indivsDFFiltered %>%
     dplyr::group_by(trackId) %>%
     dplyr::summarize(firstDay = min(dateOnly, na.rm = T),
-              lastDay = max(dateOnly, na.rm = T),
-              trackDurationDays = length(unique(dateOnly)), # number of unique days tracked
-              daysBetweenStartEnd = lastDay - firstDay) # total date range over which the individual was tracked
+                     lastDay = max(dateOnly, na.rm = T),
+                     trackDurationDays = length(unique(dateOnly)), # number of unique days tracked
+                     daysBetweenStartEnd = lastDay - firstDay) # total date range over which the individual was tracked
 
   # join by trackId
   if(nrow(tagsMetadata1) == nrow(tagsMetadata2)){
@@ -551,4 +551,133 @@ bufferFeedingSites <- function(feedingSites, feedingBuffer = 100,
     sf::st_transform(crsToReturn)
 
   return(toReturn)
+}
+
+#' Make a list of networks, given a time interval
+#'
+#' Inputs: a data frame containing time-grouped edges, and given an interval for making the networks. This function separates the data frame into a list of edge lists according to the provided time interval. Then, it generates a network (weighted or unweighted) for each of the edge lists. Note that depending on whether or not `interval` divides evenly into the range between `dateTimeStart` and `dateTimeEnd`, the last graph may be created from a smaller time period than the other graphs.
+#' @param edges a data frame containing edges and their associated `timegroup`s.
+#' @param fullData a data frame containing the `timegroup` column and `timestamp`s of vulture relocations. This will be used to classify timegroups by interval.
+#' @param interval A character string specifying an interval such as "3 days" or "2 hours" or "1 month" or "1.5 hours" or "3 days 2 hours". Interval will be coerced to a duration object using lubridate::as.duration()
+#' @param dateTimeStart the dateTime object that defines the beginning of the time period to be divided. If not specified, defaults to the earliest `timestamp` in `fullData`. Must be in one of the following formats: "YYYY-MM-DD hh:mm:ss" or "YYYY-MM-DD hh:mm" or "YYYY-MM-DD". Hours must use 24 hour time--e.g. 5:00 pm would be 17:00.
+#' @param dateTimeEnd the dateTime object that defines the end of the time period to be divided. If not specified, defaults to the latest `timestamp` in `fullData`. Must be in one of the following formats: "YYYY-MM-DD hh:mm:ss" or "YYYY-MM-DD hh:mm" or "YYYY-MM-DD". Hours must use 24 hour time--e.g. 5:00 pm would be 17:00.
+#' @param id1Col name of the column in `edges` containing the ID of the first individual in a dyad
+#' @param id2Col name of the column in `edges` containing the ID of the second individual in a dyad
+#' @param weighted whether or not the resulting graphs should have weights attached
+#' @return A list of igraph graph objects
+#' @export
+makeGraphs <- function(edges, fullData, interval, dateTimeStart = NULL,
+                       dateTimeEnd = NULL, id1Col = "ID1", id2Col = "ID2",
+                       weighted = FALSE, dropFinalGraph = FALSE){
+  # Some basic argument checks
+  checkmate::assertLogical(weighted, len = 1)
+  checkmate::assertLogical(dropFinalGraph, len = 1)
+
+  # use `fulldata` to get min and max timestamps for each timegroup.
+  checkmate::assertDataFrame(fullData)
+  checkmate::assertChoice("timegroup", names(fullData))
+  checkmate::assertChoice("timestamp", names(fullData))
+  timegroupInfo <- fullData %>%
+    dplyr::select(timegroup, timestamp) %>%
+    dplyr::group_by(timegroup) %>%
+    dplyr::summarize(minDatetime = min(timestamp),
+                     maxDatetime = max(timestamp))
+
+  # Check that the user-defined time interval is coercible to a duration
+  int <- lubridate::as.duration(interval)
+  if(is.na(int)){
+    stop("Argument `interval` could not be expressed as a duration: lubridate::as.duration() returned NA. Please make sure you are specifying a valid interval, such as '1 day', '3 hours', '2 weeks', etc.")
+  }
+  checkmate::assertClass(int, "Duration")
+
+  # Either assign dateTimeStart and dateTimeEnd, or coerce the user-provided inputs to lubridate datetimes.
+  if(is.null(dateTimeStart)){
+    dateTimeStart <- min(fullData$timestamp)
+    warning(paste0("No start datetime provided. Using earliest `timestamp` from `fullData`, which is ", dateTimeStart, "."))
+  }
+  if(is.null(dateTimeEnd)){
+    dateTimeEnd <- max(fullData$timestamp)
+    warning(paste0("No end datetime provided. Using latest `timestamp` from `fullData`, which is ", dateTimeEnd, "."))
+  }
+
+  start <- lubridate::parse_date_time(dateTimeStart, orders = c("%Y%m%d %H%M%S", "%Y%m%d %H%M", "%Y%m%d"))
+  if(is.na(start)){
+    stop("`dateTimeStart` could not be parsed. Please make sure you have used one of the following formats: YYYY-MM-DD hh:mm:ss, YYYY-MM-DD hh:mm, or YYYY-MM-DD.")
+  }
+  end <- lubridate::parse_date_time(dateTimeEnd, orders = c("%Y%m%d %H%M%S", "%Y%m%d %H%M", "%Y%m%d"))
+  if(is.na(end)){
+    stop("`dateTimeEnd` could not be parsed. Please make sure you have used one of the following formats: YYYY-MM-DD hh:mm:ss, YYYY-MM-DD hh:mm, or YYYY-MM-DD.")
+  }
+
+  # Separate sequences by user-defined time interval
+  # append the first and last dates to the data frame
+  timegroupInfo <- timegroupInfo %>%
+    tibble::add_row(minDatetime = start, .before = 1) %>%
+    tibble::add_row(minDatetime = end)
+
+  # Now use `cut` and `seq` to group the data
+  breaks <- seq(from = start, to = end, by = int)
+  groupedTimegroups <- timegroupInfo %>%
+    dplyr::mutate(interval = cut(minDatetime, breaks)) %>%
+    dplyr::select(timegroup, interval)
+
+  # Join this information to the original data
+  checkmate::assertDataFrame(edges)
+  checkmate::assertChoice(id1Col, names(edges))
+  checkmate::assertChoice(id2Col, names(edges))
+  checkmate::assertChoice("timegroup", names(edges))
+  dataList <- edges %>%
+    ungroup() %>%
+    dplyr::select(.data[[id1Col]], .data[[id2Col]], timegroup) %>%
+    dplyr::left_join(groupedTimegroups, by = "timegroup") %>%
+    dplyr::group_by(interval) %>%
+    dplyr::group_split()
+
+  # Now make the networks, calling vultureUtils::makeGraphsList().
+  networks <- vultureUtils::makeGraphsList(dataList = dataList, weighted = weighted, id1Col = id1Col, id2Col = id2Col)
+
+  # return the list of graphs and associated data
+  return(networks)
+}
+
+#' Make a list of graphs
+#'
+#' Creates a list of igraph graphs (and the data to go along with them) from a list of edgelists.
+#' @param dataList a list of edge lists (data frames).
+#' @param weighted whether or not the resulting graphs should have weights attached
+#' @param id1Col name of the column containing the ID of the first individual in a dyad
+#' @param id2Col name of the column containing the ID of the second individual in a dyad
+#' @return A list of igraph graph objects
+#' @export
+makeGraphsList <- function(dataList, weighted = FALSE, id1Col = "ID1", id2Col = "ID2"){
+  # Simplify the list down to just the columns needed
+  simplified <- lapply(dataList, function(x){
+    x <- x %>%
+      dplyr::select(.data[[id1Col]], .data[[id2Col]])
+  })
+
+  # Make graphs differently depending on whether weighted == FALSE or weighted == TRUE.
+  if(weighted == FALSE){
+    simplified <- lapply(simplified, function(x){
+      x <- x %>%
+        dplyr::distinct()
+    })
+    gs <- lapply(simplified, function(x){
+      graph_from_data_frame(d = x, directed = FALSE)
+    })
+  }else{
+    simplified <- lapply(simplified, function(x){
+      x <- x %>%
+        dplyr::mutate(weight = 1) %>%
+        dplyr::group_by(.data[[id1Col]], .data[[id2Col]]) %>%
+        dplyr::summarize(weight = sum(weight)) %>%
+        dplyr::ungroup()
+    })
+    gs <- lapply(simplified, function(x){
+      igraph::graph_from_data_frame(d = x, directed = FALSE)
+    })
+  }
+
+  # return a list of graphs and the data to go along with them
+  return(list("graphs" = gs, "simplifiedData" = simplified))
 }
