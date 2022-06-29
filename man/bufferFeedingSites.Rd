@@ -20,11 +20,11 @@ bufferFeedingSites(
 
 \item{crsToSet}{if `feedingSites` is a data frame, what CRS to pass to sf::st_set_crs() (NOT transform!). If `feedingSites` is already an sf object, `crsToSet` will be overridden by whatever the object's CRS is, unless it is NA.}
 
-\item{returnCRS}{either "WGS84" (default) or "m" (returns in 32636, aka UTM36)}
+\item{crsToReturn}{either "WGS84" (default) or "m" (returns in 32636, aka UTM36)}
 
-\item{lat}{if `feedingSites` is a data frame, the name of the column to use for latitude}
+\item{latCol}{if `feedingSites` is a data frame, the name of the column to use for latitude}
 
-\item{long}{if `feedingSites` is a data frame, the name of the column to use for longitude}
+\item{longCol}{if `feedingSites` is a data frame, the name of the column to use for longitude}
 }
 \value{
 sf object containing feeding site polygons, buffered

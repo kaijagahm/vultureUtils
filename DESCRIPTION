@@ -15,10 +15,13 @@ Imports:
     data.table,
     dplyr,
     geosphere,
+    igraph,
     lubridate,
     magrittr,
     move,
     reshape,
-    sf
+    sf,
+    tibble,
+    utils
 Depends: 
     R (>= 2.10)

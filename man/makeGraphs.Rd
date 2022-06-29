@@ -12,8 +12,7 @@ makeGraphs(
   dateTimeEnd = NULL,
   id1Col = "ID1",
   id2Col = "ID2",
-  weighted = FALSE,
-  dropFinalGraph = FALSE
+  weighted = FALSE
 )
 }
 \arguments{

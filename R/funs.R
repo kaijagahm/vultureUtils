@@ -506,9 +506,9 @@ createDirectedMatrices <- function(dataset, distThreshold, sim = SimlDataPntCnt,
 #' @param feedingSites a data frame or an sf object
 #' @param feedingBuffer how much to buffer the feeding site, in m
 #' @param crsToSet if `feedingSites` is a data frame, what CRS to pass to sf::st_set_crs() (NOT transform!). If `feedingSites` is already an sf object, `crsToSet` will be overridden by whatever the object's CRS is, unless it is NA.
-#' @param returnCRS either "WGS84" (default) or "m" (returns in 32636, aka UTM36)
-#' @param lat if `feedingSites` is a data frame, the name of the column to use for latitude
-#' @param long if `feedingSites` is a data frame, the name of the column to use for longitude
+#' @param crsToReturn either "WGS84" (default) or "m" (returns in 32636, aka UTM36)
+#' @param latCol if `feedingSites` is a data frame, the name of the column to use for latitude
+#' @param longCol if `feedingSites` is a data frame, the name of the column to use for longitude
 #' @return sf object containing feeding site polygons, buffered
 #' @export
 bufferFeedingSites <- function(feedingSites, feedingBuffer = 100,
@@ -568,10 +568,9 @@ bufferFeedingSites <- function(feedingSites, feedingBuffer = 100,
 #' @export
 makeGraphs <- function(edges, fullData, interval, dateTimeStart = NULL,
                        dateTimeEnd = NULL, id1Col = "ID1", id2Col = "ID2",
-                       weighted = FALSE, dropFinalGraph = FALSE){
+                       weighted = FALSE){
   # Some basic argument checks
   checkmate::assertLogical(weighted, len = 1)
-  checkmate::assertLogical(dropFinalGraph, len = 1)
 
   # use `fulldata` to get min and max timestamps for each timegroup.
   checkmate::assertDataFrame(fullData)
