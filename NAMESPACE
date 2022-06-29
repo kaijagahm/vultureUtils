@@ -3,6 +3,7 @@
 export("%>%")
 export(bufferFeedingSites)
 export(cleanAndMetadata)
+export(consecEdges)
 export(createDirectedMatrices)
 export(createDirectedMatricesRevised)
 export(downloadVultures)

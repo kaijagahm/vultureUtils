@@ -209,6 +209,37 @@ createDirectedMatricesRevised <- function(dataset, distThreshold, latCol = "loca
   return(interactions)
 }
 
+#' Filter edge list to exclude too few consecutive occurrences
+#'
+#' This function takes an edge list (a data frame) containing *ONE-WAY* edges (i.e. with self edges already removed, and with duplicates not included--already reduced to A-B only, not A-B and B-A). If the edge list contains duplicate edges (A-B and B-A), they will be treated separately. Data must already include timegroups.
+#' @param edgeList edge list to work with
+#' @param consecThreshold in how many consecutive time groups must the two individuals interact in order to be included?
+#' @param id1Col column containing the ID of the first individual
+#' @param id2Col column containing the ID of the second individual
+#' @param timegroupCol column containing time groups (integer values), returned by spatsoc functions
+#' @return An edge list (data frame) containing only edges that occurred in at least `consecThreshold` consecutive time groups.
+#' @export
+consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = "ID2", timegroupCol = "timegroup"){
+  checkmate::assertDataFrame(edgeList)
+  checkmate::assertInteger(edgeList[[timegroupCol]])
+
+  # do the filtering
+  consec <- edges %>%
+    # for each edge, arrange by timegroup
+    dplyr::group_by(.data[[id1Col]], .data[[id2Col]]) %>%
+    dplyr::arrange(.data[[timegroupCol]], .by_group = TRUE) %>%
+
+    # create a new index grp that groups rows into consecutive runs
+    dplyr::mutate(grp = cumsum(c(1, diff(.data[[timegroupCol]]) != 1))) %>%
+    dplyr::ungroup() %>%
+
+    # group by the new `grp` column and remove any `grp`s that have less than `consecThreshold` rows (i.e. less than `consecThreshold` consecutive time groups for that edge)
+    dplyr::group_by(.data[[id1Col]], .data[[id2Col]], grp) %>%
+    dplyr::filter(dplyr::n() >= consecThreshold)
+
+  return(consec)
+}
+
 
 #' Clean data and extract metadata
 #'
