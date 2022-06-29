@@ -238,7 +238,13 @@ consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = 
     dplyr::group_by(.data[[id1Col]], .data[[id2Col]], grp) %>%
     dplyr::filter(dplyr::n() >= consecThreshold)
 
-  return(consec)
+  if(returnGroups == FALSE){
+    consec <- consec %>%
+      dplyr::select(-grp)
+    return(consec)
+  }else{
+    return(consec)
+  }
 }
 
 
