@@ -11,10 +11,13 @@ Encoding: UTF-8
 LazyData: true
 RoxygenNote: 7.2.0
 Imports: 
+    animation,
     checkmate,
     data.table,
     dplyr,
     geosphere,
+    ggplot2,
+    ggraph,
     igraph,
     lubridate,
     magrittr,

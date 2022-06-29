@@ -132,83 +132,6 @@ mostlyInIsrael <- function(dataset, israelDataset, thresh = 0.333, dateCol = "da
   return(whichInIsraelLongEnough)
 }
 
-#' Create directed matrices (revised)
-#'
-#' Revised version of Nitika's function. In beta.
-#' @param dataset a time-grouped dataset to operate on. Must be a data frame.
-#' @param distThreshold a distance threshold for interactions (m)
-#' @param latCol character; the name of the column containing the latitude coordinates (WGS84 assumed). Default is "location_lat".
-#' @param longCol character; the name of the column containing the longitude coordinates (WGS84 assumed). Default is "location_long".
-#' @param idCol character; the name of the column containing unique individual identifiers. Default is "trackId".
-#' @return A list of edge lists (one per time group)
-#' @export
-createDirectedMatricesRevised <- function(dataset, distThreshold, latCol = "location_lat",
-                                          longCol = "location_long", idCol = "trackId"){
-  checkmate::assertDataFrame(dataset)
-  checkmate::assertCharacter(latCol, len = 1)
-  checkmate::assertCharacter(longCol, len = 1)
-  checkmate::assertCharacter(idCol, len = 1)
-  columnsToSelect <- c(idCol, latCol, longCol, "timegroup")
-
-  checkmate::assertSubset(columnsToSelect, names(dataset))
-
-  # Start a progress bar
-  pb <- utils::txtProgressBar(min = 0, max = max(dataset$timegroup),
-                              initial = 0, style = 3)
-
-  # List for storing the interaction data
-  interactions <- vector(mode = "list", length = max(dataset$timegroup))
-
-  # For each time group: -----------------------------------------------------
-  for(grp in unique(dataset$timegroup)){ # loop on all time groups
-    # extract current time group
-    timegroupDF <- dataset %>%
-      dplyr::filter(timegroup == grp) %>%
-      dplyr::select(all_of(columnsToSelect)) %>%
-      as.data.frame()
-
-    # If there are rows:
-    if(nrow(timegroupDF) > 1){
-      # Compute dyads and distances ---------------------------------------------
-      # Put each vulture with each other vulture so that their locations can be compared to see who was close to each other:
-      g1 <- timegroupDF[rep(1:nrow(timegroupDF), nrow(timegroupDF)),]
-      g2 <- timegroupDF[rep(1:nrow(timegroupDF), each = nrow(timegroupDF)),]
-
-      dist_geo <- geosphere::distGeo(g1[,c(longCol, latCol)],
-                                     g2[,c(longCol, latCol)]) # vector of meter distances. Default is WGS84.
-      # `distGeo` is a highly accurate estimate of the shortest distance between two points on an ellipsoid (default is WGS84 ellipsoid). The shortest path between two points on an ellipsoid is called the geodesic.
-
-      # Create all possible dyads of vultures
-      dyadsDF <- data.frame(ID1 = g1$trackId,
-                            ID2 = g2$trackId,
-                            distGeo = dist_geo)
-
-      # Remove duplicates and self
-      dyadsDF <- dyadsDF %>%
-        dplyr::filter(ID1 < ID2)
-
-      interactingDyads <- dyadsDF %>%
-        dplyr::filter(distGeo <= distThreshold) # distThreshold should be in meters
-    }else{
-      # create empty data frame
-      interactingDyads <- data.frame(ID1 = character(),
-                                     ID2 = character(),
-                                     distGeo = numeric())
-    }
-
-    # Add the element to the list
-    i <- which(unique(timegroupDF$timegroup) == grp)
-    interactions[[i]] <- interactingDyads
-
-    # Update the progressbar
-    utils::setTxtProgressBar(pb, i)
-
-  } # close loop over time groups
-  names(interactions) <- unique(dataset$timegroup)
-
-  return(interactions)
-}
-
 #' Filter edge list to exclude too few consecutive occurrences
 #'
 #' This function takes an edge list (a data frame) containing *ONE-WAY* edges (i.e. with self edges already removed, and with duplicates not included--already reduced to A-B only, not A-B and B-A). If the edge list contains duplicate edges (A-B and B-A), they will be treated separately. Data must already include timegroups.
@@ -355,149 +278,6 @@ filterLocs <- function(df, speedThreshLower = NULL, speedThreshUpper = NULL){
     df <- df %>%
       dplyr::filter(ground_speed < speedThreshUpper)
   }
-}
-
-
-#' Create directed matrices
-#'
-#' Create directed matrices from vulture data
-#' @param dataset the vulture dataset
-#' @param distThreshold distance threshold for what is considered an "interaction"
-#' @param sim # number of simulations?? not sure about this one.
-#' @param co #  number of co-occurrences? not sure about this one either.
-#' @return A list: "SimlDataPntCnt" = sim, "CoocurCountr" = co
-#' @export
-createDirectedMatrices <- function(dataset, distThreshold, sim = SimlDataPntCnt, co = CoocurCountr, latCol = "location_lat", longCol = "location_long"){
-  checkmate::assertDataFrame(dataset)
-
-  columnsToSelect <- c("ID", latCol, longCol, "Easting",
-                       "Northing", "timegroup", "group")
-
-  checkmate::assertSubset(columnsToSelect, names(dataset))
-
-  # Start a progress bar
-  pb <- utils::txtProgressBar(min = 0, max = max(dataset$timegroup),
-                              initial = 0, style = 3)
-
-  # For each time group: -----------------------------------------------------
-  for(i in 1:max(dataset$timegroup)){ # loop on all time groups
-
-    # extract current time group
-    timegroupDF <- dataset %>%
-      dplyr::filter(timegroup == i) %>%
-      dplyr::select(all_of(columnsToSelect))
-
-    # Compute dyads and distances ---------------------------------------------
-    # working within this time group: dyads and distances. Now we don't need `timegroup` but instead `group` (spatiotemporal).
-    # further subset columns of interest
-    timegroupDF <- timegroupDF %>%
-      dplyr::filter(timegroup == i) %>%
-      dplyr::select(ID, coords.x2, coords.x1, group)
-    # these vultures were observed around the same time on the same day.
-
-    # Put each vulture with each other vulture so that their locations can be compared to see who was close to each other:
-    DT <- reshape::expand.grid.df(timegroupDF, timegroupDF)
-
-    # Rename columns
-    names(DT)[5:7] <- c("ID2", "lat_secondInd", "long_secondInd")
-    # XXX KG note: should re-do this with a method other than numerical indexing.
-
-    data.table::setDT(DT)[, dist_km := geosphere::distGeo(matrix(c(coords.x1, coords.x2), ncol = 2),
-                                                          matrix(c(long_secondInd, lat_secondInd),
-                                                                 ncol = 2))/1000]
-    # using `setDT` here instead of `as.data.table` because big lists/dataframes make copies first and then perform a function and can thus take a long time and a lot of memory.
-    # `dist_km` finds the shortest distance between two points, i.e. latlong of ID and ID2. So those with self would obviously give dist_km == 0.
-    # `distGeo` is a highly accurate estimate of the shortest distance between two points on an ellipsoid (default is WGS84 ellipsoid). The shortest path between two points on an ellipsoid is called the geodesic.
-
-
-    # create all possible dyads of vultures in a long format:
-
-    # XXX KG what's going on here? could probably make this code more efficient.
-    # Identify all self-association dyads with zero inter-location distance and same ID's.
-    presentVultures <- DT %>%
-      dplyr::filter(dist_km == 0 & as.character(ID) == as.character(ID2)) %>%
-      dplyr::select(ID, ID2)
-
-    # These are the vultures present in this time group - selecting only ID and ID2 i.e. columns 1 & 5
-    presentVultures <- as.data.frame(unique(presentVultures$ID)) # all self-associating dyads
-
-    presentVultures <- reshape::expand.grid.df(presentVultures, presentVultures, unique = F)
-    # transform back to rows of ID1 = ID2.
-    # these are the dyads that have concurrent time point
-    names(presentVultures) <- c("ID", "ID2") # these are all the vultures whose location was recorded around the same time including self.
-
-
-    # Loop on current dyads (including self) to update co-occurrences ---------
-    for(dyadcnt in 1:nrow(presentVultures)){ # length just half since each dyad is counted twice AB and BA
-      Dyadind <- which(sim$ID == presentVultures$ID[dyadcnt] &
-                         sim$ID2 == presentVultures$ID2[dyadcnt])
-      # In the above line: just identifying which row in the empty sim ID1 and ID2 dyads are the same as PresentVulture for one timegroup at a time.
-      #identified all rows of self AND non-self association in same timegroup and 0 distance in sim (SimlDataPntCnt)
-      ##gives which row number in sim (SimlDataPntCnt) has the same dyad
-      #Nitika - Identified all dyads from presentVultures by subsetting all rows that had dist_km=0 and self-association
-
-      sim$counter[Dyadind] <- sim$counter[Dyadind] + 1 # Dyadind is the row number with that dyad
-      # addint 1 to the frequency such that this dyad could've hung out close to each other because they were around at the same time.
-
-      # add another (1) tallymark to counter in front of the dyad every time the pair co-occurs in time
-    } # for loop on current dyads
-
-    # Since self dyads appear only once, they should also be counted twice like AB and BA
-    SelfDyad <- which(presentVultures$ID == presentVultures$ID2) # since self dyads appear only once, another loop on them, so the diag will be counted twice like the rest.
-
-    for(dyadcnt in SelfDyad){
-      Dyadind <- which(sim$ID == presentVultures$ID[dyadcnt] &
-                         sim$ID2 == presentVultures$ID2[dyadcnt])
-      #sim$counter[Dyadind] <- sim$counter[Dyadind] + 1
-      # Nitika: avoiding counting self dyads twice because we aren't keeping directed edges for non-self
-    }
-
-
-    # Set interacting dyads ---------------------------------------------------
-    InteractingSelf <- data.table::subset(DT, dist_km == 0 &
-                                            as.character(ID) == as.character(ID2))
-    # just including self interactions once, not multiple times.
-
-    InteractingSelf <- InteractingSelf[!duplicated(InteractingSelf$ID),]
-    # just including self interactions once, not multiple times.
-
-    InteractingDyads <- data.table::subset(DT, (dist_km <= distThreshold/1000) &
-                                             as.character(ID) != as.character(ID2))
-    # not including self interactions
-    # only here, in the interacting dyads, do we check if a dyad was spatially proximate.
-
-    # subset data table such that non self-overlapping IDs as well as within a certain distance from each other
-    InteractingDyads <- InteractingDyads[!duplicated(InteractingDyads[, c("ID", "ID2")])]
-
-    # for debugging:
-    if(dim(presentVultures)[1] < dim(InteractingDyads)[1]){
-      break
-    }
-
-    # bind non-self overlapping rows with self-overlapping rows
-    InteractingDyads <- rbind(InteractingDyads, InteractingSelf)
-
-    # Update co-occurrence counter --------------------------------------------
-    for(dyadcnt in 1:dim(InteractingDyads)[1]){
-      Dyadind <- which(co$ID == InteractingDyads$ID[dyadcnt] &
-                         co$ID2 == InteractingDyads$ID2[dyadcnt])
-
-      # Identifying in the empty data frame where SPATIO-temporal proximity is recorded, which dyads are in which rows
-      # Spatial proximity between dyads was calculated after SimlDataPntCnt in the step where self and non-self <2km dist threshold was calculated as InteractingDyads
-      co$counter[Dyadind] <- co$counter[Dyadind] + 1
-    }
-
-
-    # Free up some memory -----------------------------------------------------
-    rm(list = c("DT", "InteractingDyads", "InteractingSelf", "SelfDyad",
-                "Dyadind", "dyadcnt", "timegroupDF"))
-
-    # Update the progressbar
-    utils::setTxtProgressBar(pb, i)
-
-  } # close loop over time groups
-
-  return(list("SimlDataPntCnt" = sim, "CoocurCountr" = co))
 }
 
 #' Buffer feeding sites
@@ -680,3 +460,73 @@ makeGraphsList <- function(dataList, weighted = FALSE, id1Col = "ID1", id2Col = 
   # return a list of graphs and the data to go along with them
   return(list("graphs" = gs, "simplifiedData" = simplified))
 }
+
+#' Create plots from a list of graphs
+#'
+#' Given a list of graphs, make plots. Optionally, use a consistent layout to visualize change over time.
+#' @param graphList a list of graph objects.
+#' @param coords either "fixed" (use same coordinates for all plots, to visualize change over time), or "free" (different coords for each plot)
+#' @return A list of plot objects
+#' @export
+plotGraphs <- function(graphList, coords = "fixed"){
+  checkmate::assertList(graphList)
+  checkmate::assertSubset(coords, c("fixed", "free"))
+
+  # For fixed coords:
+  if(coords == "fixed"){
+    # Get coordinates to use
+    bigGraph <- do.call(igraph::union, graphList)
+    xy <- as.data.frame(igraph::layout_nicely(bigGraph))
+    row.names(xy) <- names(V(bigGraph))
+
+    # Make a list to store the plots
+    plotList <- lapply(graphList, function(x){
+      verts <- names(V(x))
+      coords <- xy[verts,]
+      p <- ggraph::ggraph(x, layout = "manual", x = coords[,1], y = coords[,2])+
+        ggraph::geom_edge_link()+
+        ggraph::geom_node_point(shape = 19, size = 6)+
+        ggraph::theme_graph()
+      return(p)
+    })
+  }
+
+  # For free coords:
+  if(coords == "free"){
+    # Make a list of plots
+    plotList <- lapply(graphList, function(x){
+      p <- ggraph::ggraph(x)+
+        ggraph::geom_edge_link()+
+        ggraph::geom_node_point(shape = 19, size = 6)+
+        ggraph::theme_graph()
+      return(p)
+    })
+  }
+
+  return(plotList)
+}
+
+#' Make a gif from a graph list
+#'
+#' Given a list of plots, create a gif.
+#' @param plotList a list of plots
+#' @param fileName where to write the file. Must end with .gif.
+#' @param interval a positive number to set the time interval of the animation (unit in seconds); default to 0.1.
+#' @return A gif file
+#' @export
+makeGIF <- function(plotList, fileName, interval = 0.1){
+  checkmate::assertList(plotList)
+  checkmate::assertNumeric(interval, len = 1)
+  pb <- utils::txtProgressBar(min = 0, max = length(plotList),
+                              initial = 0, style = 3)
+  # Save the gif
+  animation::saveGIF({
+    for(i in 1:length(plotList)){
+      plot(plotList[[i]])
+      utils::setTxtProgressBar(pb, i)
+    }
+  },
+  movie.name = fileName,
+  interval = interval)
+}
+
