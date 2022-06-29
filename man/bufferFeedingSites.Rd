@@ -7,8 +7,8 @@
 bufferFeedingSites(
   feedingSites,
   feedingBuffer = 100,
-  setCRS = "WGS84",
-  returnCRS = "WGS84",
+  crsToSet = "WGS84",
+  crsToReturn = "WGS84",
   latCol = "lat",
   longCol = "long"
 )
@@ -18,9 +18,9 @@ bufferFeedingSites(
 
 \item{feedingBuffer}{how much to buffer the feeding site, in m}
 
-\item{returnCRS}{either "WGS84" (default) or "m" (returns in 32636, aka UTM36)}
-
 \item{crsToSet}{if `feedingSites` is a data frame, what CRS to pass to sf::st_set_crs() (NOT transform!). If `feedingSites` is already an sf object, `crsToSet` will be overridden by whatever the object's CRS is, unless it is NA.}
+
+\item{returnCRS}{either "WGS84" (default) or "m" (returns in 32636, aka UTM36)}
 
 \item{lat}{if `feedingSites` is a data frame, the name of the column to use for latitude}
 

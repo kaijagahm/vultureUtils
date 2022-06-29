@@ -505,8 +505,8 @@ createDirectedMatrices <- function(dataset, distThreshold, sim = SimlDataPntCnt,
 #' @return sf object containing feeding site polygons, buffered
 #' @export
 bufferFeedingSites <- function(feedingSites, feedingBuffer = 100,
-                               setCRS = "WGS84",
-                               returnCRS = "WGS84", latCol = "lat",
+                               crsToSet = "WGS84",
+                               crsToReturn = "WGS84", latCol = "lat",
                                longCol = "long"){
 
   # Set up an sf object for use.
@@ -541,7 +541,7 @@ bufferFeedingSites <- function(feedingSites, feedingBuffer = 100,
 
   # Return polygons in the appropriate crs
   toReturn <- feedingSitesBuffered %>%
-    sf::st_transform(returnCRS)
+    sf::st_transform(crsToReturn)
 
   return(toReturn)
 }
