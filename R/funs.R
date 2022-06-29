@@ -217,9 +217,10 @@ createDirectedMatricesRevised <- function(dataset, distThreshold, latCol = "loca
 #' @param id1Col column containing the ID of the first individual
 #' @param id2Col column containing the ID of the second individual
 #' @param timegroupCol column containing time groups (integer values), returned by spatsoc functions
+#' @param returnGroups whether to return the indices used to group runs of consecutive time slices for each dyad. Default is FALSE.
 #' @return An edge list (data frame) containing only edges that occurred in at least `consecThreshold` consecutive time groups.
 #' @export
-consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = "ID2", timegroupCol = "timegroup"){
+consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = "ID2", timegroupCol = "timegroup", returnGroups = FALSE){
   checkmate::assertDataFrame(edgeList)
   checkmate::assertInteger(edgeList[[timegroupCol]])
 

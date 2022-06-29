@@ -9,7 +9,8 @@ consecEdges(
   consecThreshold = 2,
   id1Col = "ID1",
   id2Col = "ID2",
-  timegroupCol = "timegroup"
+  timegroupCol = "timegroup",
+  returnGroups = FALSE
 )
 }
 \arguments{
@@ -22,6 +23,8 @@ consecEdges(
 \item{id2Col}{column containing the ID of the second individual}
 
 \item{timegroupCol}{column containing time groups (integer values), returned by spatsoc functions}
+
+\item{returnGroups}{whether to return the indices used to group runs of consecutive time slices for each dyad. Default is FALSE.}
 }
 \value{
 An edge list (data frame) containing only edges that occurred in at least `consecThreshold` consecutive time groups.
