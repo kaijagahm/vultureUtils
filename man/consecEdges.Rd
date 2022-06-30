@@ -14,15 +14,15 @@ consecEdges(
 )
 }
 \arguments{
-\item{edgeList}{edge list to work with}
+\item{edgeList}{edge list to work with, containing only A-B edges. No self edges, no B-A edges.}
 
-\item{consecThreshold}{in how many consecutive time groups must the two individuals interact in order to be included?}
+\item{consecThreshold}{in how many consecutive time groups must the two individuals interact in order to be included? Default is 2.}
 
-\item{id1Col}{column containing the ID of the first individual}
+\item{id1Col}{Character. Name of the column containing the ID of the first individual}
 
-\item{id2Col}{column containing the ID of the second individual}
+\item{id2Col}{Character. Name of the column containing the ID of the second individual}
 
-\item{timegroupCol}{column containing time groups (integer values), returned by spatsoc functions}
+\item{timegroupCol}{Character. Name of the column containing time groups (integer values), returned by spatsoc functions}
 
 \item{returnGroups}{whether to return the indices used to group runs of consecutive time slices for each dyad. Default is FALSE.}
 }
@@ -30,5 +30,9 @@ consecEdges(
 An edge list (data frame) containing only edges that occurred in at least `consecThreshold` consecutive time groups.
 }
 \description{
-This function takes an edge list (a data frame) containing *ONE-WAY* edges (i.e. with self edges already removed, and with duplicates not included--already reduced to A-B only, not A-B and B-A). If the edge list contains duplicate edges (A-B and B-A), they will be treated separately. Data must already include timegroups.
+This function takes an edge list and removes edges that don't occur in at least `consecThreshold` consecutive time groups. It expects an edge list containing *ONE-WAY* edges (i.e. with self edges already removed, and with duplicates not included--already reduced to A-B only, not A-B and B-A). If the edge list contains duplicate edges (A-B and B-A), they will be treated as if they were separate edges. Data must already include `timegroup`s.
+}
+\examples{
+# throw out any edges that don't persist for at least 3 consecutive time groups:
+consecEdges(edgeList = el, consecThreshold = 3)
 }

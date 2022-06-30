@@ -162,18 +162,30 @@ mostlyInMask <- function(dataset, maskedDataset, thresh = 0.333, dateCol = "date
 
 #' Filter edge list to exclude too few consecutive occurrences
 #'
-#' This function takes an edge list (a data frame) containing *ONE-WAY* edges (i.e. with self edges already removed, and with duplicates not included--already reduced to A-B only, not A-B and B-A). If the edge list contains duplicate edges (A-B and B-A), they will be treated separately. Data must already include timegroups.
-#' @param edgeList edge list to work with
-#' @param consecThreshold in how many consecutive time groups must the two individuals interact in order to be included?
-#' @param id1Col column containing the ID of the first individual
-#' @param id2Col column containing the ID of the second individual
-#' @param timegroupCol column containing time groups (integer values), returned by spatsoc functions
+#' This function takes an edge list and removes edges that don't occur in at least `consecThreshold` consecutive time groups. It expects an edge list containing *ONE-WAY* edges (i.e. with self edges already removed, and with duplicates not included--already reduced to A-B only, not A-B and B-A). If the edge list contains duplicate edges (A-B and B-A), they will be treated as if they were separate edges. Data must already include `timegroup`s.
+#' @param edgeList edge list to work with, containing only A-B edges. No self edges, no B-A edges.
+#' @param consecThreshold in how many consecutive time groups must the two individuals interact in order to be included? Default is 2.
+#' @param id1Col Character. Name of the column containing the ID of the first individual
+#' @param id2Col Character. Name of the column containing the ID of the second individual
+#' @param timegroupCol Character. Name of the column containing time groups (integer values), returned by spatsoc functions
 #' @param returnGroups whether to return the indices used to group runs of consecutive time slices for each dyad. Default is FALSE.
 #' @return An edge list (data frame) containing only edges that occurred in at least `consecThreshold` consecutive time groups.
+#' @examples
+#' # throw out any edges that don't persist for at least 3 consecutive time groups:
+#' consecEdges(edgeList = el, consecThreshold = 3)
 #' @export
 consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = "ID2", timegroupCol = "timegroup", returnGroups = FALSE){
+  # argument checks
   checkmate::assertDataFrame(edgeList)
+  checkmate::assertInteger(consecThreshold, len = 1)
+  checkmate::assertCharacter(id1Col, len = 1)
+  checkmate::assertCharacter(id2Col, len = 1)
+  checkmate::assertChoice(id1Col, names(edgeList))
+  checkmate::assertChoice(id2Col, names(edgeList))
+  checkmate::assertCharacter(timegroupCol, len = 1)
+  checkmate::assertChoice(timegroupCol, names(edgeList))
   checkmate::assertInteger(edgeList[[timegroupCol]])
+  checkmate::assertLogical(returnGroups, len = 1)
 
   # do the filtering
   consec <- edges %>%
@@ -189,6 +201,7 @@ consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = 
     dplyr::group_by(.data[[id1Col]], .data[[id2Col]], grp) %>%
     dplyr::filter(dplyr::n() >= consecThreshold)
 
+  # only return the group column if it's asked for.
   if(returnGroups == FALSE){
     consec <- consec %>%
       dplyr::select(-grp)
