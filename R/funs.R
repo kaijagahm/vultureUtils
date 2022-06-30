@@ -206,22 +206,25 @@ consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = 
 #' Clean data and extract metadata
 #'
 #' Extract metadata by tag, and filter/clean the dataset for speed, gps satellites, and heading
-#' @param df a data frame to filter
+#' @param df a data frame to filter. Must include column `ground_speed`.
 #' @param speedLower a single numeric value, the lower limit for ground speed to be included (m/s)
 #' @param speedUpper a single numeric value, the upper limit for ground speed to be included (m/s)
+#' @param dateCol the name of the column containing dates tracked. Default is "dateOnly".
 #' @return A list: "filteredData" = filtered dataset; "tagsMetadata" = tag-by-tag metadata
 #' @export
-cleanAndMetadata <- function(df, speedLower = NULL, speedUpper = NULL){
+cleanAndMetadata <- function(df, speedLower = NULL, speedUpper = NULL, dateCol = "dateOnly"){
   checkmate::assertDataFrame(df)
   checkmate::assertNumeric(speedLower, null.ok = TRUE, len = 1)
   checkmate::assertNumeric(speedUpper, null.ok = TRUE, len = 1)
   checkmate::assertChoice("trackId", names(df))
+  checkmate::assertChoice("ground_speed", names(df))
+  checkmate::assertCharacter(dateCol, len = 1)
+  checkmate::assertChoice(dateCol, names(df))
 
   # Split the dataset by individual
   indivsList <- df %>%
-    as.data.frame() %>%
-    dplyr::mutate(trackId = as.character(trackId)) %>%
-    dplyr::group_by(trackId) %>%
+    dplyr::mutate(trackId = as.character(.data[[trackId]])) %>%
+    dplyr::group_by(.data[[trackId]]) %>%
     split(f = as.factor(.$trackId))
 
   # how many points for each individual, initially?
@@ -244,13 +247,14 @@ cleanAndMetadata <- function(df, speedLower = NULL, speedUpper = NULL){
                               row.names = NULL)
 
   # save the rest of the metadata
-  indivsDFFiltered <- data.table::rbindlist(indivsListFiltered)
+  indivsDFFiltered <- data.table::rbindlist(indivsListFiltered) %>%
+    as.data.frame()
   tagsMetadata2 <- indivsDFFiltered %>%
     dplyr::group_by(trackId) %>%
-    dplyr::summarize(firstDay = min(dateOnly, na.rm = T),
-                     lastDay = max(dateOnly, na.rm = T),
-                     trackDurationDays = length(unique(dateOnly)), # number of unique days tracked
-                     daysBetweenStartEnd = lastDay - firstDay) # total date range over which the individual was tracked
+    dplyr::summarize(firstDay = min(.data[[dateCol]], na.rm = T),
+                     lastDay = max(.data[[dateCol]], na.rm = T),
+                     trackDurationDays = length(unique(.data[[dateCol]])), # number of unique days tracked
+                     daysBetweenStartEnd = .data[[lastDay]] - .data[[firstDay]]) # total date range over which the individual was tracked
 
   # join by trackId
   if(nrow(tagsMetadata1) == nrow(tagsMetadata2)){
