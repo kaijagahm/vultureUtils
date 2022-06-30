@@ -60,18 +60,22 @@ removeUnnecessaryVars <- function(dataset){
   return(newDataset)
 }
 
-#' Mask Israel
+#' Mask dataset
 #'
-#' Crop data to only include locations within Israel
+#' Given a mask and a dataset, apply the mask to the dataset and return only locations inside the mask.
 #' @param dataset a dataset to mask
+#' @param mask an sf object to use as the mask.
 #' @param longCol the name of the column in the dataset containing longitude values
 #' @param latCol the name of the column in the dataset containing latitude values
 #' @param crs (To be passed to `st_set_crs()`). One of (i) character: a string accepted by GDAL, (ii) integer, a valid EPSG value (numeric), or (iii) an object of class crs.
-#' @return A movestack
+#' @return A masked data set.
 #' @export
-maskIsrael <- function(dataset, longCol = "location_long", latCol = "location_lat", crs){
-  # read in the Israel mask
-  data(mask)
+maskData <- function(dataset, mask, longCol = "location_long", latCol = "location_lat", crs){
+  # argument checks
+  checkmate::assertClass(mask, "sf")
+  checkmate::assertDataFrame(dataset)
+  checkmate::assertCharacter(longCol, len = 1)
+  checkmate::assertCharacter(latCol, len = 1)
 
   # check if the dataset is already an sf object
   issf <- checkmate::testClass(dataset, "sf")
