@@ -442,7 +442,7 @@ makeGraphsList <- function(dataList, weighted = FALSE, id1Col = "ID1", id2Col = 
         dplyr::distinct()
     })
     gs <- lapply(simplified, function(x){
-      graph_from_data_frame(d = x, directed = FALSE)
+      igraph::graph_from_data_frame(d = x, directed = FALSE)
     })
   }else{
     simplified <- lapply(simplified, function(x){
