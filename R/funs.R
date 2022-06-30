@@ -382,6 +382,18 @@ bufferFeedingSites <- function(feedingSites, feedingBuffer = 100,
 #' @export
 # Convert to UTM
 spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSet = "WGS84", timestampCol = "timestamp", timeThreshold = "10 minutes", idCol = "trackId", latCol = "location_lat", longCol = "location_long", returnDist = TRUE, fillNA = FALSE){
+  # argument checks
+  checkmate::assertDataFrame(dataset)
+  checkmate::assertNumeric(distThreshold, len = 1, lower = 0, finite = TRUE)
+  checkmate::assertInteger(consecThreshold, len = 1, lower = 0, finite = TRUE)
+  checkmate::assertCharacter(timestampCol, len = 1)
+  checkmate::assertCharacter(timeThreshold, len = 1)
+  checkmate::assertCharacter(idCol, len = 1)
+  checkmate::assertCharacter(latCol, len = 1)
+  checkmate::assertCharacter(longCol, len = 1)
+  checkmate::assertLogical(returnDist, len = 1)
+  checkmate::assertLogical(fillNA, len = 1)
+
   # Set up an sf object for use.
   if("sf" %in% class(dataset)){ # If dataset is an sf object...
     if(is.na(sf::st_crs(dataset))){ # only fill in crs if it is missing
