@@ -6,7 +6,6 @@
 #' @param removeDup Whether to remove duplicated timestamps. Defaults to TRUE. Passed to `removeDuplicatedTimestamps` in move::getMovebankData().
 #' @param dateTimeStartUTC a POSIXct object, in UTC. Will be converted to character assuming UTC. Passed to `timestamp_start` in move::getMovebankData().
 #' @param dateTimeEndUTC a POSIXct object, in UTC. Will be converted to character assuming UTC. Passed to `timestamp_end` in move::getMovebankData().
-#' @param animalName character. Name of the individuals as stored on Movebank. A single individual or a vector of several individuals from the same study can be specified. Optional.
 #' @return A movestack.
 #' @examples
 #' # Get data from all of 2021
@@ -17,38 +16,22 @@
 #' downloadVultures(MB.LoginObject, animalName = c("A09w", "A10w"))
 #' @export
 downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
-                             dateTimeStartUTC = NULL, dateTimeEndUTC = NULL,
-                             animalName = NULL){
+                             dateTimeStartUTC = NULL, dateTimeEndUTC = NULL, ...){
   # argument checks
   checkmate::assertClass(loginObject, "MovebankLogin")
   checkmate::assertLogical(extraSensors, len = 1)
   checkmate::assertLogical(removeDup, len = 1)
   checkmate::assertPOSIXct(dateTimeStartUTC, null.ok = TRUE)
   checkmate::assertPOSIXct(dateTimeEndUTC, null.ok = TRUE)
-  checkmate::assertCharacter(animalName, null.ok = TRUE)
 
-  # only include animalName if it's not null.
-  if(!is.null(animalName)){
-    dat <- move::getMovebankData(study = "Ornitela_Vultures_Gyps_fulvus_TAU_UCLA_Israel",
-                          login = loginObject,
-                          includeExtraSensors = FALSE,
-                          deploymentAsIndividuals = FALSE,
-                          removeDuplicatedTimestamps = TRUE,
-                          timestamp_start = dateTimeStartUTC,
-                          timestamp_end = dateTimeEndUTC,
-                          animalName = animalName)
-  }else{
-    dat <- move::getMovebankData(study = "Ornitela_Vultures_Gyps_fulvus_TAU_UCLA_Israel",
-                          login = loginObject,
-                          includeExtraSensors = FALSE,
-                          deploymentAsIndividuals = FALSE,
-                          removeDuplicatedTimestamps = TRUE,
-                          timestamp_start = dateTimeStartUTC,
-                          timestamp_end = dateTimeEndUTC)
-  }
-
-  # return
-  return(dat)
+  move::getMovebankData(study = "Ornitela_Vultures_Gyps_fulvus_TAU_UCLA_Israel",
+                               login = loginObject,
+                               includeExtraSensors = FALSE,
+                               deploymentAsIndividuals = FALSE,
+                               removeDuplicatedTimestamps = TRUE,
+                               timestamp_start = dateTimeStartUTC,
+                               timestamp_end = dateTimeEndUTC,
+                               ...)
 }
 
 #' Remove unnecessary vars
