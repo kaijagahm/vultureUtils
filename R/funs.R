@@ -106,24 +106,30 @@ maskData <- function(dataset, mask, longCol = "location_long", latCol = "locatio
   return(masked)
 }
 
-#' Which mostly in Israel?
+#' Which individuals spent time mostly in the masked area?
 #'
-#' Only include individuals that spent a certain proportion of their total time tracked in Israel
-#' @param dataset the full dataset, before masking to Israel only
-#' @param israelDataset the dataset after being masked to Israel (output of maskIsrael function)
+#' Compare masked and unmasked data. Return IDs of individual birds that spent at least `thresh` proportion of days in the masked area (vs. outside of the masked area). This function should be used after creating a masked dataset with vultureUtils::maskData(). Note: this function does its calculations based on numbers of *days*. Later modifications might allow for other units of time, but for now everything is in days.
+#' @param dataset the full dataset, before masking.
+#' @param maskedDataset the dataset after being masked to Israel (output of maskIsrael function)
 #' @param thresh proportion (between 0 and 1) of a vulture's total tracked days that it spent in Israel
 #' @param dateCol the name of the column containing dates (must be the same in `dataset` and `israelDataset`). Defaults to "dateOnly".
 #' @return A vector of trackIds for vultures
+#' @examples
+#' mostlyInMask(dataset = datDF, maskedDataset = datDFIsrael, thresh = 0.333, dateCol = "dateOnly")
 #' @export
-mostlyInIsrael <- function(dataset, israelDataset, thresh = 0.333, dateCol = "dateOnly"){
-  # check that the datasets contain "trackId" and `dateCol` columns
+mostlyInMask <- function(dataset, maskedDataset, thresh = 0.333, dateCol = "dateOnly"){
+  # argument checks
+  checkmate::assertDataFrame(dataset)
+  checkmate::assertDataFrame(maskedDataset)
+  checkmate::assertNumeric(thresh, len = 1, lower = 0, upper = 1)
+  checkmate::assertCharacter(dateCol, len = 1)
   checkmate::assertSubset("trackId", names(dataset))
-  checkmate::assertSubset("trackId", names(israelDataset))
+  checkmate::assertSubset("trackId", names(maskedDataset))
   checkmate::assertSubset(dateCol, names(dataset))
-  checkmate::assertSubset(dateCol, names(israelDataset))
+  checkmate::assertSubset(dateCol, names(maskedDataset))
   # check that the `dateCol` columns actually are dates.
-  checkmate::assertClass(datDF %>% dplyr::pull({{dateCol}}), "Date")
-  checkmate::assertClass(datDFIsrael %>% dplyr::pull({{dateCol}}), "Date")
+  checkmate::assertClass(dataset %>% dplyr::pull({{dateCol}}), "Date")
+  checkmate::assertClass(maskedDataset %>% dplyr::pull({{dateCol}}), "Date")
 
   # Look at date durations in the full dataset
   dates <- dataset %>%
@@ -133,7 +139,7 @@ mostlyInIsrael <- function(dataset, israelDataset, thresh = 0.333, dateCol = "da
                                     min(.data[[dateCol]], na.rm = T)))
 
   # Look at date durations in the masked Israel dataset
-  datesInIsrael <- datDFIsrael %>%
+  datesInMask <- maskedDataset %>%
     as.data.frame() %>%
     dplyr::group_by(trackId) %>%
     dplyr::summarize(duration =
@@ -141,17 +147,17 @@ mostlyInIsrael <- function(dataset, israelDataset, thresh = 0.333, dateCol = "da
                                     min(.data[[dateCol]], na.rm = T)))
 
   # Compare the two dates and calculate proportion
-  datesCompare <- dplyr::left_join(dates, datesInIsrael %>%
+  datesCompare <- dplyr::left_join(dates, datesInMask %>%
                                      dplyr::select(trackId,
-                                                   "durationIsrael" = duration)) %>%
-    dplyr::mutate(propIsrael = durationIsrael/duration) # compute proportion of days spent in Israel
+                                                   "durationInMask" = duration)) %>%
+    dplyr::mutate(propInMask = durationInMask/duration) # compute proportion of days spent in the mask area
 
-  whichInIsraelLongEnough <- datesCompare %>%
-    dplyr::filter(propIsrael > thresh) %>%
+  whichInMaskLongEnough <- datesCompare %>%
+    dplyr::filter(propInMask > thresh) %>%
     dplyr::pull(trackId) %>%
     unique()
 
-  return(whichInIsraelLongEnough)
+  return(whichInMaskLongEnough)
 }
 
 #' Filter edge list to exclude too few consecutive occurrences
