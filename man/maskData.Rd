@@ -29,6 +29,3 @@ A masked data set.
 \description{
 Given a mask and a dataset, apply the mask to the dataset and return only locations inside the mask.
 }
-\examples{
-maskData(dataset = filteredData, mask = israelMask, longCol = "location_long.1", latCol = "location_lat.1", crs = "WGS84")
-}

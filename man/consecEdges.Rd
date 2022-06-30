@@ -32,7 +32,3 @@ An edge list (data frame) containing only edges that occurred in at least `conse
 \description{
 This function takes an edge list and removes edges that don't occur in at least `consecThreshold` consecutive time groups. It expects an edge list containing *ONE-WAY* edges (i.e. with self edges already removed, and with duplicates not included--already reduced to A-B only, not A-B and B-A). If the edge list contains duplicate edges (A-B and B-A), they will be treated as if they were separate edges. Data must already include `timegroup`s.
 }
-\examples{
-# throw out any edges that don't persist for at least 3 consecutive time groups:
-consecEdges(edgeList = el, consecThreshold = 3)
-}

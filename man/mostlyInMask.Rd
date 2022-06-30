@@ -21,6 +21,3 @@ A vector of trackIds for vultures
 \description{
 Compare masked and unmasked data. Return IDs of individual birds that spent at least `thresh` proportion of days in the masked area (vs. outside of the masked area). This function should be used after creating a masked dataset with vultureUtils::maskData(). Note: this function does its calculations based on numbers of *days*. Later modifications might allow for other units of time, but for now everything is in days.
 }
-\examples{
-mostlyInMask(dataset = datDF, maskedDataset = datDFIsrael, thresh = 0.333, dateCol = "dateOnly")
-}

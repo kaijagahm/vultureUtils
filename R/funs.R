@@ -39,8 +39,6 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
 #' Remove variables we don't need, so the data is smaller
 #' @param dataset a dataset to remove variables from. Must be a data frame.
 #' @return A dataset, with variables removed
-#' @examples
-#' removeUnnecessaryVars(datDF)
 #' @export
 removeUnnecessaryVars <- function(dataset){
   checkmate::assertDataFrame(dataset) # must be a data frame
@@ -71,8 +69,6 @@ removeUnnecessaryVars <- function(dataset){
 #' @param latCol the name of the column in the dataset containing latitude values
 #' @param crs (To be passed to `st_set_crs()`). One of (i) character: a string accepted by GDAL, (ii) integer, a valid EPSG value (numeric), or (iii) an object of class crs.
 #' @return A masked data set.
-#' @examples
-#' maskData(dataset = filteredData, mask = israelMask, longCol = "location_long.1", latCol = "location_lat.1", crs = "WGS84")
 #' @export
 maskData <- function(dataset, mask, longCol = "location_long", latCol = "location_lat", crs){
   # argument checks
@@ -114,8 +110,6 @@ maskData <- function(dataset, mask, longCol = "location_long", latCol = "locatio
 #' @param thresh proportion (between 0 and 1) of a vulture's total tracked days that it spent in Israel
 #' @param dateCol the name of the column containing dates (must be the same in `dataset` and `israelDataset`). Defaults to "dateOnly".
 #' @return A vector of trackIds for vultures
-#' @examples
-#' mostlyInMask(dataset = datDF, maskedDataset = datDFIsrael, thresh = 0.333, dateCol = "dateOnly")
 #' @export
 mostlyInMask <- function(dataset, maskedDataset, thresh = 0.333, dateCol = "dateOnly"){
   # argument checks
@@ -170,9 +164,6 @@ mostlyInMask <- function(dataset, maskedDataset, thresh = 0.333, dateCol = "date
 #' @param timegroupCol Character. Name of the column containing time groups (integer values), returned by spatsoc functions
 #' @param returnGroups whether to return the indices used to group runs of consecutive time slices for each dyad. Default is FALSE.
 #' @return An edge list (data frame) containing only edges that occurred in at least `consecThreshold` consecutive time groups.
-#' @examples
-#' # throw out any edges that don't persist for at least 3 consecutive time groups:
-#' consecEdges(edgeList = el, consecThreshold = 3)
 #' @export
 consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = "ID2", timegroupCol = "timegroup", returnGroups = FALSE){
   # argument checks

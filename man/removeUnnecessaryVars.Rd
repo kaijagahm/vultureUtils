@@ -15,6 +15,3 @@ A dataset, with variables removed
 \description{
 Remove variables we don't need, so the data is smaller
 }
-\examples{
-removeUnnecessaryVars(datDF)
-}
