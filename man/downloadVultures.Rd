@@ -30,11 +30,3 @@ A movestack.
 \description{
 Download vulture project data from the Israel vulture study Movebank repository, with some minor specifications. Note that you must specify your movebank credentials. This is a wrapper function for move::getMovebankData() that includes the study name hard-coded in, so you don't have to type it each time. If you need to get data for a different study, just use move::getMovebankData() directly.
 }
-\examples{
-# Get data from all of 2021
-downloadVultures(MB.LoginObject, dateTimeStartUTC = as.POSIXct("2021-01-01 00:00"),
-dateTimeEndUTC = as.POSIXct("2021-12-31 23:59"))
-
-# Get data for just two individuals, with no date restrictions
-downloadVultures(MB.LoginObject, animalName = c("A09w", "A10w"))
-}

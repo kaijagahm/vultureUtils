@@ -7,13 +7,6 @@
 #' @param dateTimeStartUTC a POSIXct object, in UTC. Will be converted to character assuming UTC. Passed to `timestamp_start` in move::getMovebankData().
 #' @param dateTimeEndUTC a POSIXct object, in UTC. Will be converted to character assuming UTC. Passed to `timestamp_end` in move::getMovebankData().
 #' @return A movestack.
-#' @examples
-#' # Get data from all of 2021
-#' downloadVultures(MB.LoginObject, dateTimeStartUTC = as.POSIXct("2021-01-01 00:00"),
-#' dateTimeEndUTC = as.POSIXct("2021-12-31 23:59"))
-#'
-#' # Get data for just two individuals, with no date restrictions
-#' downloadVultures(MB.LoginObject, animalName = c("A09w", "A10w"))
 #' @export
 downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
                              dateTimeStartUTC = NULL, dateTimeEndUTC = NULL, ...){
