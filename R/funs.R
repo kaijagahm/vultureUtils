@@ -411,6 +411,7 @@ makeGraphs <- function(edges, fullData, interval, dateTimeStart = NULL,
     dplyr::left_join(groupedTimegroups, by = "timegroup") %>%
     dplyr::group_by(interval) %>%
     dplyr::group_split()
+  names(dataList) <- unique(groupedTimegroups$interval) # save the interval information
 
   # Now make the networks, calling vultureUtils::makeGraphsList().
   networks <- vultureUtils::makeGraphsList(dataList = dataList, weighted = weighted, id1Col = id1Col, id2Col = id2Col)
@@ -456,6 +457,9 @@ makeGraphsList <- function(dataList, weighted = FALSE, id1Col = "ID1", id2Col = 
       igraph::graph_from_data_frame(d = x, directed = FALSE)
     })
   }
+
+  # preserve the names of dataList
+  names(gs) <- names(dataList)
 
   # return a list of graphs and the data to go along with them
   return(list("graphs" = gs, "simplifiedData" = simplified))
