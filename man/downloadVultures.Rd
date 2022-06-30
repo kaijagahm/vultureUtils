@@ -2,30 +2,41 @@
 % Please edit documentation in R/funs.R
 \name{downloadVultures}
 \alias{downloadVultures}
-\title{Data download}
+\title{Download vulture data}
 \usage{
 downloadVultures(
   loginObject,
   extraSensors = F,
   removeDup = T,
   dateTimeStartUTC = NULL,
-  dateTimeEndUTC = NULL
+  dateTimeEndUTC = NULL,
+  animalName = NULL
 )
 }
 \arguments{
-\item{loginObject}{A Movebank login object, created by passing a username and password to move::movebankLogin}
+\item{loginObject}{A Movebank login object, created by passing a username and password to move::movebankLogin. Passed to `login` in move::getMovebankData().}
 
-\item{extraSensors}{Whether to include extra sensors. Defaults to FALSE.}
+\item{extraSensors}{Whether to include extra sensors. Defaults to FALSE. Passed to `includeExtraSensors` in move::getMovebankData().}
 
-\item{removeDup}{Whether to remove duplicated timestamps. Defaults to TRUE.}
+\item{removeDup}{Whether to remove duplicated timestamps. Defaults to TRUE. Passed to `removeDuplicatedTimestamps` in move::getMovebankData().}
 
-\item{dateTimeStartUTC}{a POSIXct object, in UTC. Will be converted to character assuming UTC.}
+\item{dateTimeStartUTC}{a POSIXct object, in UTC. Will be converted to character assuming UTC. Passed to `timestamp_start` in move::getMovebankData().}
 
-\item{dateTimeEndUTC}{a POSIXct object, in UTC. Will be converted to character assuming UTC.}
+\item{dateTimeEndUTC}{a POSIXct object, in UTC. Will be converted to character assuming UTC. Passed to `timestamp_end` in move::getMovebankData().}
+
+\item{animalName}{character. Name of the individuals as stored on Movebank. A single individual or a vector of several individuals from the same study can be specified. Optional.}
 }
 \value{
-A movestack
+A movestack.
 }
 \description{
-Download vulture project data from the Israel vulture study Movebank repository, with some minor specifications. Note that you must specify your movebank credentials.
+Download vulture project data from the Israel vulture study Movebank repository, with some minor specifications. Note that you must specify your movebank credentials. This is a wrapper function for move::getMovebankData() that includes the study name hard-coded in, so you don't have to type it each time. If you need to get data for a different study, just use move::getMovebankData() directly.
+}
+\examples{
+# Get data from all of 2021
+downloadVultures(MB.LoginObject, dateTimeStartUTC = as.POSIXct("2021-01-01 00:00"),
+dateTimeEndUTC = as.POSIXct("2021-12-31 23:59"))
+
+# Get data for just two individuals, with no date restrictions
+downloadVultures(MB.LoginObject, animalName = c("A09w", "A10w"))
 }
