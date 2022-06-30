@@ -39,6 +39,8 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
 #' Remove variables we don't need, so the data is smaller
 #' @param dataset a dataset to remove variables from. Must be a data frame.
 #' @return A dataset, with variables removed
+#' @examples
+#' removeUnnecessaryVars(datDF)
 #' @export
 removeUnnecessaryVars <- function(dataset){
   checkmate::assertDataFrame(dataset) # must be a data frame
@@ -69,6 +71,8 @@ removeUnnecessaryVars <- function(dataset){
 #' @param latCol the name of the column in the dataset containing latitude values
 #' @param crs (To be passed to `st_set_crs()`). One of (i) character: a string accepted by GDAL, (ii) integer, a valid EPSG value (numeric), or (iii) an object of class crs.
 #' @return A masked data set.
+#' @examples
+#' maskData(dataset = filteredData, mask = israelMask, longCol = "location_long.1", latCol = "location_lat.1", crs = "WGS84")
 #' @export
 maskData <- function(dataset, mask, longCol = "location_long", latCol = "location_lat", crs){
   # argument checks
