@@ -416,7 +416,7 @@ makeGraphs <- function(edges, fullData, interval, dateTimeStart = NULL,
   networks <- vultureUtils::makeGraphsList(dataList = dataList, weighted = weighted, id1Col = id1Col, id2Col = id2Col)
 
   # return the list of graphs and associated data
-  return(networks)
+  return(append(networks, list("breaks" = breaks)))
 }
 
 #' Make a list of graphs
