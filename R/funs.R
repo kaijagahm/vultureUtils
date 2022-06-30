@@ -122,17 +122,18 @@ mostlyInMask <- function(dataset, maskedDataset, thresh = 0.333, dateCol = "date
   # Look at date durations in the full dataset
   dates <- dataset %>%
     dplyr::group_by(.data$trackId) %>%
-    dplyr::summarize(duration =
-                       as.numeric(max(.data$dateCol, na.rm = T) -
-                                    min(.data$dateCol, na.rm = T)))
+    dplyr::summarize(duration = as.numeric(max(.data[[dateCol]],
+                                               na.rm = T) - min(.data[[dateCol]],
+                                                                na.rm = T)))
+
 
   # Look at date durations in the masked Israel dataset
   datesInMask <- maskedDataset %>%
     as.data.frame() %>%
     dplyr::group_by(.data$trackId) %>%
     dplyr::summarize(duration =
-                       as.numeric(max(.data$dateCol, na.rm = T) -
-                                    min(.data$dateCol, na.rm = T)))
+                       as.numeric(max(.data[[dateCol]], na.rm = T) -
+                                    min(.data[[dateCol]], na.rm = T)))
 
   # Compare the two dates and calculate proportion
   datesCompare <- dplyr::left_join(dates, datesInMask %>%
@@ -175,15 +176,15 @@ consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = 
   # do the filtering
   consec <- edgeList %>%
     # for each edge, arrange by timegroup
-    dplyr::group_by(.data$id1Col, .data$id2Col) %>%
-    dplyr::arrange(.data$timegroupCol, .by_group = TRUE) %>%
+    dplyr::group_by(.data[[id1Col]], .data[[id2Col]]) %>%
+    dplyr::arrange(.data[[timegroupCol]], .by_group = TRUE) %>%
 
     # create a new index grp that groups rows into consecutive runs
-    dplyr::mutate("grp" = cumsum(c(1, diff(.data$timegroupCol) != 1))) %>%
+    dplyr::mutate("grp" = cumsum(c(1, diff(.data[[timegroupCol]]) != 1))) %>%
     dplyr::ungroup() %>%
 
     # group by the new `grp` column and remove any `grp`s that have less than `consecThreshold` rows (i.e. less than `consecThreshold` consecutive time groups for that edge)
-    dplyr::group_by(.data$id1Col, .data$id2Col, .data$grp) %>%
+    dplyr::group_by(.data[[id1Col]], .data[[id2Col]], .data$grp) %>%
     dplyr::filter(dplyr::n() >= consecThreshold) %>%
     dplyr::ungroup()
 
@@ -196,72 +197,6 @@ consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = 
   }else{
     return(consec)
   }
-}
-
-
-#' Clean data and extract metadata
-#'
-#' Extract metadata by tag, and filter/clean the dataset for speed, gps satellites, and heading
-#' @param df a data frame to filter. Must include column `ground_speed`.
-#' @param speedLower a single numeric value, the lower limit for ground speed to be included (m/s)
-#' @param speedUpper a single numeric value, the upper limit for ground speed to be included (m/s)
-#' @param dateCol the name of the column containing dates tracked. Default is "dateOnly".
-#' @return A list: "filteredData" = filtered dataset; "tagsMetadata" = tag-by-tag metadata
-#' @export
-cleanAndMetadata <- function(df, speedLower = NULL, speedUpper = NULL, dateCol = "dateOnly"){
-  checkmate::assertDataFrame(df)
-  checkmate::assertNumeric(speedLower, null.ok = TRUE, len = 1)
-  checkmate::assertNumeric(speedUpper, null.ok = TRUE, len = 1)
-  checkmate::assertChoice("trackId", names(df))
-  checkmate::assertChoice("ground_speed", names(df))
-  checkmate::assertCharacter(dateCol, len = 1)
-  checkmate::assertChoice(dateCol, names(df))
-
-  # Split the dataset by individual
-  indivsList <- df %>%
-    dplyr::mutate("trackId" = as.character(.data$trackId)) %>%
-    dplyr::group_by(.data$trackId) %>%
-    split(f = as.factor(.data$trackId))
-
-  # how many points for each individual, initially?
-  initialPoints <- unlist(lapply(indivsList, nrow))
-
-  # Apply filtering: speed, gps satellites, and heading
-  indivsListFiltered <- lapply(indivsList, function(x){
-    vultureUtils::filterLocs(x, speedThreshUpper = speedUpper,
-                             speedThreshLower = speedLower)
-  })
-
-  # how many points per individual after filtering?
-  finalPoints <- unlist(lapply(indivsListFiltered, nrow))
-
-  # save some metadata by tag
-  tagsMetadata1 <- data.frame("trackId" = names(indivsList),
-                              "initialPoints" = initialPoints,
-                              "finalPoints" = finalPoints,
-                              "propRemoved" = (initialPoints-finalPoints)/initialPoints,
-                              row.names = NULL)
-
-  # save the rest of the metadata
-  indivsDFFiltered <- data.table::rbindlist(indivsListFiltered) %>%
-    as.data.frame()
-  tagsMetadata2 <- indivsDFFiltered %>%
-    dplyr::group_by(.data$trackId) %>%
-    dplyr::summarize("firstDay" = min(.data$dateCol, na.rm = T),
-                     "lastDay" = max(.data$dateCol, na.rm = T),
-                     "trackDurationDays" = length(unique(.data$dateCol))) %>% # number of unique days tracked
-    dplyr::mutate("daysBetweenStartEnd" = .data$lastDay - .data$firstDay) # total date range over which the individual was tracked
-
-  # join by trackId
-  if(nrow(tagsMetadata1) == nrow(tagsMetadata2)){
-    tagsMetadata <- dplyr::left_join(tagsMetadata1, tagsMetadata2, by = "trackId")
-  }else{
-    stop("Row counts don't match!")
-  }
-
-  # return
-  return(list("filteredData" = indivsDFFiltered,
-              "tagsMetadata" = tagsMetadata))
 }
 
 #' Filter locs
@@ -340,7 +275,7 @@ bufferFeedingSites <- function(feedingSites, feedingBuffer = 100,
 
     # convert to an sf object
     feedingSites <- feedingSites %>%
-      sf::st_as_sf(coords = c(.data$longCol, .data$latCol), remove = FALSE) %>%
+      sf::st_as_sf(coords = c(.data[[longCol]], .data[[latCol]]), remove = FALSE) %>%
       sf::st_set_crs(crsToSet) # assign the CRS
 
   }else{ # otherwise, throw an error.
@@ -407,7 +342,7 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
 
     # convert to an sf object
     dataset <- dataset %>%
-      sf::st_as_sf(coords = c(.data$longCol, .data$latCol), remove = FALSE) %>%
+      sf::st_as_sf(coords = c(.data[[longCol]], .data[[latCol]]), remove = FALSE) %>%
       sf::st_set_crs(crsToSet) # assign the CRS
 
   }else{ # otherwise, throw an error.
@@ -425,7 +360,7 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
 
   # Convert the timestamp column to POSIXct.
   dataset <- dataset %>%
-    dplyr::mutate({{timestampCol}} := as.POSIXct(.data$timestampCol, tz = "UTC"))
+    dplyr::mutate({{timestampCol}} := as.POSIXct(.data[[timestampCol]], tz = "UTC"))
 
   # Convert to a data table for spatsoc.
   data.table::setDT(dataset)
@@ -527,7 +462,7 @@ makeGraphs <- function(edges, fullData, interval, dateTimeStart = NULL,
   checkmate::assertChoice("timegroup", names(edges))
   dataList <- edges %>%
     dplyr::ungroup() %>%
-    dplyr::select(.data$id1Col, .data$id2Col, .data$timegroup) %>%
+    dplyr::select(.data[[id1Col]], .data[[id2Col]], .data$timegroup) %>%
     dplyr::left_join(groupedTimegroups, by = "timegroup") %>%
     dplyr::group_by(.data$interval) %>%
     dplyr::group_split()
@@ -552,7 +487,7 @@ makeGraphsList <- function(dataList, weighted = FALSE, id1Col = "ID1", id2Col = 
   # Simplify the list down to just the columns needed
   simplified <- lapply(dataList, function(x){
     x <- x %>%
-      dplyr::select(.data$id1Col, .data$id2Col)
+      dplyr::select(.data[[id1Col]], .data[[id2Col]])
   })
 
   # Make graphs differently depending on whether weighted == FALSE or weighted == TRUE.
@@ -568,7 +503,7 @@ makeGraphsList <- function(dataList, weighted = FALSE, id1Col = "ID1", id2Col = 
     simplified <- lapply(simplified, function(x){
       x <- x %>%
         dplyr::mutate(weight = 1) %>%
-        dplyr::group_by(.data$id1Col, .data$id2Col) %>%
+        dplyr::group_by(.data[[id1Col]], .data[[id2Col]]) %>%
         dplyr::summarize(weight = sum(.data$weight)) %>%
         dplyr::ungroup()
     })
