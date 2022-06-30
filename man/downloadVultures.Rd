@@ -23,6 +23,8 @@ downloadVultures(
 \item{dateTimeStartUTC}{a POSIXct object, in UTC. Will be converted to character assuming UTC. Passed to `timestamp_start` in move::getMovebankData().}
 
 \item{dateTimeEndUTC}{a POSIXct object, in UTC. Will be converted to character assuming UTC. Passed to `timestamp_end` in move::getMovebankData().}
+
+\item{...}{additional arguments to be passed to move::getMovebankData().}
 }
 \value{
 A movestack.

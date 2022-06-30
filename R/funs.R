@@ -6,6 +6,7 @@
 #' @param removeDup Whether to remove duplicated timestamps. Defaults to TRUE. Passed to `removeDuplicatedTimestamps` in move::getMovebankData().
 #' @param dateTimeStartUTC a POSIXct object, in UTC. Will be converted to character assuming UTC. Passed to `timestamp_start` in move::getMovebankData().
 #' @param dateTimeEndUTC a POSIXct object, in UTC. Will be converted to character assuming UTC. Passed to `timestamp_end` in move::getMovebankData().
+#' @param ... additional arguments to be passed to move::getMovebankData().
 #' @return A movestack.
 #' @export
 downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
