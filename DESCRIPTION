@@ -23,6 +23,7 @@ Imports:
     magrittr,
     move,
     reshape,
+    rlang,
     sf,
     tibble,
     utils

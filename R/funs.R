@@ -37,7 +37,7 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
 removeUnnecessaryVars <- function(dataset){
   checkmate::assertDataFrame(dataset) # must be a data frame
   newDataset <- dataset %>%
-    dplyr::select(-any_of(c("sensor_type_id","taxon_canonical_name","nick_name","earliest_date_born","sensor","optional",
+    dplyr::select(-dplyr::any_of(c("sensor_type_id","taxon_canonical_name","nick_name","earliest_date_born","sensor","optional",
                             "sensor_type","mw_activity_count","eobs_accelerations_raw","eobs_acceleration_sampling_frequency_per_axis",
                             "eobs_acceleration_axes","argos_valid_location_algorithm","argos_sensor_4","argos_sensor_3","argos_sensor_2",
                             "argos_sensor_1","argos_semi_minor","argos_semi_major","argos_pass_duration","argos_orientation","argos_nopc",
@@ -121,28 +121,28 @@ mostlyInMask <- function(dataset, maskedDataset, thresh = 0.333, dateCol = "date
 
   # Look at date durations in the full dataset
   dates <- dataset %>%
-    dplyr::group_by(trackId) %>%
+    dplyr::group_by(.data$trackId) %>%
     dplyr::summarize(duration =
-                       as.numeric(max(.data[[dateCol]], na.rm = T) -
-                                    min(.data[[dateCol]], na.rm = T)))
+                       as.numeric(max(.data$dateCol, na.rm = T) -
+                                    min(.data$dateCol, na.rm = T)))
 
   # Look at date durations in the masked Israel dataset
   datesInMask <- maskedDataset %>%
     as.data.frame() %>%
-    dplyr::group_by(trackId) %>%
+    dplyr::group_by(.data$trackId) %>%
     dplyr::summarize(duration =
-                       as.numeric(max(.data[[dateCol]], na.rm = T) -
-                                    min(.data[[dateCol]], na.rm = T)))
+                       as.numeric(max(.data$dateCol, na.rm = T) -
+                                    min(.data$dateCol, na.rm = T)))
 
   # Compare the two dates and calculate proportion
   datesCompare <- dplyr::left_join(dates, datesInMask %>%
-                                     dplyr::select(trackId,
-                                                   "durationInMask" = duration)) %>%
-    dplyr::mutate(propInMask = durationInMask/duration) # compute proportion of days spent in the mask area
+                                     dplyr::select(.data$trackId,
+                                                   "durationInMask" = .data$duration)) %>%
+    dplyr::mutate(propInMask = .data$durationInMask/.data$duration) # compute proportion of days spent in the mask area
 
   whichInMaskLongEnough <- datesCompare %>%
-    dplyr::filter(propInMask > thresh) %>%
-    dplyr::pull(trackId) %>%
+    dplyr::filter(.data$propInMask > thresh) %>%
+    dplyr::pull(.data$trackId) %>%
     unique()
 
   return(whichInMaskLongEnough)
@@ -173,23 +173,23 @@ consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = 
   checkmate::assertLogical(returnGroups, len = 1)
 
   # do the filtering
-  consec <- edges %>%
+  consec <- edgeList %>%
     # for each edge, arrange by timegroup
-    dplyr::group_by(.data[[id1Col]], .data[[id2Col]]) %>%
-    dplyr::arrange(.data[[timegroupCol]], .by_group = TRUE) %>%
+    dplyr::group_by(.data$id1Col, .data$id2Col) %>%
+    dplyr::arrange(.data$timegroupCol, .by_group = TRUE) %>%
 
     # create a new index grp that groups rows into consecutive runs
-    dplyr::mutate(grp = cumsum(c(1, diff(.data[[timegroupCol]]) != 1))) %>%
+    dplyr::mutate("grp" = cumsum(c(1, diff(.data$timegroupCol) != 1))) %>%
     dplyr::ungroup() %>%
 
     # group by the new `grp` column and remove any `grp`s that have less than `consecThreshold` rows (i.e. less than `consecThreshold` consecutive time groups for that edge)
-    dplyr::group_by(.data[[id1Col]], .data[[id2Col]], grp) %>%
+    dplyr::group_by(.data$id1Col, .data$id2Col, .data$grp) %>%
     dplyr::filter(dplyr::n() >= consecThreshold)
 
   # only return the group column if it's asked for.
   if(returnGroups == FALSE){
     consec <- consec %>%
-      dplyr::select(-grp)
+      dplyr::select(-.data$grp)
     return(consec)
   }else{
     return(consec)
@@ -217,9 +217,9 @@ cleanAndMetadata <- function(df, speedLower = NULL, speedUpper = NULL, dateCol =
 
   # Split the dataset by individual
   indivsList <- df %>%
-    dplyr::mutate(trackId = as.character(.data[[trackId]])) %>%
-    dplyr::group_by(.data[[trackId]]) %>%
-    split(f = as.factor(.$trackId))
+    dplyr::mutate("trackId" = as.character(.data$trackId)) %>%
+    dplyr::group_by(.data$trackId) %>%
+    split(f = as.factor(.data$trackId))
 
   # how many points for each individual, initially?
   initialPoints <- unlist(lapply(indivsList, nrow))
@@ -234,21 +234,21 @@ cleanAndMetadata <- function(df, speedLower = NULL, speedUpper = NULL, dateCol =
   finalPoints <- unlist(lapply(indivsListFiltered, nrow))
 
   # save some metadata by tag
-  tagsMetadata1 <- data.frame(trackId = names(indivsList),
-                              initialPoints = initialPoints,
-                              finalPoints = finalPoints,
-                              propRemoved = (initialPoints-finalPoints)/initialPoints,
+  tagsMetadata1 <- data.frame("trackId" = names(indivsList),
+                              "initialPoints" = initialPoints,
+                              "finalPoints" = finalPoints,
+                              "propRemoved" = (initialPoints-finalPoints)/initialPoints,
                               row.names = NULL)
 
   # save the rest of the metadata
   indivsDFFiltered <- data.table::rbindlist(indivsListFiltered) %>%
     as.data.frame()
   tagsMetadata2 <- indivsDFFiltered %>%
-    dplyr::group_by(trackId) %>%
-    dplyr::summarize(firstDay = min(.data[[dateCol]], na.rm = T),
-                     lastDay = max(.data[[dateCol]], na.rm = T),
-                     trackDurationDays = length(unique(.data[[dateCol]])), # number of unique days tracked
-                     daysBetweenStartEnd = .data[[lastDay]] - .data[[firstDay]]) # total date range over which the individual was tracked
+    dplyr::group_by(.data$trackId) %>%
+    dplyr::summarize("firstDay" = min(.data$dateCol, na.rm = T),
+                     "lastDay" = max(.data$dateCol, na.rm = T),
+                     "trackDurationDays" = length(unique(.data$dateCol))) %>% # number of unique days tracked
+    dplyr::mutate("daysBetweenStartEnd" = .data$lastDay - .data$firstDay) # total date range over which the individual was tracked
 
   # join by trackId
   if(nrow(tagsMetadata1) == nrow(tagsMetadata2)){
@@ -271,29 +271,28 @@ cleanAndMetadata <- function(df, speedLower = NULL, speedUpper = NULL, dateCol =
 #' @return A list of filtered data frames.
 #' @export
 filterLocs <- function(df, speedThreshLower = NULL, speedThreshUpper = NULL){
-  # check that df is a data frame
+  # argument checks
   checkmate::assertDataFrame(df)
-
-  # filter out bad gps data
   checkmate::assertChoice("gps_time_to_fix", names(df))
-  df <- df %>%
-    dplyr::filter(gps_time_to_fix <= 89)
-
-  # filter out bad heading data
   checkmate::assertChoice("heading", names(df))
-  df <- df %>%
-    dplyr::filter(heading < 360 & heading > 0) # only reasonable headings, between 0 and 360.
-
-  # only take locs that have at least 3 satellites
   checkmate::assertChoice("gps_satellite_count", names(df))
-  df <- df %>%
-    dplyr::filter(gps_satellite_count >= 3) # must have at least 3 satellites in order to triangulate.
-
-  # Check threshold values for speed, and apply speed filters
   checkmate::assertChoice("ground_speed", names(df))
   checkmate::assertNumeric(speedThreshLower, null.ok = TRUE, len = 1)
   checkmate::assertNumeric(speedThreshUpper, null.ok = TRUE, len = 1)
 
+  # filter out bad gps data
+  df <- df %>%
+    dplyr::filter(.data$gps_time_to_fix <= 89)
+
+  # filter out bad heading data
+  df <- df %>%
+    dplyr::filter(.data$heading < 360 & .data$heading > 0) # only reasonable headings, between 0 and 360.
+
+  # only take locs that have at least 3 satellites
+  df <- df %>%
+    dplyr::filter(.data$gps_satellite_count >= 3) # must have at least 3 satellites in order to triangulate.
+
+  # Apply speed filters
   # if no speed thresholds are set, warn that we're not applying filtering.
   if(is.null(speedThreshLower) & is.null(speedThreshUpper)){
     warning("No speed thresholds set, so data will not be filtered for speed.")
@@ -302,11 +301,11 @@ filterLocs <- function(df, speedThreshLower = NULL, speedThreshUpper = NULL){
   # if at least one threshold is set, apply filtering
   if(!is.null(speedThreshLower)){
     df <- df %>%
-      dplyr::filter(ground_speed > speedThreshLower)
+      dplyr::filter(.data$ground_speed > speedThreshLower)
   }
   if(!is.null(speedThreshUpper)){
     df <- df %>%
-      dplyr::filter(ground_speed < speedThreshUpper)
+      dplyr::filter(.data$ground_speed < speedThreshUpper)
   }
 }
 
@@ -339,7 +338,7 @@ bufferFeedingSites <- function(feedingSites, feedingBuffer = 100,
 
     # convert to an sf object
     feedingSites <- feedingSites %>%
-      sf::st_as_sf(coords = c(longCol, latCol), remove = FALSE) %>%
+      sf::st_as_sf(coords = c(.data$longCol, .data$latCol), remove = FALSE) %>%
       sf::st_set_crs(crsToSet) # assign the CRS
 
   }else{ # otherwise, throw an error.
@@ -387,10 +386,10 @@ makeGraphs <- function(edges, fullData, interval, dateTimeStart = NULL,
   checkmate::assertChoice("timegroup", names(fullData))
   checkmate::assertChoice("timestamp", names(fullData))
   timegroupInfo <- fullData %>%
-    dplyr::select(timegroup, timestamp) %>%
-    dplyr::group_by(timegroup) %>%
-    dplyr::summarize(minDatetime = min(timestamp),
-                     maxDatetime = max(timestamp))
+    dplyr::select(.data$timegroup, .data$timestamp) %>%
+    dplyr::group_by(.data$timegroup) %>%
+    dplyr::summarize("minDatetime" = min(.data$timestamp),
+                     "maxDatetime" = max(.data$timestamp))
 
   # Check that the user-defined time interval is coercible to a duration
   int <- lubridate::as.duration(interval)
@@ -421,14 +420,14 @@ makeGraphs <- function(edges, fullData, interval, dateTimeStart = NULL,
   # Separate sequences by user-defined time interval
   # append the first and last dates to the data frame
   timegroupInfo <- timegroupInfo %>%
-    tibble::add_row(minDatetime = start, .before = 1) %>%
-    tibble::add_row(minDatetime = end)
+    tibble::add_row("minDatetime" = start, .before = 1) %>%
+    tibble::add_row("minDatetime" = end)
 
   # Now use `cut` and `seq` to group the data
   breaks <- seq(from = start, to = end, by = int)
   groupedTimegroups <- timegroupInfo %>%
-    dplyr::mutate(interval = cut(minDatetime, breaks)) %>%
-    dplyr::select(timegroup, interval)
+    dplyr::mutate(interval = cut(.data$minDatetime, breaks)) %>%
+    dplyr::select(.data$timegroup, .data$interval)
 
   # Join this information to the original data
   checkmate::assertDataFrame(edges)
@@ -436,10 +435,10 @@ makeGraphs <- function(edges, fullData, interval, dateTimeStart = NULL,
   checkmate::assertChoice(id2Col, names(edges))
   checkmate::assertChoice("timegroup", names(edges))
   dataList <- edges %>%
-    ungroup() %>%
-    dplyr::select(.data[[id1Col]], .data[[id2Col]], timegroup) %>%
+    dplyr::ungroup() %>%
+    dplyr::select(.data$id1Col, .data$id2Col, .data$timegroup) %>%
     dplyr::left_join(groupedTimegroups, by = "timegroup") %>%
-    dplyr::group_by(interval) %>%
+    dplyr::group_by(.data$interval) %>%
     dplyr::group_split()
 
   # Now make the networks, calling vultureUtils::makeGraphsList().
@@ -462,7 +461,7 @@ makeGraphsList <- function(dataList, weighted = FALSE, id1Col = "ID1", id2Col = 
   # Simplify the list down to just the columns needed
   simplified <- lapply(dataList, function(x){
     x <- x %>%
-      dplyr::select(.data[[id1Col]], .data[[id2Col]])
+      dplyr::select(.data$id1Col, .data$id2Col)
   })
 
   # Make graphs differently depending on whether weighted == FALSE or weighted == TRUE.
@@ -478,8 +477,8 @@ makeGraphsList <- function(dataList, weighted = FALSE, id1Col = "ID1", id2Col = 
     simplified <- lapply(simplified, function(x){
       x <- x %>%
         dplyr::mutate(weight = 1) %>%
-        dplyr::group_by(.data[[id1Col]], .data[[id2Col]]) %>%
-        dplyr::summarize(weight = sum(weight)) %>%
+        dplyr::group_by(.data$id1Col, .data$id2Col) %>%
+        dplyr::summarize(weight = sum(.data$weight)) %>%
         dplyr::ungroup()
     })
     gs <- lapply(simplified, function(x){
@@ -507,11 +506,11 @@ plotGraphs <- function(graphList, coords = "fixed"){
     # Get coordinates to use
     bigGraph <- do.call(igraph::union, graphList)
     xy <- as.data.frame(igraph::layout_nicely(bigGraph))
-    row.names(xy) <- names(V(bigGraph))
+    row.names(xy) <- names(igraph::V(bigGraph))
 
     # Make a list to store the plots
     plotList <- lapply(graphList, function(x){
-      verts <- names(V(x))
+      verts <- names(igraph::V(x))
       coords <- xy[verts,]
       p <- ggraph::ggraph(x, layout = "manual", x = coords[,1], y = coords[,2])+
         ggraph::geom_edge_link()+
