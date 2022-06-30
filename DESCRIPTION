@@ -25,6 +25,7 @@ Imports:
     reshape,
     rlang,
     sf,
+    spatsoc,
     tibble,
     utils
 Depends: 

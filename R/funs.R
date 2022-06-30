@@ -184,11 +184,13 @@ consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = 
 
     # group by the new `grp` column and remove any `grp`s that have less than `consecThreshold` rows (i.e. less than `consecThreshold` consecutive time groups for that edge)
     dplyr::group_by(.data$id1Col, .data$id2Col, .data$grp) %>%
-    dplyr::filter(dplyr::n() >= consecThreshold)
+    dplyr::filter(dplyr::n() >= consecThreshold) %>%
+    dplyr::ungroup()
 
   # only return the group column if it's asked for.
   if(returnGroups == FALSE){
     consec <- consec %>%
+      dplyr::ungroup() %>%
       dplyr::select(-.data$grp)
     return(consec)
   }else{
@@ -360,6 +362,83 @@ bufferFeedingSites <- function(feedingSites, feedingBuffer = 100,
     sf::st_transform(crsToReturn)
 
   return(toReturn)
+}
+
+#' Group points by space and time
+#'
+#' This function takes a data frame of filtered, cleaned points and uses functions from `spatsoc` to group them by space and time. Then it uses vultureUtils::consecEdges to remove edges that don't occur in enough consecutive time groups.
+#' @param dataset a data frame, filtered by speed etc, to use to create spatiotemporal groups.
+#' @param distThreshold distance threshold at which to consider that two individuals are interacting (m).
+#' @param consecThreshold Passed to vultureUtils::consecEdges. In how many consecutive time groups must the two individuals interact in order to be included? Default is 2.
+#' @param crsToSet if `feedingSites` is a data frame, what CRS to pass to sf::st_set_crs() (NOT transform!). If `feedingSites` is already an sf object, `crsToSet` will be overridden by whatever the object's CRS is, unless it is NA.
+#' @param timestampCol Passed to spatsoc::group_times. Name of date time column(s). either 1 POSIXct or 2 IDate and ITime. e.g.: 'datetime' or c('idate', 'itime')
+#' @param timeThreshold Passed to spatsoc::group_times. Threshold for grouping times. e.g.: '2 hours', '10 minutes', etc. if not provided, times will be matched exactly. Note that provided threshold must be in the expected format: '## unit'.
+#' @param idCol Name of the column containing individual ID's of the vultures.
+#' @param latCol Name of the column containing latitude values
+#' @param longCol Name of the column containing longitude values
+#' @param returnDist Passed to spatsoc::edge_dist. Boolean indicating if the distance between individuals should be returned. If FALSE (default), only ID1, ID2 columns (and timegroup, splitBy columns if provided) are returned. If TRUE, another column "distance" is returned indicating the distance between ID1 and ID2. Default is TRUE.
+#' @param fillNA Passed to spatsoc::edge_dist. Boolean indicating if NAs should be returned for individuals that were not within the threshold distance of any other. If TRUE, NAs are returned. If FALSE, only edges between individuals within the threshold distance are returned. Default is FALSE.
+#' @return an edge list (data frame)
+#' @export
+# Convert to UTM
+spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSet = "WGS84", timestampCol = "timestamp", timeThreshold = "10 minutes", idCol = "trackId", latCol = "location_lat", longCol = "location_long", returnDist = TRUE, fillNA = FALSE){
+  # Set up an sf object for use.
+  if("sf" %in% class(dataset)){ # If dataset is an sf object...
+    if(is.na(sf::st_crs(dataset))){ # only fill in crs if it is missing
+      message(paste0("`dataset` is already an sf object but has no CRS. Setting CRS to ", crsToSet, "."))
+      dataset <- sf::st_set_crs(dataset, crsToSet)
+    }
+  }else if(is.data.frame(dataset)){ # otherwise, if feedingSites is a data frame...
+    # make sure it contains the lat and long cols
+    checkmate::assertChoice(latCol, names(dataset))
+    checkmate::assertChoice(longCol, names(dataset))
+
+    # convert to an sf object
+    dataset <- dataset %>%
+      sf::st_as_sf(coords = c(.data$longCol, .data$latCol), remove = FALSE) %>%
+      sf::st_set_crs(crsToSet) # assign the CRS
+
+  }else{ # otherwise, throw an error.
+    stop("`dataset` must be a data frame or an sf object.")
+  }
+
+  # Save lat and long coords, in case we need them later. Then, convert to UTM.
+  dataset <- dataset %>%
+    dplyr::mutate(lon = sf::st_coordinates(.data)[,1],
+                  lat = sf::st_coordinates(.data)[,2]) %>%
+    sf::st_transform(32636) %>% # convert to UTM: we'll need this for calculating distance later.
+    dplyr::mutate(utmE = sf::st_coordinates(.data)[,1],
+                  utmN = sf::st_coordinates(.data)[,2]) %>%
+    sf::st_drop_geometry() # spatsoc won't work if this is still an sf object.
+
+  # Convert the timestamp column to POSIXct.
+  dataset <- dataset %>%
+    dplyr::mutate({{timestampCol}} := as.POSIXct(.data$timestampCol, tz = "UTC"))
+
+  # Convert to a data table for spatsoc.
+  data.table::setDT(dataset)
+
+  # Group the points into timegroups using spatsoc::group_times.
+  spatsoc::group_times(dataset, datetime = timestampCol, threshold = timeThreshold)
+
+  # Group into point groups (spatial)
+  spatsoc::group_pts(dataset, threshold = distThreshold, id = idCol,
+                     coords = c("utmE", "utmN"), timegroup = "timegroup")
+
+  # Generate edge lists by timegroup
+  edges <- spatsoc::edge_dist(DT = dataset, threshold = distThreshold, id = idCol,
+                              coords = c("utmE", "utmN"), timegroup = "timegroup",
+                              returnDist = returnDist, fillNA = fillNA)
+
+  # Remove self and duplicate edges
+  edges <- edges %>%
+    dplyr::filter(.data$ID1 < .data$ID2) # XXX do we need to identify these cols?
+
+  # Now create a list where the edge only stays if it occurred in at least `consecThreshold` consecutive time steps.
+  edgesFiltered <- vultureUtils::consecEdges(edgeList = edges, consecThreshold = consecThreshold) %>%
+    dplyr::ungroup()
+
+  return(edgesFiltered)
 }
 
 #' Make a list of networks, given a time interval
