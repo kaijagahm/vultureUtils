@@ -163,7 +163,7 @@ mostlyInMask <- function(dataset, maskedDataset, thresh = 0.333, dateCol = "date
 consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = "ID2", timegroupCol = "timegroup", returnGroups = FALSE){
   # argument checks
   checkmate::assertDataFrame(edgeList)
-  checkmate::assertInteger(consecThreshold, len = 1)
+  checkmate::assertNumeric(consecThreshold, len = 1)
   checkmate::assertCharacter(id1Col, len = 1)
   checkmate::assertCharacter(id2Col, len = 1)
   checkmate::assertChoice(id1Col, names(edgeList))
@@ -275,7 +275,7 @@ bufferFeedingSites <- function(feedingSites, feedingBuffer = 100,
 
     # convert to an sf object
     feedingSites <- feedingSites %>%
-      sf::st_as_sf(coords = c(.data[[longCol]], .data[[latCol]]), remove = FALSE) %>%
+      sf::st_as_sf(coords = c(longCol, latCol), remove = FALSE) %>%
       sf::st_set_crs(crsToSet) # assign the CRS
 
   }else{ # otherwise, throw an error.
@@ -320,7 +320,7 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
   # argument checks
   checkmate::assertDataFrame(dataset)
   checkmate::assertNumeric(distThreshold, len = 1, lower = 0, finite = TRUE)
-  checkmate::assertInteger(consecThreshold, len = 1, lower = 0, finite = TRUE)
+  checkmate::assertNumeric(consecThreshold, len = 1, lower = 0)
   checkmate::assertCharacter(timestampCol, len = 1)
   checkmate::assertCharacter(timeThreshold, len = 1)
   checkmate::assertCharacter(idCol, len = 1)
@@ -351,11 +351,11 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
 
   # Save lat and long coords, in case we need them later. Then, convert to UTM.
   dataset <- dataset %>%
-    dplyr::mutate(lon = sf::st_coordinates(.data)[,1],
-                  lat = sf::st_coordinates(.data)[,2]) %>%
+    dplyr::mutate(lon = sf::st_coordinates(.)[,1],
+                  lat = sf::st_coordinates(.)[,2]) %>%
     sf::st_transform(32636) %>% # convert to UTM: we'll need this for calculating distance later.
-    dplyr::mutate(utmE = sf::st_coordinates(.data)[,1],
-                  utmN = sf::st_coordinates(.data)[,2]) %>%
+    dplyr::mutate(utmE = sf::st_coordinates(.)[,1],
+                  utmN = sf::st_coordinates(.)[,2]) %>%
     sf::st_drop_geometry() # spatsoc won't work if this is still an sf object.
 
   # Convert the timestamp column to POSIXct.
@@ -379,10 +379,10 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
 
   # Remove self and duplicate edges
   edges <- edges %>%
-    dplyr::filter(.data$ID1 < .data$ID2) # XXX do we need to identify these cols?
+    dplyr::filter(as.character(.data$ID1) < as.character(.data$ID2))
 
   # Now create a list where the edge only stays if it occurred in at least `consecThreshold` consecutive time steps.
-  edgesFiltered <- vultureUtils::consecEdges(edgeList = edges, consecThreshold = consecThreshold) %>%
+  edgesFiltered <- consecEdges(edgeList = edges, consecThreshold = consecThreshold) %>%
     dplyr::ungroup()
 
   return(edgesFiltered)
