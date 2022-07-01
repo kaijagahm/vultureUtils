@@ -1,3 +1,5 @@
+if(getRversion() >= "2.15.1")  utils::globalVariables(".")
+
 #' Download vulture data
 #'
 #' Download vulture project data from the Israel vulture study Movebank repository, with some minor specifications. Note that you must specify your movebank credentials. This is a wrapper function for move::getMovebankData() that includes the study name hard-coded in, so you don't have to type it each time. If you need to get data for a different study, just use move::getMovebankData() directly.
