@@ -92,7 +92,7 @@ maskData <- function(dataset, mask, longCol = "location_long", latCol = "locatio
   }
 
   # mask the dataset
-  masked <- dataset_sf[mask, , op = sf::st_intersects]
+  masked <- dataset_sf[mask, , op = sf::st_intersects] # XXX i think i can speed this up if i I just use st_intersects directly, maybe?
 
   # return the masked dataset
   return(masked)
@@ -369,6 +369,11 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
 
   # Group the points into timegroups using spatsoc::group_times.
   spatsoc::group_times(dataset, datetime = timestampCol, threshold = timeThreshold)
+  timegroupData <- dataset %>% # save information about when each timegroup starts and ends.
+    dplyr::select(timestamp, timegroup) %>%
+    dplyr::group_by(timegroup) %>%
+    dplyr::summarize(minTimestamp = min(timestamp),
+                     maxTimestamp = max(timestamp))
 
   # Group into point groups (spatial)
   spatsoc::group_pts(dataset, threshold = distThreshold, id = idCol,
@@ -387,6 +392,10 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
   edgesFiltered <- consecEdges(edgeList = edges, consecThreshold = consecThreshold) %>%
     dplyr::ungroup()
 
+  # Join to the timegroup data
+  edgesFiltered <- edgesFiltered %>%
+    dplyr::left_join(timegroupData, by = "timegroup")
+
   return(edgesFiltered)
 }
 
@@ -403,21 +412,15 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
 #' @param weighted whether or not the resulting graphs should have weights attached
 #' @return A list of igraph graph objects
 #' @export
-makeGraphs <- function(edges, fullData, interval, dateTimeStart = NULL,
+makeGraphs <- function(edges, interval, dateTimeStart = NULL,
                        dateTimeEnd = NULL, id1Col = "ID1", id2Col = "ID2",
-                       weighted = FALSE){
+                       weighted = FALSE, minTimestampCol = "minTimestamp", maxTimestampCol = "maxTimestamp", allVertices = FALSE){
   # Some basic argument checks
   checkmate::assertLogical(weighted, len = 1)
-
-  # use `fulldata` to get min and max timestamps for each timegroup.
-  checkmate::assertDataFrame(fullData)
-  checkmate::assertChoice("timegroup", names(fullData))
-  checkmate::assertChoice("timestamp", names(fullData))
-  timegroupInfo <- fullData %>%
-    dplyr::select(.data$timegroup, .data$timestamp) %>%
-    dplyr::group_by(.data$timegroup) %>%
-    dplyr::summarize("minDatetime" = min(.data$timestamp),
-                     "maxDatetime" = max(.data$timestamp))
+  checkmate::assertCharacter(minTimestampCol, len = 1)
+  checkmate::assertCharacter(maxTimestampCol, len = 1)
+  checkmate::assertClass(edges[[minTimestampCol]], "POSIXct")
+  checkmate::assertClass(edges[[maxTimestampCol]], "POSIXct")
 
   # Check that the user-defined time interval is coercible to a duration
   int <- lubridate::as.duration(interval)
@@ -425,15 +428,16 @@ makeGraphs <- function(edges, fullData, interval, dateTimeStart = NULL,
     stop("Argument `interval` could not be expressed as a duration: lubridate::as.duration() returned NA. Please make sure you are specifying a valid interval, such as '1 day', '3 hours', '2 weeks', etc.")
   }
   checkmate::assertClass(int, "Duration")
+  # Note that even though we checked if this was coercible to a duration, we're not actually going to *use* the object `int`, because `cut()` just wants us to pass a character string.
 
   # Either assign dateTimeStart and dateTimeEnd, or coerce the user-provided inputs to lubridate datetimes.
   if(is.null(dateTimeStart)){
-    dateTimeStart <- min(fullData$timestamp)
-    warning(paste0("No start datetime provided. Using earliest `timestamp` from `fullData`, which is ", dateTimeStart, "."))
+    dateTimeStart <- min(edges[[minTimestampCol]])
+    warning(paste0("No start datetime provided. Using earliest timestamp, which is ", dateTimeStart, "."))
   }
   if(is.null(dateTimeEnd)){
-    dateTimeEnd <- max(fullData$timestamp)
-    warning(paste0("No end datetime provided. Using latest `timestamp` from `fullData`, which is ", dateTimeEnd, "."))
+    dateTimeEnd <- max(edges[[maxTimestampCol]])
+    warning(paste0("No end datetime provided. Using latest timestamp, which is ", dateTimeEnd, "."))
   }
 
   start <- lubridate::parse_date_time(dateTimeStart, orders = c("%Y%m%d %H%M%S", "%Y%m%d %H%M", "%Y%m%d"))
@@ -445,32 +449,40 @@ makeGraphs <- function(edges, fullData, interval, dateTimeStart = NULL,
     stop("`dateTimeEnd` could not be parsed. Please make sure you have used one of the following formats: YYYY-MM-DD hh:mm:ss, YYYY-MM-DD hh:mm, or YYYY-MM-DD.")
   }
 
+  # Get a vector of all the vertices that appear in the entire dataset.
+  allVerticesVec <- sort(unique(c(edges[[id1Col]], edges[[id2Col]])))
+
   # Separate sequences by user-defined time interval
   # append the first and last dates to the data frame
-  timegroupInfo <- timegroupInfo %>%
-    tibble::add_row("minDatetime" = start, .before = 1) %>%
-    tibble::add_row("minDatetime" = end)
+  edges <- edges %>%
+    tibble::add_row("minTimestamp" = start, .before = 1) %>%
+    tibble::add_row("maxTimestamp" = end)
 
   # Now use `cut` and `seq` to group the data
-  breaks <- seq(from = start, to = end, by = int)
-  groupedTimegroups <- timegroupInfo %>%
-    dplyr::mutate(interval = cut(.data$minDatetime, breaks)) %>%
-    dplyr::select(.data$timegroup, .data$interval)
+  edges <- edges %>%
+    dplyr::mutate(intervalGroup = cut(.data$minTimestamp, breaks = eval(interval)))
 
-  # Join this information to the original data
-  checkmate::assertDataFrame(edges)
-  checkmate::assertChoice(id1Col, names(edges))
-  checkmate::assertChoice(id2Col, names(edges))
-  checkmate::assertChoice("timegroup", names(edges))
+  # Split the data into a list
   dataList <- edges %>%
+    dplyr::filter(!is.na(ID1)) %>%
     dplyr::ungroup() %>%
-    dplyr::select(.data[[id1Col]], .data[[id2Col]], .data$timegroup) %>%
-    dplyr::left_join(groupedTimegroups, by = "timegroup") %>%
-    dplyr::group_by(.data$interval) %>%
+    dplyr::select(.data[[id1Col]], .data[[id2Col]], .data$timegroup, .data$intervalGroup) %>%
+    dplyr::group_by(.data$intervalGroup) %>%
     dplyr::group_split()
 
+  nms <- edges %>%
+    dplyr::filter(!is.na(ID1)) %>%
+    dplyr::ungroup() %>%
+    dplyr::select(.data[[id1Col]], .data[[id2Col]], .data$timegroup, .data$intervalGroup) %>%
+    pull(.data$intervalGroup) %>%
+    unique()
+  # XXX would make MUCH more sense to just call lapply on a function, instead of having the function makeGraphsList rely on having a list passed to it. that would also simplify the allVerticesVec argument because for each one you could pass in a complete list of vertices if allVertices == FALSE. Do this later.
+
   # Now make the networks, calling vultureUtils::makeGraphsList().
-  networks <- vultureUtils::makeGraphsList(dataList = dataList, weighted = weighted, id1Col = id1Col, id2Col = id2Col)
+  networks <- makeGraphsList(dataList = dataList, weighted = weighted, id1Col = id1Col, id2Col = id2Col, allVertices = TRUE, allVerticesVec = allVerticesVec)
+
+  # Name the networks by the breaks
+  names(networks$graphs) <- nms
 
   # return the list of graphs and associated data
   return(networks)
@@ -485,37 +497,49 @@ makeGraphs <- function(edges, fullData, interval, dateTimeStart = NULL,
 #' @param id2Col name of the column containing the ID of the second individual in a dyad
 #' @return A list of igraph graph objects
 #' @export
-makeGraphsList <- function(dataList, weighted = FALSE, id1Col = "ID1", id2Col = "ID2"){
+#'
+makeGraphsList <- function (dataList, weighted = FALSE, id1Col = "ID1", id2Col = "ID2", allVertices = FALSE, allVerticesVec = NULL)
+{
+  # If we specify all vertices, then we need a vector containing the names of all vertices.
+  if(allVertices){
+    checkmate::assertVector(allVerticesVec, null.ok = FALSE)
+  }
+
   # Simplify the list down to just the columns needed
-  simplified <- lapply(dataList, function(x){
-    x <- x %>%
-      dplyr::select(.data[[id1Col]], .data[[id2Col]])
+  simplified <- lapply(dataList, function(x) {
+    x <- x %>% dplyr::select(.data[[id1Col]], .data[[id2Col]])
   })
 
   # Make graphs differently depending on whether weighted == FALSE or weighted == TRUE.
-  if(weighted == FALSE){
-    simplified <- lapply(simplified, function(x){
-      x <- x %>%
-        dplyr::distinct()
+  if (weighted == FALSE) {
+    simplified <- lapply(simplified, function(x) {
+      x <- x %>% dplyr::distinct()
     })
-    gs <- lapply(simplified, function(x){
-      igraph::graph_from_data_frame(d = x, directed = FALSE)
-    })
-  }else{
-    simplified <- lapply(simplified, function(x){
-      x <- x %>%
-        dplyr::mutate(weight = 1) %>%
-        dplyr::group_by(.data[[id1Col]], .data[[id2Col]]) %>%
-        dplyr::summarize(weight = sum(.data$weight)) %>%
-        dplyr::ungroup()
-    })
-    gs <- lapply(simplified, function(x){
-      igraph::graph_from_data_frame(d = x, directed = FALSE)
+    gs <- lapply(simplified, function(x) {
+      if(allVertices){
+        igraph::graph_from_data_frame(d = x, directed = FALSE,
+                                      vertices = allVerticesVec)
+      }else{
+        igraph::graph_from_data_frame(d = x, directed = FALSE)
+      }
     })
   }
-
-  # return a list of graphs and the data to go along with them
-  return(list("graphs" = gs, "simplifiedData" = simplified))
+  else {
+    simplified <- lapply(simplified, function(x) {
+      x <- x %>% dplyr::mutate(weight = 1) %>% dplyr::group_by(.data[[id1Col]],
+                                                               .data[[id2Col]]) %>% dplyr::summarize(weight = sum(.data$weight)) %>%
+        dplyr::ungroup()
+    })
+    gs <- lapply(simplified, function(x) {
+      if(allVertices){
+        igraph::graph_from_data_frame(d = x, directed = FALSE,
+                                      vertices = allVerticesVec)
+      }else{
+        igraph::graph_from_data_frame(d = x, directed = FALSE)
+      }
+    })
+  }
+  return(list(graphs = gs, simplifiedData = simplified))
 }
 
 #' Create plots from a list of graphs
