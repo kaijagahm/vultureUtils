@@ -2,6 +2,7 @@
 
 export("%>%")
 export(bufferFeedingSites)
+export(computeProbs)
 export(consecEdges)
 export(downloadVultures)
 export(filterLocs)

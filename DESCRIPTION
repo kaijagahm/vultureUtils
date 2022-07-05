@@ -27,6 +27,7 @@ Imports:
     sf,
     spatsoc,
     tibble,
+    tidyr,
     utils
 Depends: 
     R (>= 2.10)

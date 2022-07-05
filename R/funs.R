@@ -370,10 +370,10 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
   # Group the points into timegroups using spatsoc::group_times.
   spatsoc::group_times(dataset, datetime = timestampCol, threshold = timeThreshold)
   timegroupData <- dataset %>% # save information about when each timegroup starts and ends.
-    dplyr::select(timestamp, timegroup) %>%
-    dplyr::group_by(timegroup) %>%
-    dplyr::summarize(minTimestamp = min(timestamp),
-                     maxTimestamp = max(timestamp))
+    dplyr::select(.data[[timestampCol]], .data$timegroup) %>%
+    dplyr::group_by(.data$timegroup) %>%
+    dplyr::summarize(minTimestamp = min(.data[[timestampCol]]),
+                     maxTimestamp = max(.data[[timestampCol]]))
 
   # Group into point groups (spatial)
   spatsoc::group_pts(dataset, threshold = distThreshold, id = idCol,
@@ -403,18 +403,21 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
 #'
 #' Inputs: a data frame containing time-grouped edges, and given an interval for making the networks. This function separates the data frame into a list of edge lists according to the provided time interval. Then, it generates a network (weighted or unweighted) for each of the edge lists. Note that depending on whether or not `interval` divides evenly into the range between `dateTimeStart` and `dateTimeEnd`, the last graph may be created from a smaller time period than the other graphs.
 #' @param edges a data frame containing edges and their associated `timegroup`s.
-#' @param fullData a data frame containing the `timegroup` column and `timestamp`s of vulture relocations. This will be used to classify timegroups by interval.
 #' @param interval A character string specifying an interval such as "3 days" or "2 hours" or "1 month" or "1.5 hours" or "3 days 2 hours". Interval will be coerced to a duration object using lubridate::as.duration()
 #' @param dateTimeStart the dateTime object that defines the beginning of the time period to be divided. If not specified, defaults to the earliest `timestamp` in `fullData`. Must be in one of the following formats: "YYYY-MM-DD hh:mm:ss" or "YYYY-MM-DD hh:mm" or "YYYY-MM-DD". Hours must use 24 hour time--e.g. 5:00 pm would be 17:00.
 #' @param dateTimeEnd the dateTime object that defines the end of the time period to be divided. If not specified, defaults to the latest `timestamp` in `fullData`. Must be in one of the following formats: "YYYY-MM-DD hh:mm:ss" or "YYYY-MM-DD hh:mm" or "YYYY-MM-DD". Hours must use 24 hour time--e.g. 5:00 pm would be 17:00.
 #' @param id1Col name of the column in `edges` containing the ID of the first individual in a dyad
 #' @param id2Col name of the column in `edges` containing the ID of the second individual in a dyad
 #' @param weighted whether or not the resulting graphs should have weights attached
+#' @param minTimestampCol the name of the column to use for assigning the minimum timestamp, if no `dateTimeStart` is provided. Default is "minTimestamp".
+#' @param maxTimestampCol the name of the column to use for assigning the maximum timestamp, if no `dateTimeEnd` is provided. Default is "maxTimestamp".
+#' @param allVertices whether to include all possible vertices in all graphs produced, even if they are not involved in any edges in the current time slice. Default is FALSE.
 #' @return A list of igraph graph objects
 #' @export
 makeGraphs <- function(edges, interval, dateTimeStart = NULL,
                        dateTimeEnd = NULL, id1Col = "ID1", id2Col = "ID2",
-                       weighted = FALSE, minTimestampCol = "minTimestamp", maxTimestampCol = "maxTimestamp", allVertices = FALSE){
+                       weighted = FALSE, minTimestampCol = "minTimestamp",
+                       maxTimestampCol = "maxTimestamp", allVertices = FALSE){
   # Some basic argument checks
   checkmate::assertLogical(weighted, len = 1)
   checkmate::assertCharacter(minTimestampCol, len = 1)
@@ -464,17 +467,17 @@ makeGraphs <- function(edges, interval, dateTimeStart = NULL,
 
   # Split the data into a list
   dataList <- edges %>%
-    dplyr::filter(!is.na(ID1)) %>%
+    dplyr::filter(!is.na(.data$ID1)) %>%
     dplyr::ungroup() %>%
     dplyr::select(.data[[id1Col]], .data[[id2Col]], .data$timegroup, .data$intervalGroup) %>%
     dplyr::group_by(.data$intervalGroup) %>%
     dplyr::group_split()
 
   nms <- edges %>%
-    dplyr::filter(!is.na(ID1)) %>%
+    dplyr::filter(!is.na(.data$ID1)) %>%
     dplyr::ungroup() %>%
     dplyr::select(.data[[id1Col]], .data[[id2Col]], .data$timegroup, .data$intervalGroup) %>%
-    pull(.data$intervalGroup) %>%
+    dplyr::pull(.data$intervalGroup) %>%
     unique()
   # XXX would make MUCH more sense to just call lapply on a function, instead of having the function makeGraphsList rely on having a list passed to it. that would also simplify the allVerticesVec argument because for each one you could pass in a complete list of vertices if allVertices == FALSE. Do this later.
 
@@ -495,6 +498,8 @@ makeGraphs <- function(edges, interval, dateTimeStart = NULL,
 #' @param weighted whether or not the resulting graphs should have weights attached
 #' @param id1Col name of the column containing the ID of the first individual in a dyad
 #' @param id2Col name of the column containing the ID of the second individual in a dyad
+#' @param allVertices whether to include all possible vertices in all graphs produced, even if they are not involved in any edges in the current time slice. Default is FALSE
+#' @param allVerticesVec vector to use to define all possible vertices.
 #' @return A list of igraph graph objects
 #' @export
 #'
@@ -609,5 +614,58 @@ makeGIF <- function(plotList, fileName, interval = 0.1){
   },
   movie.name = fileName,
   interval = interval)
+}
+
+#' Compute probabilities of gaining and losing edges.
+#'
+#' Given a list of graphs, compute the probability at each time step of gaining or losing edges, looking two timesteps back.
+#' @param graphList a list of network graphs
+#' @return a long-format data frame containing probabilities of losing/adding edges
+#' @export
+computeProbs <- function(graphList){
+  # get the complete set of all possible edges in the entire graphList
+  complete_edgelist <- do.call(igraph::union, graphList) %>%
+    igraph::get.edgelist()
+
+  # get edge list for each element of the graph list
+  els <- lapply(graphList, igraph::get.edgelist)
+
+  # for each graph, check whether each edge is present or not
+  tf <- lapply(els, function(x){
+    complete_edgelist %in% x
+  })
+
+  # bind into a data frame showing presence/absence of edges over time.
+  overTime <- do.call(cbind, tf) %>% as.data.frame()
+
+  # add two blank steps before (all FALSE), and add the data for the individuals that make up each edge.
+  beforeSteps <- data.frame(stepPrevPrev = rep(FALSE, nrow(overTime)),
+                            stepPrev = rep(FALSE, nrow(overTime)))
+  overTime <- cbind(stats::setNames(as.data.frame(complete_edgelist),
+                             c("ID1", "ID2")), beforeSteps, overTime) # this is our final history data frame
+
+  # Create a data frame of probabilities based on overTime
+  histdf <- data.frame("add00" = NA, "add10" = NA, "lose01" = NA, "lose11" = NA)
+  for(i in 5:ncol(overTime)){
+    vec <- vector(mode = "character", nrow(overTime))
+    vec[which(!overTime[,i-2] & !overTime[,i-1])] <- "hist00"
+    vec[which(!overTime[,i-2] & overTime[,i-1])] <- "hist01"
+    vec[which(overTime[,i-2] & !overTime[,i-1])] <- "hist10"
+    vec[which(overTime[,i-2] & overTime[,i-1])] <- "hist11"
+
+    # compute the probabilities
+    add00 <- sum(overTime[i] & vec == "hist00")/sum(vec == "hist00")
+    add10 <- sum(overTime[i] & vec == "hist10")/sum(vec == "hist10")
+    lose01 <- sum(!overTime[i] & vec == "hist01")/sum(vec == "hist01")
+    lose11 <- sum(!overTime[i] & vec == "hist11")/sum(vec == "hist11")
+
+    histdf[i-4,] <- c("add00" = add00, "add10" = add10, "lose01" = lose01, "lose11" = lose11)
+  }
+
+  histdfLong <- histdf %>%
+    dplyr::mutate(earlyDate = names(overTime)[-1:-4]) %>%
+    tidyr::pivot_longer(cols = -.data$earlyDate, names_to = "type", values_to = "prob")
+
+  return(histdfLong)
 }
 

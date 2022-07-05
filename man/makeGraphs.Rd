@@ -6,19 +6,19 @@
 \usage{
 makeGraphs(
   edges,
-  fullData,
   interval,
   dateTimeStart = NULL,
   dateTimeEnd = NULL,
   id1Col = "ID1",
   id2Col = "ID2",
-  weighted = FALSE
+  weighted = FALSE,
+  minTimestampCol = "minTimestamp",
+  maxTimestampCol = "maxTimestamp",
+  allVertices = FALSE
 )
 }
 \arguments{
 \item{edges}{a data frame containing edges and their associated `timegroup`s.}
-
-\item{fullData}{a data frame containing the `timegroup` column and `timestamp`s of vulture relocations. This will be used to classify timegroups by interval.}
 
 \item{interval}{A character string specifying an interval such as "3 days" or "2 hours" or "1 month" or "1.5 hours" or "3 days 2 hours". Interval will be coerced to a duration object using lubridate::as.duration()}
 
@@ -31,6 +31,12 @@ makeGraphs(
 \item{id2Col}{name of the column in `edges` containing the ID of the second individual in a dyad}
 
 \item{weighted}{whether or not the resulting graphs should have weights attached}
+
+\item{minTimestampCol}{the name of the column to use for assigning the minimum timestamp, if no `dateTimeStart` is provided. Default is "minTimestamp".}
+
+\item{maxTimestampCol}{the name of the column to use for assigning the maximum timestamp, if no `dateTimeEnd` is provided. Default is "maxTimestamp".}
+
+\item{allVertices}{whether to include all possible vertices in all graphs produced, even if they are not involved in any edges in the current time slice. Default is FALSE.}
 }
 \value{
 A list of igraph graph objects
