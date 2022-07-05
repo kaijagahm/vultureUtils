@@ -624,7 +624,7 @@ makeGIF <- function(plotList, fileName, interval = 0.1){
 #' @export
 computeProbs <- function(graphList){
   # Get a complete list of all possible edges
-  completeGraph <- do.call(graphList, igraph::union)
+  completeGraph <- do.call(igraph::union, graphList)
   complete_edgelist <- expand.grid(names(igraph::V(completeGraph)),
                                    names(igraph::V(completeGraph))) %>%
     dplyr::filter(as.character(.data$Var1) < as.character(.data$Var2)) %>%
