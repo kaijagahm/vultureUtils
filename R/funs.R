@@ -623,9 +623,12 @@ makeGIF <- function(plotList, fileName, interval = 0.1){
 #' @return a long-format data frame containing probabilities of losing/adding edges
 #' @export
 computeProbs <- function(graphList){
-  # get the complete set of all possible edges in the entire graphList
-  complete_edgelist <- do.call(igraph::union, graphList) %>%
-    igraph::get.edgelist()
+  # Get a complete list of all possible edges
+  completeGraph <- do.call(graphList, igraph::union)
+  complete_edgelist <- expand.grid(names(igraph::V(completeGraph)),
+                                   names(igraph::V(completeGraph))) %>%
+    dplyr::filter(as.character(.data$Var1) < as.character(.data$Var2)) %>%
+    as.matrix()
 
   # get edge list for each element of the graph list
   els <- lapply(graphList, igraph::get.edgelist)
