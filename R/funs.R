@@ -645,7 +645,7 @@ computeProbs <- function(graphList){
   beforeSteps <- data.frame(stepPrevPrev = rep(FALSE, nrow(overTime)),
                             stepPrev = rep(FALSE, nrow(overTime)))
   overTime <- cbind(stats::setNames(as.data.frame(complete_edgelist),
-                             c("ID1", "ID2")), beforeSteps, overTime) # this is our final history data frame
+                                    c("ID1", "ID2")), beforeSteps, overTime) # this is our final history data frame
 
   # Create a data frame of probabilities based on overTime
   histdf <- data.frame("add00" = NA, "add10" = NA, "lose01" = NA, "lose11" = NA)
@@ -671,4 +671,3 @@ computeProbs <- function(graphList){
 
   return(histdfLong)
 }
-
