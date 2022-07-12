@@ -463,7 +463,7 @@ makeGraphs <- function(edges, interval, dateTimeStart = NULL,
 
   # Now use `cut` and `seq` to group the data
   edges <- edges %>%
-    dplyr::mutate(intervalGroup = cut(.data$minTimestamp, breaks = eval(interval)))
+    dplyr::mutate(intervalGroup = lubridate::floor_date(.data$minTimestamp, unit = eval(interval)))
 
   # Split the data into a list
   dataList <- edges %>%
@@ -471,14 +471,11 @@ makeGraphs <- function(edges, interval, dateTimeStart = NULL,
     dplyr::ungroup() %>%
     dplyr::select(.data[[id1Col]], .data[[id2Col]], .data$timegroup, .data$intervalGroup) %>%
     dplyr::group_by(.data$intervalGroup) %>%
-    dplyr::group_split()
+    dplyr::group_split(.keep = T)
 
-  nms <- edges %>%
-    dplyr::filter(!is.na(.data$ID1)) %>%
-    dplyr::ungroup() %>%
-    dplyr::select(.data[[id1Col]], .data[[id2Col]], .data$timegroup, .data$intervalGroup) %>%
-    dplyr::pull(.data$intervalGroup) %>%
-    unique()
+  nms <- unlist(lapply(dataList, function(x){
+    as.character(head(x$intervalGroup, 1))
+  }))
   # XXX would make MUCH more sense to just call lapply on a function, instead of having the function makeGraphsList rely on having a list passed to it. that would also simplify the allVerticesVec argument because for each one you could pass in a complete list of vertices if allVertices == FALSE. Do this later.
 
   # Now make the networks, calling vultureUtils::makeGraphsList().
