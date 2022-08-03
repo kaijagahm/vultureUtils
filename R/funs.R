@@ -246,6 +246,7 @@ filterLocs <- function(df, speedThreshLower = NULL, speedThreshUpper = NULL){
     df <- df %>%
       dplyr::filter(.data$ground_speed < speedThreshUpper)
   }
+  return(df)
 }
 
 #' Buffer feeding sites
