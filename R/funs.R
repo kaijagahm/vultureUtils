@@ -104,7 +104,7 @@ maskData <- function(dataset, mask, longCol = "location_long", latCol = "locatio
 #' @param dataset the full dataset, before masking.
 #' @param maskedDataset the dataset after being masked to Israel (output of maskIsrael function)
 #' @param thresh proportion (between 0 and 1) of a vulture's total tracked days that it spent in Israel
-#' @param dateCol the name of the column containing dates (must be the same in `dataset` and `israelDataset`). Defaults to "dateOnly".
+#' @param dateCol the name of the column containing dates (must be the same in `dataset` and `maskedDataset`). Defaults to "dateOnly".
 #' @return A vector of trackIds for vultures
 #' @export
 mostlyInMask <- function(dataset, maskedDataset, thresh = 0.333, dateCol = "dateOnly"){
