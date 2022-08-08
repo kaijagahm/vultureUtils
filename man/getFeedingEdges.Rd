@@ -8,6 +8,7 @@ getFeedingEdges(
   dataset,
   mask,
   roostPolygons,
+  roostBuffer = 50,
   inMaskThreshold = 0.33,
   consecThreshold = 2,
   distThreshold = 50,
@@ -25,6 +26,8 @@ getFeedingEdges(
 \item{mask}{The object to use to mask the data. Passed to `vultureUtils::maskData()`. Must be an sf object.}
 
 \item{roostPolygons}{Roost polygons. Must be an sf object with a CRS that matches the dataset CRS.}
+
+\item{roostBuffer}{Number of meters to buffer the roost polygons by before intersecting them. Default is 50 m.}
 
 \item{inMaskThreshold}{Proportion of an individual's days tracked that must fall within the mask. Default is 0.33 (one third of days tracked). Passed to `vultureUtils::mostlyInMask()`. Must be numeric.}
 

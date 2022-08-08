@@ -669,3 +669,30 @@ computeProbs <- function(graphList){
 
   return(histdfLong)
 }
+
+#' Buffer an sf object
+#'
+#' Given an sf object in WGS84, convert it to a CRS with meters as the units, buffer by a given distance, and then convert it back.
+#' @param obj an sf object to be buffered
+#' @param dist buffer distance, in meters (m)
+#' @param crsMeters crs with units of meters to be used. Default is 32636 (Israel, UTM zone 36)
+#' @return A buffered sf object
+#' @export
+convertAndBuffer <- function(obj, dist = 50, crsMeters = 32636){
+  checkmate::assertClass(obj, "sf")
+  originalCRS <- sf::st_crs(obj)
+  if(is.null(originalCRS)){
+    stop("Object does not have a valid CRS.")
+  }
+
+  converted <- obj %>%
+    sf::st_transform(crsMeters)
+
+  buffered <- converted %>%
+    sf::st_buffer(dist = dist)
+
+  convertedBack <- buffered %>%
+    sf::st_transform(originalCRS)
+
+  return(convertedBack)
+}
