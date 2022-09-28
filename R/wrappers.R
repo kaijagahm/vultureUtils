@@ -59,7 +59,7 @@ getFeedingEdges <- function(dataset, mask, roostPolygons, roostBuffer = 50, inMa
                                           crs = crs)
 
   # Buffer the roost polygons
-  # XXX convert to meters and do this here
+  roostPolygons <- convertAndBuffer(roostPolygons, dist = roostBuffer)
 
   # Exclude any points that fall within a (buffered) roost polygon
   feedingPoints <- cleanedInMask[lengths(sf::st_intersects(cleanedInMask, roostPolygons)) == 0,]
@@ -131,7 +131,7 @@ getFlightEdges <- function(dataset, mask, roostPolygons, roostBuffer = 50, inMas
                                           crs = crs)
 
   # Buffer the roost polygons
-  # XXX convert to meters and do this here
+  roostPolygons <- convertAndBuffer(roostPolygons, dist = roostBuffer)
 
   # Exclude any points that fall within a (buffered) roost polygon
   flightPoints <- cleanedInMask[lengths(sf::st_intersects(cleanedInMask, roostPolygons)) == 0,]
@@ -200,7 +200,7 @@ getRoostingEdges <- function(dataset, mask, roostPolygons, roostBuffer = 50, inM
                                           crs = crs)
 
   # Buffer the roost polygons
-  # XXX convert to meters and do this here
+  roostPolygons <- convertAndBuffer(roostPolygons, dist = roostBuffer)
 
   # Exclude any points that fall within a (buffered) roost polygon
   flightPoints <- cleanedInMask[lengths(sf::st_intersects(cleanedInMask, roostPolygons)) == 0,]
