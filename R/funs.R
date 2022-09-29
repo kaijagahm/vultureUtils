@@ -38,7 +38,7 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
   }
 
   if(dfConvert == TRUE){
-    dat <- as.data.frame(dat)
+    dat <- methods::as(dat, "data.frame")
   }
 
   return(dat)
