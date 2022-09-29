@@ -11,7 +11,9 @@ cleanData(
   crs = "WGS84",
   longCol = "location_long.1",
   latCol = "location_lat.1",
-  dateCol = "dateOnly"
+  dateCol = "dateOnly",
+  removeVars = T,
+  reMask = T
 )
 }
 \arguments{
@@ -28,6 +30,10 @@ cleanData(
 \item{latCol}{The name of the column in the dataset containing latitude values. Defaults to "location_lat.1". Passed to `vultureUtils::maskData()`.}
 
 \item{dateCol}{The name of the column in the dataset containing dates. Defaults to "dateOnly". Passed to `vultureUtils::mostlyInMask()`.}
+
+\item{removeVars}{Whether or not to remove unnecessary variables. Default is T.}
+
+\item{reMask}{Whether or not to re-mask after removing individuals that spend less than `inMaskThreshold` in the mask area. Default is T.}
 }
 \value{
 An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.
