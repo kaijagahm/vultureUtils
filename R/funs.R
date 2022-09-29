@@ -489,7 +489,7 @@ makeGraphs <- function(edges, interval, dateTimeStart = NULL,
     dplyr::group_split(.keep = T)
 
   nms <- unlist(lapply(dataList, function(x){
-    as.character(head(x$intervalGroup, 1))
+    as.character(utils::head(x$intervalGroup, 1))
   }))
   # XXX would make MUCH more sense to just call lapply on a function, instead of having the function makeGraphsList rely on having a list passed to it. that would also simplify the allVerticesVec argument because for each one you could pass in a complete list of vertices if allVertices == FALSE. Do this later.
 
