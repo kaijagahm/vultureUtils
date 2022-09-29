@@ -1,5 +1,51 @@
 if(getRversion() >= "2.15.1")  utils::globalVariables(".")
 
+#' Clean data
+#'
+#' This function takes in a raw dataset downloaded from movebank, masks it, and performs basic data cleaning. The output from this function feeds directly into `vultureUtils::spaceTimeGroups()`. Steps: 1. Using the `mask` object, get a list of the individuals in `dataset` that spend at least `inMaskThreshold` proportion of their time inside the mask area. 2. Restrict `dataset` to only these individuals. 3. Re-apply the mask to restrict the remaining points to those that fall within `mask`.
+#' @param dataset The GPS dataset to be used to create the edge list.
+#' @param mask The object to use to mask the data. Passed to `vultureUtils::maskData()`. Must be an sf object.
+#' @param inMaskThreshold Proportion of an individual's days tracked that must fall within the mask. Default is 0.33 (one third of days tracked). Passed to `vultureUtils::mostlyInMask()`. Must be numeric.
+#' @param crs Coordinate Reference System to check for and transform to, for both the GPS data and the mask. Default is "WGS84". This value is passed to `vultureUtils::maskData()`. Must be a valid CRS or character string coercible to CRS.
+#' @param longCol The name of the column in the dataset containing longitude values. Defaults to "location_long.1". Passed to `vultureUtils::maskData()`.
+#' @param latCol The name of the column in the dataset containing latitude values. Defaults to "location_lat.1". Passed to `vultureUtils::maskData()`.
+#' @param dateCol The name of the column in the dataset containing dates. Defaults to "dateOnly". Passed to `vultureUtils::mostlyInMask()`.
+#' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.
+#' @export
+cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", longCol = "location_long.1", latCol = "location_lat.1", dateCol = "dateOnly"){
+  # Argument checks
+  checkmate::assertClass(mask, "sf")
+  checkmate::assertDataFrame(dataset)
+  checkmate::assertNumeric(inMaskThreshold, len = 1, lower = 0, upper = 1, null.ok = TRUE)
+  checkmate::assertCharacter(longCol, len = 1)
+  checkmate::assertCharacter(latCol, len = 1)
+  checkmate::assertCharacter(dateCol, len = 1)
+  checkmate::assertSubset(x = c(longCol, latCol, dateCol), choices = names(dataset))
+
+  # If an inMaskThreshold is given (it usually is), then filter to only the individuals that spend at least the threshold proportion of their days within the mask. Otherwise, just pass the dataset through unfiltered.
+  if(!is.null(inMaskThreshold)){
+    # Select only points that fall in the mask
+    inMask <- vultureUtils::maskData(dataset = dataset, mask = mask, longCol = longCol,
+                                     latCol = latCol, crs = crs)
+
+    # Remove vultures that have less than `inMaskThreshold` of their duration recorded inside the mask.
+    longEnoughIndivs <- vultureUtils::mostlyInMask(dataset = dataset,
+                                                   maskedDataset = inMask,
+                                                   thresh = inMaskThreshold,
+                                                   dateCol = dateCol)
+    dataset <- dataset %>% # using datDF because we don't want to actually restrict it to the mask yet
+      filter(trackId %in% longEnoughIndivs)
+  }
+
+  # Mask again to remove out-of-mask points.
+  cleanedInMask <- vultureUtils::maskData(dataset = filteredData, mask = mask,
+                                          longCol = longCol,
+                                          latCol = latCol,
+                                          crs = crs)
+  return(cleanedInMask)
+}
+
+
 #' Create co-feeding edge list
 #'
 #' Given a dataset of GPS points, a geographic mask, and some roost polygons, create an edge list.
