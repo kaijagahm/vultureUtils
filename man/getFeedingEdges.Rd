@@ -5,31 +5,22 @@
 \title{Create co-feeding edge list}
 \usage{
 getFeedingEdges(
-  dataset,
-  mask,
+  cleanedInMask,
   roostPolygons,
   roostBuffer = 50,
-  inMaskThreshold = 0.33,
   consecThreshold = 2,
   distThreshold = 50,
   speedThreshUpper = 5,
   speedThreshLower = NULL,
-  crs = "WGS84",
-  longCol = "location_long.1",
-  latCol = "location_lat.1",
   dateCol = "dateOnly"
 )
 }
 \arguments{
-\item{dataset}{The GPS dataset to be used to create the edge list.}
+\item{cleanedInMask}{The cleaned GPS dataset to be used to create the edge list. This should be the output from `vultureUtils::cleanData()`.}
 
-\item{mask}{The object to use to mask the data. Passed to `vultureUtils::maskData()`. Must be an sf object.}
-
-\item{roostPolygons}{Roost polygons. Must be an sf object with a CRS that matches the dataset CRS.}
+\item{roostPolygons}{Roost polygons. Must be an sf object with a CRS that matches the cleanedInMask CRS.}
 
 \item{roostBuffer}{Number of meters to buffer the roost polygons by before intersecting them. Default is 50 m.}
-
-\item{inMaskThreshold}{Proportion of an individual's days tracked that must fall within the mask. Default is 0.33 (one third of days tracked). Passed to `vultureUtils::mostlyInMask()`. Must be numeric.}
 
 \item{consecThreshold}{Minimal number of co-occurrences for considering a viable pair of interacting vultures (default is 2 consecutive time steps). Passed to `vultureUtils::spaceTimeGroups()`. Must be numeric.}
 
@@ -38,14 +29,6 @@ getFeedingEdges(
 \item{speedThreshUpper}{Upper speed threshold, in m/s. For co-feeding, default is 5 m/s. Passed to `vultureUtils::filterLocs()`. Must be numeric.}
 
 \item{speedThreshLower}{Lower speed threshold, in m/s. For co-feeding, default is NULL. Passed to `vultureUtils::filterLocs()`. Must be numeric.}
-
-\item{crs}{Coordinate Reference System to check for and transform to, for both the GPS data and the mask. Default is "WGS84". This value is passed to `vultureUtils::maskData()`. Must be a valid CRS or character string coercible to CRS.}
-
-\item{longCol}{The name of the column in the dataset containing longitude values. Defaults to "location_long.1". Passed to `vultureUtils::maskData()`.}
-
-\item{latCol}{The name of the column in the dataset containing latitude values. Defaults to "location_lat.1". Passed to `vultureUtils::maskData()`.}
-
-\item{dateCol}{The name of the column in the dataset containing dates. Defaults to "dateOnly". Passed to `vultureUtils::mostlyInMask()`.}
 }
 \value{
 An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.
