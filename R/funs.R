@@ -9,12 +9,14 @@ if(getRversion() >= "2.15.1")  utils::globalVariables(".")
 #' @param dateTimeStartUTC a POSIXct object, in UTC. Will be converted to character assuming UTC. Passed to `timestamp_start` in move::getMovebankData().
 #' @param dateTimeEndUTC a POSIXct object, in UTC. Will be converted to character assuming UTC. Passed to `timestamp_end` in move::getMovebankData().
 #' @param addDateOnly Whether to add a dateOnly column, extracted from the timestamp. Default is T.
+#' @param dfConvert Whether to convert the returned data to a data frame or not (default is T).
 #' @param ... additional arguments to be passed to move::getMovebankData().
 #' @return A movestack.
 #' @export
 downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
                              dateTimeStartUTC = NULL, dateTimeEndUTC = NULL,
-                             addDateOnly = T, ...){
+                             addDateOnly = T,
+                             dfConvert = T, ...){
   # argument checks
   checkmate::assertClass(loginObject, "MovebankLogin")
   checkmate::assertLogical(extraSensors, len = 1)
@@ -33,6 +35,10 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
                                ...)
   if(addDateOnly == T){
     dat$dateOnly <- as.Date(as.character(dat$timestamp))
+  }
+
+  if(dfConvert == TRUE){
+    dat <- as.data.frame(dat)
   }
 
   return(dat)
