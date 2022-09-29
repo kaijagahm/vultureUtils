@@ -8,19 +8,22 @@ if(getRversion() >= "2.15.1")  utils::globalVariables(".")
 #' @param removeDup Whether to remove duplicated timestamps. Defaults to TRUE. Passed to `removeDuplicatedTimestamps` in move::getMovebankData().
 #' @param dateTimeStartUTC a POSIXct object, in UTC. Will be converted to character assuming UTC. Passed to `timestamp_start` in move::getMovebankData().
 #' @param dateTimeEndUTC a POSIXct object, in UTC. Will be converted to character assuming UTC. Passed to `timestamp_end` in move::getMovebankData().
+#' @param addDateOnly Whether to add a dateOnly column, extracted from the timestamp. Default is T.
 #' @param ... additional arguments to be passed to move::getMovebankData().
 #' @return A movestack.
 #' @export
 downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
-                             dateTimeStartUTC = NULL, dateTimeEndUTC = NULL, ...){
+                             dateTimeStartUTC = NULL, dateTimeEndUTC = NULL,
+                             addDateOnly = T, ...){
   # argument checks
   checkmate::assertClass(loginObject, "MovebankLogin")
   checkmate::assertLogical(extraSensors, len = 1)
   checkmate::assertLogical(removeDup, len = 1)
   checkmate::assertPOSIXct(dateTimeStartUTC, null.ok = TRUE)
   checkmate::assertPOSIXct(dateTimeEndUTC, null.ok = TRUE)
+  checkmate::assertLogical(addDateOnly, len = 1)
 
-  move::getMovebankData(study = "Ornitela_Vultures_Gyps_fulvus_TAU_UCLA_Israel",
+  dat <- move::getMovebankData(study = "Ornitela_Vultures_Gyps_fulvus_TAU_UCLA_Israel",
                                login = loginObject,
                                includeExtraSensors = FALSE,
                                deploymentAsIndividuals = FALSE,
@@ -28,6 +31,11 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
                                timestamp_start = dateTimeStartUTC,
                                timestamp_end = dateTimeEndUTC,
                                ...)
+  if(addDateOnly == T){
+    dat$dateOnly <- as.Date(as.character(dat$timestamp))
+  }
+
+  return(dat)
 }
 
 #' Remove unnecessary vars
