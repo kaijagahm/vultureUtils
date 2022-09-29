@@ -10,13 +10,15 @@ if(getRversion() >= "2.15.1")  utils::globalVariables(".")
 #' @param dateTimeEndUTC a POSIXct object, in UTC. Will be converted to character assuming UTC. Passed to `timestamp_end` in move::getMovebankData().
 #' @param addDateOnly Whether to add a dateOnly column, extracted from the timestamp. Default is T.
 #' @param dfConvert Whether to convert the returned data to a data frame or not (default is T).
+#' @param quiet Whether to silence the warning messages created when duplicate records are dropped. Default is F (warning messages will print).
 #' @param ... additional arguments to be passed to move::getMovebankData().
 #' @return A movestack.
 #' @export
 downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
                              dateTimeStartUTC = NULL, dateTimeEndUTC = NULL,
                              addDateOnly = T,
-                             dfConvert = T, ...){
+                             dfConvert = T,
+                             quiet = F, ...){
   # argument checks
   checkmate::assertClass(loginObject, "MovebankLogin")
   checkmate::assertLogical(extraSensors, len = 1)
@@ -24,15 +26,28 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
   checkmate::assertPOSIXct(dateTimeStartUTC, null.ok = TRUE)
   checkmate::assertPOSIXct(dateTimeEndUTC, null.ok = TRUE)
   checkmate::assertLogical(addDateOnly, len = 1)
+  checkmate::assertLogical(quiet, len = 1)
 
-  dat <- move::getMovebankData(study = "Ornitela_Vultures_Gyps_fulvus_TAU_UCLA_Israel",
-                               login = loginObject,
-                               includeExtraSensors = FALSE,
-                               deploymentAsIndividuals = FALSE,
-                               removeDuplicatedTimestamps = TRUE,
-                               timestamp_start = dateTimeStartUTC,
-                               timestamp_end = dateTimeEndUTC,
-                               ...)
+  if(quiet == T){
+    dat <- suppressWarnings(suppressMessages(move::getMovebankData(study = "Ornitela_Vultures_Gyps_fulvus_TAU_UCLA_Israel",
+                                 login = loginObject,
+                                 includeExtraSensors = FALSE,
+                                 deploymentAsIndividuals = FALSE,
+                                 removeDuplicatedTimestamps = TRUE,
+                                 timestamp_start = dateTimeStartUTC,
+                                 timestamp_end = dateTimeEndUTC,
+                                 ...)))
+  }else{
+    dat <- move::getMovebankData(study = "Ornitela_Vultures_Gyps_fulvus_TAU_UCLA_Israel",
+                                 login = loginObject,
+                                 includeExtraSensors = FALSE,
+                                 deploymentAsIndividuals = FALSE,
+                                 removeDuplicatedTimestamps = TRUE,
+                                 timestamp_start = dateTimeStartUTC,
+                                 timestamp_end = dateTimeEndUTC,
+                                 ...)
+  }
+
   if(addDateOnly == T){
     dat$dateOnly <- as.Date(as.character(dat$timestamp))
   }

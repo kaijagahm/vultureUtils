@@ -13,7 +13,8 @@ cleanData(
   latCol = "location_lat.1",
   dateCol = "dateOnly",
   removeVars = T,
-  reMask = T
+  reMask = T,
+  quiet = T
 )
 }
 \arguments{
@@ -34,6 +35,8 @@ cleanData(
 \item{removeVars}{Whether or not to remove unnecessary variables. Default is T.}
 
 \item{reMask}{Whether or not to re-mask after removing individuals that spend less than `inMaskThreshold` in the mask area. Default is T.}
+
+\item{quiet}{Whether to silence the message that happens when doing spatial joins. Default is T.}
 }
 \value{
 An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.

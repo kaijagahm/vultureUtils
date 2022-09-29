@@ -13,9 +13,10 @@ if(getRversion() >= "2.15.1")  utils::globalVariables(".")
 #' @param dateCol The name of the column in the dataset containing dates. Defaults to "dateOnly". Passed to `vultureUtils::mostlyInMask()`.
 #' @param removeVars Whether or not to remove unnecessary variables. Default is T.
 #' @param reMask Whether or not to re-mask after removing individuals that spend less than `inMaskThreshold` in the mask area. Default is T.
+#' @param quiet Whether to silence the message that happens when doing spatial joins. Default is T.
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.
 #' @export
-cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", longCol = "location_long.1", latCol = "location_lat.1", dateCol = "dateOnly", removeVars = T, reMask = T){
+cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", longCol = "location_long.1", latCol = "location_lat.1", dateCol = "dateOnly", removeVars = T, reMask = T, quiet = T){
   # Argument checks
   checkmate::assertClass(mask, "sf")
   checkmate::assertDataFrame(dataset)
@@ -33,24 +34,45 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
   # If an inMaskThreshold is given (it usually is), then filter to only the individuals that spend at least the threshold proportion of their days within the mask. Otherwise, just pass the dataset through unfiltered.
   if(!is.null(inMaskThreshold)){
     # Select only points that fall in the mask
-    inMask <- vultureUtils::maskData(dataset = dataset, mask = mask, longCol = longCol,
-                                     latCol = latCol, crs = crs)
+    if(quiet == TRUE){
+      inMask <- suppressMessages(vultureUtils::maskData(dataset = dataset, mask = mask, longCol = longCol,
+                                       latCol = latCol, crs = crs))
+    }else{
+      inMask <- vultureUtils::maskData(dataset = dataset, mask = mask, longCol = longCol,
+                                       latCol = latCol, crs = crs)
+    }
 
     # Remove vultures that have less than `inMaskThreshold` of their duration recorded inside the mask.
-    longEnoughIndivs <- vultureUtils::mostlyInMask(dataset = dataset,
-                                                   maskedDataset = inMask,
-                                                   thresh = inMaskThreshold,
-                                                   dateCol = dateCol)
+    if(quiet == TRUE){
+      longEnoughIndivs <- suppressMessages(vultureUtils::mostlyInMask(dataset = dataset,
+                                                     maskedDataset = inMask,
+                                                     thresh = inMaskThreshold,
+                                                     dateCol = dateCol))
+    }else{
+      longEnoughIndivs <- vultureUtils::mostlyInMask(dataset = dataset,
+                                                     maskedDataset = inMask,
+                                                     thresh = inMaskThreshold,
+                                                     dateCol = dateCol)
+    }
+
     dataset <- dataset %>% # using datDF because we don't want to actually restrict it to the mask yet
-      dplyr::filter(.data[[trackId]] %in% longEnoughIndivs)
+      dplyr::filter(trackId %in% longEnoughIndivs)
   }
 
   # Mask again to remove out-of-mask points, if desired
   if(reMask == T){
-    cleanedInMask <- vultureUtils::maskData(dataset = dataset, mask = mask,
-                                            longCol = longCol,
-                                            latCol = latCol,
-                                            crs = crs)
+    if(quiet == TRUE){
+      cleanedInMask <- suppressMessages(vultureUtils::maskData(dataset = dataset, mask = mask,
+                                              longCol = longCol,
+                                              latCol = latCol,
+                                              crs = crs))
+    }else{
+      cleanedInMask <- vultureUtils::maskData(dataset = dataset, mask = mask,
+                                              longCol = longCol,
+                                              latCol = latCol,
+                                              crs = crs)
+    }
+
     return(cleanedInMask)
   }else{
     return(dataset)
@@ -110,6 +132,7 @@ getFeedingEdges <- function(cleanedInMask, roostPolygons, roostBuffer = 50, cons
 #' @param distThreshold The maximum distance (in meters) at which vultures are considered interacting. Default is 1000 m for co-flight Passed to `vultureUtils::spaceTimeGroups()`. Must be numeric.
 #' @param speedThreshUpper Upper speed threshold, in m/s. For co-flight, default is NULL. Passed to `vultureUtils::filterLocs()`. Must be numeric.
 #' @param speedThreshLower Lower speed threshold, in m/s. For co-flight, default is 5 m/s. Passed to `vultureUtils::filterLocs()`. Must be numeric.
+#' @param quiet Whether to silence the warning messages about grouping individuals with themselves inside the time threshold. Default is T. This occurs because if we set our time threshold to e.g. 10 minutes (the default), there are some GPS points that occur closer together than 10 minutes apart (e.g. if we experimentally set the tags to take points every 5 minutes). As a result, we will "group" together the same individual with itself, resulting in some self edges. I currently have a step in the code that simply removes these self edges, so there should be no problem here. But if you set `quiet = F`, you will at least be warned with the message `"Warning: found duplicate id in a timegroup and/or splitBy - does your group_times threshold match the fix rate?"` when this is occurring.
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.
 #' @export
 getFlightEdges <- function(cleanedInMask, roostPolygons, roostBuffer = 50, consecThreshold = 2, distThreshold = 1000, speedThreshUpper = NULL, speedThreshLower = 5){
@@ -134,8 +157,14 @@ getFlightEdges <- function(cleanedInMask, roostPolygons, roostBuffer = 50, conse
   flightPoints <- cleanedInMask[lengths(sf::st_intersects(cleanedInMask, roostPolygons)) == 0,]
 
   # Create edge list using spaceTimeGroups
-  flightEdges <- vultureUtils::spaceTimeGroups(dataset = flightPoints, distThreshold = distThreshold,
-                                                consecThreshold = consecThreshold)
+  if(quiet == T){
+    flightEdges <- suppressWarnings(vultureUtils::spaceTimeGroups(dataset = flightPoints, distThreshold = distThreshold,
+                                                 consecThreshold = consecThreshold))
+  }else{
+    flightEdges <- vultureUtils::spaceTimeGroups(dataset = flightPoints, distThreshold = distThreshold,
+                                                 consecThreshold = consecThreshold)
+  }
+
 
   # Return the edge list
   return(flightEdges)
