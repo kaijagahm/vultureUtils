@@ -10,6 +10,7 @@ License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 7.2.0
+VignetteBuilder: knitr
 Imports: 
     animation,
     checkmate,
@@ -31,3 +32,6 @@ Imports:
     utils
 Depends: 
     R (>= 2.10)
+Suggests:
+    knitr,
+    rmarkdown
