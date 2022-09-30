@@ -22,6 +22,7 @@ Imports:
     igraph,
     lubridate,
     magrittr,
+    methods,
     move,
     reshape,
     rlang,
