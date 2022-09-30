@@ -90,10 +90,11 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
 #' @param distThreshold The maximum distance (in meters) at which vultures are considered interacting. Passed to `vultureUtils::spaceTimeGroups()`. Must be numeric.
 #' @param speedThreshUpper Upper speed threshold, in m/s.
 #' @param speedThreshLower Lower speed threshold, in m/s.
+#' @param timeThreshold timeThreshold Passed to spatsoc::group_times. Threshold for grouping times. e.g.: '2 hours', '10 minutes', etc. if not provided, times will be matched exactly. Note that provided threshold must be in the expected format: '## unit'. Default is "10 minutes"
 #' @param quiet Whether to silence the warning messages about grouping individuals with themselves inside the time threshold. Default is T. This occurs because if we set our time threshold to e.g. 10 minutes (the default), there are some GPS points that occur closer together than 10 minutes apart (e.g. if we experimentally set the tags to take points every 5 minutes). As a result, we will "group" together the same individual with itself, resulting in some self edges. I currently have a step in the code that simply removes these self edges, so there should be no problem here. But if you set `quiet = F`, you will at least be warned with the message `"Warning: found duplicate id in a timegroup and/or splitBy - does your group_times threshold match the fix rate?"` when this is occurring.
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.
 #' @export
-getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distThreshold, speedThreshUpper, speedThreshLower, dateCol, quiet = T){
+getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distThreshold, speedThreshUpper, speedThreshLower, dateCol, timeThreshold = "10 minutes", quiet = T){
   # Argument checks
   checkmate::assertDataFrame(dataset)
   checkmate::assertClass(roostPolygons, "sf")
@@ -102,6 +103,7 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
   checkmate::assertNumeric(distThreshold, len = 1)
   checkmate::assertNumeric(speedThreshUpper, len = 1, null.ok = TRUE)
   checkmate::assertNumeric(speedThreshLower, len = 1, null.ok = TRUE)
+  checkmate::assertCharacter(timeThreshold, len = 1)
 
   # Restrict to non-flight interactions.
   filteredData <- vultureUtils::filterLocs(df = dataset,
@@ -117,11 +119,13 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
   if(quiet == T){
     edges <- suppressWarnings(vultureUtils::spaceTimeGroups(dataset = points,
                                                             distThreshold = distThreshold,
-                                                            consecThreshold = consecThreshold))
+                                                            consecThreshold = consecThreshold,
+                                                            timeThreshold = timeThreshold))
   }else{
     edges <- vultureUtils::spaceTimeGroups(dataset = points,
                                            distThreshold = distThreshold,
-                                           consecThreshold = consecThreshold)
+                                           consecThreshold = consecThreshold,
+                                           timeThreshold = timeThreshold)
   }
 
   # Return the edge list
@@ -138,10 +142,11 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
 #' @param distThreshold The maximum distance (in meters) at which vultures are considered interacting. Default is 50 for co-feeding. Passed to `vultureUtils::spaceTimeGroups()`. Must be numeric.
 #' @param speedThreshUpper Upper speed threshold, in m/s. For co-feeding, default is 5 m/s. Passed to `vultureUtils::filterLocs()`. Must be numeric.
 #' @param speedThreshLower Lower speed threshold, in m/s. For co-feeding, default is NULL. Passed to `vultureUtils::filterLocs()`. Must be numeric.
+#' @param timeThreshold timeThreshold Passed to spatsoc::group_times. Threshold for grouping times. e.g.: '2 hours', '10 minutes', etc. if not provided, times will be matched exactly. Note that provided threshold must be in the expected format: '## unit'. Default is "10 minutes"
 #' @param quiet Whether to silence the warning messages about grouping individuals with themselves inside the time threshold. Default is T. This occurs because if we set our time threshold to e.g. 10 minutes (the default), there are some GPS points that occur closer together than 10 minutes apart (e.g. if we experimentally set the tags to take points every 5 minutes). As a result, we will "group" together the same individual with itself, resulting in some self edges. I currently have a step in the code that simply removes these self edges, so there should be no problem here. But if you set `quiet = F`, you will at least be warned with the message `"Warning: found duplicate id in a timegroup and/or splitBy - does your group_times threshold match the fix rate?"` when this is occurring.
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.
 #' @export
-getFeedingEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThreshold = 2, distThreshold = 50, speedThreshUpper = 5, speedThreshLower = NULL, dateCol = "dateOnly", quiet = T){
+getFeedingEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThreshold = 2, distThreshold = 50, speedThreshUpper = 5, speedThreshLower = NULL, dateCol = "dateOnly", timeThreshold = "10 minutes", quiet = T){
   # Argument checks
   checkmate::assertDataFrame(dataset)
   checkmate::assertClass(roostPolygons, "sf")
@@ -164,10 +169,12 @@ getFeedingEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThre
 
   if(quiet == T){
     feedingEdges <- suppressWarnings(vultureUtils::spaceTimeGroups(dataset = feedingPoints, distThreshold = distThreshold,
-                                                  consecThreshold = consecThreshold))
+                                                  consecThreshold = consecThreshold,
+                                                  timeThreshold = timeThreshold))
   }else{
     feedingEdges <- vultureUtils::spaceTimeGroups(dataset = feedingPoints, distThreshold = distThreshold,
-                                                  consecThreshold = consecThreshold)
+                                                  consecThreshold = consecThreshold,
+                                                  timeThreshold = timeThreshold)
   }
 
   # Return the edge list
@@ -185,10 +192,11 @@ getFeedingEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThre
 #' @param distThreshold The maximum distance (in meters) at which vultures are considered interacting. Default is 1000 m for co-flight Passed to `vultureUtils::spaceTimeGroups()`. Must be numeric.
 #' @param speedThreshUpper Upper speed threshold, in m/s. For co-flight, default is NULL. Passed to `vultureUtils::filterLocs()`. Must be numeric.
 #' @param speedThreshLower Lower speed threshold, in m/s. For co-flight, default is 5 m/s. Passed to `vultureUtils::filterLocs()`. Must be numeric.
+#' @param timeThreshold timeThreshold Passed to spatsoc::group_times. Threshold for grouping times. e.g.: '2 hours', '10 minutes', etc. if not provided, times will be matched exactly. Note that provided threshold must be in the expected format: '## unit'. Default is "10 minutes"
 #' @param quiet Whether to silence the warning messages about grouping individuals with themselves inside the time threshold. Default is T. This occurs because if we set our time threshold to e.g. 10 minutes (the default), there are some GPS points that occur closer together than 10 minutes apart (e.g. if we experimentally set the tags to take points every 5 minutes). As a result, we will "group" together the same individual with itself, resulting in some self edges. I currently have a step in the code that simply removes these self edges, so there should be no problem here. But if you set `quiet = F`, you will at least be warned with the message `"Warning: found duplicate id in a timegroup and/or splitBy - does your group_times threshold match the fix rate?"` when this is occurring.
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.
 #' @export
-getFlightEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThreshold = 2, distThreshold = 1000, speedThreshUpper = NULL, speedThreshLower = 5, quiet = T){
+getFlightEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThreshold = 2, distThreshold = 1000, speedThreshUpper = NULL, speedThreshLower = 5, timeThreshold = "10 minutes", quiet = T){
   # Argument checks
   checkmate::assertDataFrame(dataset)
   checkmate::assertClass(roostPolygons, "sf")
@@ -212,10 +220,12 @@ getFlightEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThres
   # Create edge list using spaceTimeGroups
   if(quiet == T){
     flightEdges <- suppressWarnings(vultureUtils::spaceTimeGroups(dataset = flightPoints, distThreshold = distThreshold,
-                                                 consecThreshold = consecThreshold))
+                                                 consecThreshold = consecThreshold,
+                                                 timeThreshold = timeThreshold))
   }else{
     flightEdges <- vultureUtils::spaceTimeGroups(dataset = flightPoints, distThreshold = distThreshold,
-                                                 consecThreshold = consecThreshold)
+                                                 consecThreshold = consecThreshold,
+                                                 timeThreshold = timeThreshold)
   }
 
 
