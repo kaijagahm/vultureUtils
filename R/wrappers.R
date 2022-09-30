@@ -14,9 +14,10 @@ if(getRversion() >= "2.15.1")  utils::globalVariables(".")
 #' @param removeVars Whether or not to remove unnecessary variables. Default is T.
 #' @param reMask Whether or not to re-mask after removing individuals that spend less than `inMaskThreshold` in the mask area. Default is T.
 #' @param quiet Whether to silence the message that happens when doing spatial joins. Default is T.
+#' @param ... additional arguments to be passed to any of several functions: `vultureUtils::removeUnnecessaryVars()` (`addlVars`, `keepVars`);
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.
 #' @export
-cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", longCol = "location_long.1", latCol = "location_lat.1", dateCol = "dateOnly", removeVars = T, reMask = T, quiet = T){
+cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", longCol = "location_long.1", latCol = "location_lat.1", dateCol = "dateOnly", removeVars = T, reMask = T, quiet = T, ...){
   # Argument checks
   checkmate::assertClass(mask, "sf")
   checkmate::assertDataFrame(dataset)
@@ -79,23 +80,22 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
   }
 }
 
-
-#' Create co-feeding edge list
+#' Create an edge list (flexible; must insert parameters.)
 #'
 #' Given a dataset of GPS points, a geographic mask, and some roost polygons, create an edge list.
-#' @param cleanedInMask The cleaned GPS dataset to be used to create the edge list. This should be the output from `vultureUtils::cleanData()`.
-#' @param roostPolygons Roost polygons. Must be an sf object with a CRS that matches the cleanedInMask CRS.
-#' @param roostBuffer Number of meters to buffer the roost polygons by before intersecting them. Default is 50 m.
-#' @param consecThreshold Minimal number of co-occurrences for considering a viable pair of interacting vultures (default is 2 consecutive time steps). Passed to `vultureUtils::spaceTimeGroups()`. Must be numeric.
-#' @param distThreshold The maximum distance (in meters) at which vultures are considered interacting. Default is 50 for co-feeding. Passed to `vultureUtils::spaceTimeGroups()`. Must be numeric.
-#' @param speedThreshUpper Upper speed threshold, in m/s. For co-feeding, default is 5 m/s. Passed to `vultureUtils::filterLocs()`. Must be numeric.
-#' @param speedThreshLower Lower speed threshold, in m/s. For co-feeding, default is NULL. Passed to `vultureUtils::filterLocs()`. Must be numeric.
+#' @param dataset The cleaned GPS dataset to be used to create the edge list. This should be the output from `vultureUtils::cleanData()`.
+#' @param roostPolygons Roost polygons. Must be an sf object with a CRS that matches the dataset CRS.
+#' @param roostBuffer Number of meters to buffer the roost polygons by before intersecting them.
+#' @param consecThreshold Minimal number of co-occurrences for considering a viable pair of interacting vultures. Passed to `vultureUtils::spaceTimeGroups()`. Must be numeric.
+#' @param distThreshold The maximum distance (in meters) at which vultures are considered interacting. Passed to `vultureUtils::spaceTimeGroups()`. Must be numeric.
+#' @param speedThreshUpper Upper speed threshold, in m/s.
+#' @param speedThreshLower Lower speed threshold, in m/s.
 #' @param quiet Whether to silence the warning messages about grouping individuals with themselves inside the time threshold. Default is T. This occurs because if we set our time threshold to e.g. 10 minutes (the default), there are some GPS points that occur closer together than 10 minutes apart (e.g. if we experimentally set the tags to take points every 5 minutes). As a result, we will "group" together the same individual with itself, resulting in some self edges. I currently have a step in the code that simply removes these self edges, so there should be no problem here. But if you set `quiet = F`, you will at least be warned with the message `"Warning: found duplicate id in a timegroup and/or splitBy - does your group_times threshold match the fix rate?"` when this is occurring.
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.
 #' @export
-getFeedingEdges <- function(cleanedInMask, roostPolygons, roostBuffer = 50, consecThreshold = 2, distThreshold = 50, speedThreshUpper = 5, speedThreshLower = NULL, dateCol = "dateOnly", quiet = T){
+getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distThreshold, speedThreshUpper, speedThreshLower, dateCol, quiet = T){
   # Argument checks
-  checkmate::assertDataFrame(cleanedInMask)
+  checkmate::assertDataFrame(dataset)
   checkmate::assertClass(roostPolygons, "sf")
   checkmate::assertNumeric(roostBuffer, len = 1)
   checkmate::assertNumeric(consecThreshold, len = 1)
@@ -104,7 +104,7 @@ getFeedingEdges <- function(cleanedInMask, roostPolygons, roostBuffer = 50, cons
   checkmate::assertNumeric(speedThreshLower, len = 1, null.ok = TRUE)
 
   # Restrict to non-flight interactions.
-  filteredData <- vultureUtils::filterLocs(df = cleanedInMask,
+  filteredData <- vultureUtils::filterLocs(df = dataset,
                                            speedThreshUpper = speedThreshUpper,
                                            speedThreshLower = speedThreshLower)
 
@@ -112,7 +112,55 @@ getFeedingEdges <- function(cleanedInMask, roostPolygons, roostBuffer = 50, cons
   roostPolygons <- convertAndBuffer(roostPolygons, dist = roostBuffer)
 
   # Exclude any points that fall within a (buffered) roost polygon
-  feedingPoints <- cleanedInMask[lengths(sf::st_intersects(cleanedInMask, roostPolygons)) == 0,]
+  points <- dataset[lengths(sf::st_intersects(dataset, roostPolygons)) == 0,]
+
+  if(quiet == T){
+    edges <- suppressWarnings(vultureUtils::spaceTimeGroups(dataset = points,
+                                                            distThreshold = distThreshold,
+                                                            consecThreshold = consecThreshold))
+  }else{
+    edges <- vultureUtils::spaceTimeGroups(dataset = points,
+                                           distThreshold = distThreshold,
+                                           consecThreshold = consecThreshold)
+  }
+
+  # Return the edge list
+  return(edges)
+}
+
+#' Create co-feeding edge list
+#'
+#' Given a dataset of GPS points, a geographic mask, and some roost polygons, create an edge list.
+#' @param dataset The cleaned GPS dataset to be used to create the edge list. This should be the output from `vultureUtils::cleanData()`.
+#' @param roostPolygons Roost polygons. Must be an sf object with a CRS that matches the dataset CRS.
+#' @param roostBuffer Number of meters to buffer the roost polygons by before intersecting them. Default is 50 m.
+#' @param consecThreshold Minimal number of co-occurrences for considering a viable pair of interacting vultures (default is 2 consecutive time steps). Passed to `vultureUtils::spaceTimeGroups()`. Must be numeric.
+#' @param distThreshold The maximum distance (in meters) at which vultures are considered interacting. Default is 50 for co-feeding. Passed to `vultureUtils::spaceTimeGroups()`. Must be numeric.
+#' @param speedThreshUpper Upper speed threshold, in m/s. For co-feeding, default is 5 m/s. Passed to `vultureUtils::filterLocs()`. Must be numeric.
+#' @param speedThreshLower Lower speed threshold, in m/s. For co-feeding, default is NULL. Passed to `vultureUtils::filterLocs()`. Must be numeric.
+#' @param quiet Whether to silence the warning messages about grouping individuals with themselves inside the time threshold. Default is T. This occurs because if we set our time threshold to e.g. 10 minutes (the default), there are some GPS points that occur closer together than 10 minutes apart (e.g. if we experimentally set the tags to take points every 5 minutes). As a result, we will "group" together the same individual with itself, resulting in some self edges. I currently have a step in the code that simply removes these self edges, so there should be no problem here. But if you set `quiet = F`, you will at least be warned with the message `"Warning: found duplicate id in a timegroup and/or splitBy - does your group_times threshold match the fix rate?"` when this is occurring.
+#' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.
+#' @export
+getFeedingEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThreshold = 2, distThreshold = 50, speedThreshUpper = 5, speedThreshLower = NULL, dateCol = "dateOnly", quiet = T){
+  # Argument checks
+  checkmate::assertDataFrame(dataset)
+  checkmate::assertClass(roostPolygons, "sf")
+  checkmate::assertNumeric(roostBuffer, len = 1)
+  checkmate::assertNumeric(consecThreshold, len = 1)
+  checkmate::assertNumeric(distThreshold, len = 1)
+  checkmate::assertNumeric(speedThreshUpper, len = 1, null.ok = TRUE)
+  checkmate::assertNumeric(speedThreshLower, len = 1, null.ok = TRUE)
+
+  # Restrict to non-flight interactions.
+  filteredData <- vultureUtils::filterLocs(df = dataset,
+                                           speedThreshUpper = speedThreshUpper,
+                                           speedThreshLower = speedThreshLower)
+
+  # Buffer the roost polygons
+  roostPolygons <- convertAndBuffer(roostPolygons, dist = roostBuffer)
+
+  # Exclude any points that fall within a (buffered) roost polygon
+  feedingPoints <- dataset[lengths(sf::st_intersects(dataset, roostPolygons)) == 0,]
 
   if(quiet == T){
     feedingEdges <- suppressWarnings(vultureUtils::spaceTimeGroups(dataset = feedingPoints, distThreshold = distThreshold,
@@ -129,7 +177,7 @@ getFeedingEdges <- function(cleanedInMask, roostPolygons, roostBuffer = 50, cons
 #' Create co-flight edge list
 #'
 #' Given a dataset of GPS points, a geographic mask, and some roost polygons, create an edge list.
-#' @param cleanedInMask The cleaned GPS dataset to be used to create the edge list. This should be the output from `vultureUtils::cleanData()`.
+#' @param dataset The cleaned GPS dataset to be used to create the edge list. This should be the output from `vultureUtils::cleanData()`.
 #' @param mask The object to use to mask the data. Passed to `vultureUtils::maskData()`. Must be an sf object.
 #' @param roostPolygons Roost polygons. Must be an sf object with a CRS that matches the dataset CRS.
 #' @param roostBuffer Number of meters to buffer the roost polygons by before intersecting them. Default is 50 m.
@@ -140,9 +188,9 @@ getFeedingEdges <- function(cleanedInMask, roostPolygons, roostBuffer = 50, cons
 #' @param quiet Whether to silence the warning messages about grouping individuals with themselves inside the time threshold. Default is T. This occurs because if we set our time threshold to e.g. 10 minutes (the default), there are some GPS points that occur closer together than 10 minutes apart (e.g. if we experimentally set the tags to take points every 5 minutes). As a result, we will "group" together the same individual with itself, resulting in some self edges. I currently have a step in the code that simply removes these self edges, so there should be no problem here. But if you set `quiet = F`, you will at least be warned with the message `"Warning: found duplicate id in a timegroup and/or splitBy - does your group_times threshold match the fix rate?"` when this is occurring.
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.
 #' @export
-getFlightEdges <- function(cleanedInMask, roostPolygons, roostBuffer = 50, consecThreshold = 2, distThreshold = 1000, speedThreshUpper = NULL, speedThreshLower = 5, quiet = T){
+getFlightEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThreshold = 2, distThreshold = 1000, speedThreshUpper = NULL, speedThreshLower = 5, quiet = T){
   # Argument checks
-  checkmate::assertDataFrame(cleanedInMask)
+  checkmate::assertDataFrame(dataset)
   checkmate::assertClass(roostPolygons, "sf")
   checkmate::assertNumeric(roostBuffer, len = 1)
   checkmate::assertNumeric(consecThreshold, len = 1)
@@ -151,7 +199,7 @@ getFlightEdges <- function(cleanedInMask, roostPolygons, roostBuffer = 50, conse
   checkmate::assertNumeric(speedThreshLower, len = 1, null.ok = TRUE)
 
   # Restrict to flight interactions.
-  filteredData <- vultureUtils::filterLocs(df = cleanedInMask,
+  filteredData <- vultureUtils::filterLocs(df = dataset,
                                            speedThreshUpper = speedThreshUpper,
                                            speedThreshLower = speedThreshLower)
 
@@ -159,7 +207,7 @@ getFlightEdges <- function(cleanedInMask, roostPolygons, roostBuffer = 50, conse
   roostPolygons <- convertAndBuffer(roostPolygons, dist = roostBuffer)
 
   # Exclude any points that fall within a (buffered) roost polygon
-  flightPoints <- cleanedInMask[lengths(sf::st_intersects(cleanedInMask, roostPolygons)) == 0,]
+  flightPoints <- dataset[lengths(sf::st_intersects(dataset, roostPolygons)) == 0,]
 
   # Create edge list using spaceTimeGroups
   if(quiet == T){
@@ -178,16 +226,16 @@ getFlightEdges <- function(cleanedInMask, roostPolygons, roostBuffer = 50, conse
 #' Create co-roosting edge list XXX START HERE
 #'
 #' Given a dataset of GPS points, a geographic mask, and some roost polygons, create an edge list.
-#' @param cleanedInMask The cleaned GPS dataset to be used to create the edge list. This should be the output from `vultureUtils::cleanData()`.
+#' @param dataset The cleaned GPS dataset to be used to create the edge list. This should be the output from `vultureUtils::cleanData()`.
 #' @param roostPolygons Roost polygons. Must be an sf object with a CRS that matches the dataset CRS.
 #' @param roostBuffer Number of meters to buffer the roost polygons by before intersecting them. Default is 50 m.
 #' @param consecThreshold Minimal number of co-occurrences for considering a viable pair of interacting vultures (default is 2 consecutive time steps). Passed to `vultureUtils::spaceTimeGroups()`. Must be numeric.
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.
 #' @export
-getRoostingEdges <- function(cleanedInMask, roostPolygons, roostBuffer = 50,
+getRoostingEdges <- function(dataset, roostPolygons, roostBuffer = 50,
                              consecThreshold = 2){
   # Argument checks
-  checkmate::assertDataFrame(cleanedInMask)
+  checkmate::assertDataFrame(dataset)
   checkmate::assertClass(roostPolygons, "sf")
   checkmate::assertNumeric(roostBuffer, len = 1)
   checkmate::assertNumeric(consecThreshold, len = 1)
@@ -204,7 +252,7 @@ getRoostingEdges <- function(cleanedInMask, roostPolygons, roostBuffer = 50,
   roostPolygons <- convertAndBuffer(roostPolygons, dist = roostBuffer)
 
   # Exclude any points that fall within a (buffered) roost polygon
-  flightPoints <- cleanedInMask[lengths(sf::st_intersects(cleanedInMask, roostPolygons)) == 0,]
+  flightPoints <- dataset[lengths(sf::st_intersects(dataset, roostPolygons)) == 0,]
 
   # Create edge list using spaceTimeGroups
   flightEdges <- vultureUtils::spaceTimeGroups(dataset = flightPoints, distThreshold = distThreshold,
