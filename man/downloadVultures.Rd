@@ -10,6 +10,9 @@ downloadVultures(
   removeDup = T,
   dateTimeStartUTC = NULL,
   dateTimeEndUTC = NULL,
+  addDateOnly = T,
+  dfConvert = T,
+  quiet = F,
   ...
 )
 }
@@ -23,6 +26,12 @@ downloadVultures(
 \item{dateTimeStartUTC}{a POSIXct object, in UTC. Will be converted to character assuming UTC. Passed to `timestamp_start` in move::getMovebankData().}
 
 \item{dateTimeEndUTC}{a POSIXct object, in UTC. Will be converted to character assuming UTC. Passed to `timestamp_end` in move::getMovebankData().}
+
+\item{addDateOnly}{Whether to add a dateOnly column, extracted from the timestamp. Default is T.}
+
+\item{dfConvert}{Whether to convert the returned data to a data frame or not (default is T).}
+
+\item{quiet}{Whether to silence the warning messages created when duplicate records are dropped. Default is F (warning messages will print).}
 
 \item{...}{additional arguments to be passed to move::getMovebankData().}
 }

@@ -6,70 +6,38 @@
 \usage{
 getFlightEdges(
   dataset,
-  mask,
   roostPolygons,
   roostBuffer = 50,
-  inMaskThreshold = 0.33,
   consecThreshold = 2,
   distThreshold = 1000,
-  speedThreshUpper = 5,
-  speedThreshLower = NULL,
-  crs = "WGS84",
-  longCol = "location_long.1",
-  latCol = "location_lat.1",
-  dateCol = "dateOnly"
-)
-
-getFlightEdges(
-  dataset,
-  mask,
-  roostPolygons,
-  roostBuffer = 50,
-  inMaskThreshold = 0.33,
-  consecThreshold = 2,
-  distThreshold = 1000,
-  speedThreshUpper = 5,
-  speedThreshLower = NULL,
-  crs = "WGS84",
-  longCol = "location_long.1",
-  latCol = "location_lat.1",
-  dateCol = "dateOnly"
+  speedThreshUpper = NULL,
+  speedThreshLower = 5,
+  timeThreshold = "10 minutes",
+  quiet = T
 )
 }
 \arguments{
-\item{dataset}{The GPS dataset to be used to create the edge list.}
-
-\item{mask}{The object to use to mask the data. Passed to `vultureUtils::maskData()`. Must be an sf object.}
+\item{dataset}{The cleaned GPS dataset to be used to create the edge list. This should be the output from `vultureUtils::cleanData()`.}
 
 \item{roostPolygons}{Roost polygons. Must be an sf object with a CRS that matches the dataset CRS.}
 
 \item{roostBuffer}{Number of meters to buffer the roost polygons by before intersecting them. Default is 50 m.}
 
-\item{inMaskThreshold}{Proportion of an individual's days tracked that must fall within the mask. Default is 0.33 (one third of days tracked). Passed to `vultureUtils::mostlyInMask()`. Must be numeric.}
-
 \item{consecThreshold}{Minimal number of co-occurrences for considering a viable pair of interacting vultures (default is 2 consecutive time steps). Passed to `vultureUtils::spaceTimeGroups()`. Must be numeric.}
 
 \item{distThreshold}{The maximum distance (in meters) at which vultures are considered interacting. Default is 1000 m for co-flight Passed to `vultureUtils::spaceTimeGroups()`. Must be numeric.}
 
-\item{speedThreshUpper}{Upper speed threshold, in m/s. For co-roosting, default is 5 m/s. Passed to `vultureUtils::filterLocs()`. Must be numeric.}
+\item{speedThreshUpper}{Upper speed threshold, in m/s. For co-flight, default is NULL. Passed to `vultureUtils::filterLocs()`. Must be numeric.}
 
-\item{speedThreshLower}{Lower speed threshold, in m/s. For co-roosting, default is NULL. Passed to `vultureUtils::filterLocs()`. Must be numeric.}
+\item{speedThreshLower}{Lower speed threshold, in m/s. For co-flight, default is 5 m/s. Passed to `vultureUtils::filterLocs()`. Must be numeric.}
 
-\item{crs}{Coordinate Reference System to check for and transform to, for both the GPS data and the mask. Default is "WGS84". This value is passed to `vultureUtils::maskData()`. Must be a valid CRS or character string coercible to CRS.}
+\item{timeThreshold}{timeThreshold Passed to spatsoc::group_times. Threshold for grouping times. e.g.: '2 hours', '10 minutes', etc. if not provided, times will be matched exactly. Note that provided threshold must be in the expected format: '## unit'. Default is "10 minutes"}
 
-\item{longCol}{The name of the column in the dataset containing longitude values. Defaults to "location_long.1". Passed to `vultureUtils::maskData()`.}
-
-\item{latCol}{The name of the column in the dataset containing latitude values. Defaults to "location_lat.1". Passed to `vultureUtils::maskData()`.}
-
-\item{dateCol}{The name of the column in the dataset containing dates. Defaults to "dateOnly". Passed to `vultureUtils::mostlyInMask()`.}
+\item{quiet}{Whether to silence the warning messages about grouping individuals with themselves inside the time threshold. Default is T. This occurs because if we set our time threshold to e.g. 10 minutes (the default), there are some GPS points that occur closer together than 10 minutes apart (e.g. if we experimentally set the tags to take points every 5 minutes). As a result, we will "group" together the same individual with itself, resulting in some self edges. I currently have a step in the code that simply removes these self edges, so there should be no problem here. But if you set `quiet = F`, you will at least be warned with the message `"Warning: found duplicate id in a timegroup and/or splitBy - does your group_times threshold match the fix rate?"` when this is occurring.}
 }
 \value{
 An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.
-
-An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.
 }
 \description{
-Given a dataset of GPS points, a geographic mask, and some roost polygons, create an edge list.
-
 Given a dataset of GPS points, a geographic mask, and some roost polygons, create an edge list.
 }

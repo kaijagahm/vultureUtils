@@ -2,11 +2,13 @@
 
 export("%>%")
 export(bufferFeedingSites)
+export(cleanData)
 export(computeProbs)
 export(consecEdges)
 export(convertAndBuffer)
 export(downloadVultures)
 export(filterLocs)
+export(getEdges)
 export(getFeedingEdges)
 export(getFlightEdges)
 export(makeGIF)

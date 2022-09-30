@@ -8,51 +8,92 @@ if(getRversion() >= "2.15.1")  utils::globalVariables(".")
 #' @param removeDup Whether to remove duplicated timestamps. Defaults to TRUE. Passed to `removeDuplicatedTimestamps` in move::getMovebankData().
 #' @param dateTimeStartUTC a POSIXct object, in UTC. Will be converted to character assuming UTC. Passed to `timestamp_start` in move::getMovebankData().
 #' @param dateTimeEndUTC a POSIXct object, in UTC. Will be converted to character assuming UTC. Passed to `timestamp_end` in move::getMovebankData().
+#' @param addDateOnly Whether to add a dateOnly column, extracted from the timestamp. Default is T.
+#' @param dfConvert Whether to convert the returned data to a data frame or not (default is T).
+#' @param quiet Whether to silence the warning messages created when duplicate records are dropped. Default is F (warning messages will print).
 #' @param ... additional arguments to be passed to move::getMovebankData().
 #' @return A movestack.
 #' @export
 downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
-                             dateTimeStartUTC = NULL, dateTimeEndUTC = NULL, ...){
+                             dateTimeStartUTC = NULL, dateTimeEndUTC = NULL,
+                             addDateOnly = T,
+                             dfConvert = T,
+                             quiet = F, ...){
   # argument checks
   checkmate::assertClass(loginObject, "MovebankLogin")
   checkmate::assertLogical(extraSensors, len = 1)
   checkmate::assertLogical(removeDup, len = 1)
   checkmate::assertPOSIXct(dateTimeStartUTC, null.ok = TRUE)
   checkmate::assertPOSIXct(dateTimeEndUTC, null.ok = TRUE)
+  checkmate::assertLogical(addDateOnly, len = 1)
+  checkmate::assertLogical(quiet, len = 1)
 
-  move::getMovebankData(study = "Ornitela_Vultures_Gyps_fulvus_TAU_UCLA_Israel",
-                               login = loginObject,
-                               includeExtraSensors = FALSE,
-                               deploymentAsIndividuals = FALSE,
-                               removeDuplicatedTimestamps = TRUE,
-                               timestamp_start = dateTimeStartUTC,
-                               timestamp_end = dateTimeEndUTC,
-                               ...)
+  if(quiet == T){
+    dat <- suppressWarnings(suppressMessages(move::getMovebankData(study = "Ornitela_Vultures_Gyps_fulvus_TAU_UCLA_Israel",
+                                 login = loginObject,
+                                 includeExtraSensors = FALSE,
+                                 deploymentAsIndividuals = FALSE,
+                                 removeDuplicatedTimestamps = TRUE,
+                                 timestamp_start = dateTimeStartUTC,
+                                 timestamp_end = dateTimeEndUTC,
+                                 ...)))
+  }else{
+    dat <- move::getMovebankData(study = "Ornitela_Vultures_Gyps_fulvus_TAU_UCLA_Israel",
+                                 login = loginObject,
+                                 includeExtraSensors = FALSE,
+                                 deploymentAsIndividuals = FALSE,
+                                 removeDuplicatedTimestamps = TRUE,
+                                 timestamp_start = dateTimeStartUTC,
+                                 timestamp_end = dateTimeEndUTC,
+                                 ...)
+  }
+
+  if(addDateOnly == T){
+    dat$dateOnly <- as.Date(as.character(dat$timestamp))
+  }
+
+  if(dfConvert == TRUE){
+    dat <- methods::as(dat, "data.frame")
+    # NOTE: DO NOT USE as.data.frame() HERE! The object `dat` being converted is a moveStack object (returned from the `move` R package). This is a special S4 class with defined slots (more info here: https://terpconnect.umd.edu/~egurarie/research/NWT/Step01_LoadingMovebankData.html). One of the slots is `trackId`. For reasons I don't fully understand, using `as.data.frame()` on a moveStack does not retain all the slot names--it will return a dataset that lacks the `trackId` column. But using `methods::as(dat, "data.frame")` converts tht `trackId` slot into a column in the data frame, giving us a `trackId` column that is a factor. We NEED the `trackId` column in order to proceed with other functions further down the pipeline, so it's super important not to use as.data.frame() here.
+  }
+
+  return(dat)
 }
 
 #' Remove unnecessary vars
 #'
 #' Remove variables we don't need, so the data is smaller
 #' @param dataset a dataset to remove variables from. Must be a data frame.
+#' @param addlVars a character vector of additional variables to remove
+#' @param keepVars a character vector of variables to keep that would otherwise be removed.
 #' @return A dataset, with variables removed
 #' @export
-removeUnnecessaryVars <- function(dataset){
+removeUnnecessaryVars <- function(dataset, addlVars = NULL, keepVars = NULL){
   checkmate::assertDataFrame(dataset) # must be a data frame
+  checkmate::assertCharacter(addlVars, null.ok = TRUE)
+  checkmate::assertCharacter(keepVars, null.ok = TRUE)
+
+  # combine `addlVars` with the original list of vars to remove
+  toRemove <- c(addlVars, "sensor_type_id","taxon_canonical_name","nick_name","earliest_date_born","sensor","optional",
+                "sensor_type","mw_activity_count","eobs_accelerations_raw","eobs_acceleration_sampling_frequency_per_axis",
+                "eobs_acceleration_axes","argos_valid_location_algorithm","argos_sensor_4","argos_sensor_3","argos_sensor_2",
+                "argos_sensor_1","argos_semi_minor","argos_semi_major","argos_pass_duration","argos_orientation","argos_nopc",
+                "argos_lat1","argos_lat2","1084088","argos_lon1","argos_lon2","argos_nb_mes","argos_nb_mes_120",
+                "eobs_key_bin_checksum","eobs_fix_battery_voltage","eobs_battery_voltage","eobs_status",
+                "eobs_start_timestamp","eobs_type_of_fix","eobs_used_time_to_get_fix","eobs_temperature",
+                "gps_dop","magnetic_field_raw_x","magnetic_field_raw_y","magnetic_field_raw_z","ornitela_transmission_protocol",
+                "tag_voltage","algorithm_marked_outlier","argos_altitude","argos_best_level","argos_lc","argos_iq",
+                "argos_gdop","argos_error_radius","argos_calcul_freq","timestamps","height_raw",
+                "barometric_pressure","barometric_height","battery_charging_current","eobs_activity","manually_marked_outlier",
+                "eobs_activity_samples", "acceleration_raw_y", "battery_charge_percent", "data_decoding_software","gps_vdop","height_above_ellipsoid",
+                'acceleration_raw_x','acceleration_raw_z',"acceleration_raw_z","eobs_horizontal_accuracy_estimate","eobs_speed_accuracy_estimate")
+
+  # get rid of any vars we'd like to keep
+  toRemove <- toRemove[!(toRemove %in% keepVars)]
+
+  # actually do the removal
   newDataset <- dataset %>%
-    dplyr::select(-dplyr::any_of(c("sensor_type_id","taxon_canonical_name","nick_name","earliest_date_born","sensor","optional",
-                            "sensor_type","mw_activity_count","eobs_accelerations_raw","eobs_acceleration_sampling_frequency_per_axis",
-                            "eobs_acceleration_axes","argos_valid_location_algorithm","argos_sensor_4","argos_sensor_3","argos_sensor_2",
-                            "argos_sensor_1","argos_semi_minor","argos_semi_major","argos_pass_duration","argos_orientation","argos_nopc",
-                            "argos_lat1","argos_lat2","1084088","argos_lon1","argos_lon2","argos_nb_mes","argos_nb_mes_120",
-                            "eobs_key_bin_checksum","eobs_fix_battery_voltage","eobs_battery_voltage","eobs_status",
-                            "eobs_start_timestamp","eobs_type_of_fix","eobs_used_time_to_get_fix","eobs_temperature",
-                            "gps_dop","magnetic_field_raw_x","magnetic_field_raw_y","magnetic_field_raw_z","ornitela_transmission_protocol",
-                            "tag_voltage","algorithm_marked_outlier","argos_altitude","argos_best_level","argos_lc","argos_iq",
-                            "argos_gdop","argos_error_radius","argos_calcul_freq","timestamps","height_raw",
-                            "barometric_pressure","barometric_height","battery_charging_current","eobs_activity","manually_marked_outlier",
-                            "eobs_activity_samples", "acceleration_raw_y", "battery_charge_percent", "data_decoding_software","gps_vdop","height_above_ellipsoid",
-                            'acceleration_raw_x','acceleration_raw_z',"acceleration_raw_z","eobs_horizontal_accuracy_estimate","eobs_speed_accuracy_estimate")
-    ))
+    dplyr::select(-dplyr::any_of(toRemove))
   return(newDataset)
 }
 
@@ -475,7 +516,7 @@ makeGraphs <- function(edges, interval, dateTimeStart = NULL,
     dplyr::group_split(.keep = T)
 
   nms <- unlist(lapply(dataList, function(x){
-    as.character(head(x$intervalGroup, 1))
+    as.character(utils::head(x$intervalGroup, 1))
   }))
   # XXX would make MUCH more sense to just call lapply on a function, instead of having the function makeGraphsList rely on having a list passed to it. that would also simplify the allVerticesVec argument because for each one you could pass in a complete list of vertices if allVertices == FALSE. Do this later.
 
