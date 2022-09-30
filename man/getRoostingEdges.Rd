@@ -4,15 +4,10 @@
 \alias{getRoostingEdges}
 \title{Create co-roosting edge list XXX START HERE}
 \usage{
-getRoostingEdges(
-  cleanedInMask,
-  roostPolygons,
-  roostBuffer = 50,
-  consecThreshold = 2
-)
+getRoostingEdges(dataset, roostPolygons, roostBuffer = 50, consecThreshold = 2)
 }
 \arguments{
-\item{cleanedInMask}{The cleaned GPS dataset to be used to create the edge list. This should be the output from `vultureUtils::cleanData()`.}
+\item{dataset}{The cleaned GPS dataset to be used to create the edge list. This should be the output from `vultureUtils::cleanData()`.}
 
 \item{roostPolygons}{Roost polygons. Must be an sf object with a CRS that matches the dataset CRS.}
 

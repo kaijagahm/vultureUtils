@@ -14,7 +14,8 @@ cleanData(
   dateCol = "dateOnly",
   removeVars = T,
   reMask = T,
-  quiet = T
+  quiet = T,
+  ...
 )
 }
 \arguments{
@@ -37,6 +38,8 @@ cleanData(
 \item{reMask}{Whether or not to re-mask after removing individuals that spend less than `inMaskThreshold` in the mask area. Default is T.}
 
 \item{quiet}{Whether to silence the message that happens when doing spatial joins. Default is T.}
+
+\item{...}{additional arguments to be passed to any of several functions: `vultureUtils::removeUnnecessaryVars()` (`addlVars`, `keepVars`);}
 }
 \value{
 An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.

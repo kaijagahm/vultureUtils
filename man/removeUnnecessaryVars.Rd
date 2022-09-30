@@ -4,10 +4,14 @@
 \alias{removeUnnecessaryVars}
 \title{Remove unnecessary vars}
 \usage{
-removeUnnecessaryVars(dataset)
+removeUnnecessaryVars(dataset, addlVars = NULL, keepVars = NULL)
 }
 \arguments{
 \item{dataset}{a dataset to remove variables from. Must be a data frame.}
+
+\item{addlVars}{a character vector of additional variables to remove}
+
+\item{keepVars}{a character vector of variables to keep that would otherwise be removed.}
 }
 \value{
 A dataset, with variables removed
