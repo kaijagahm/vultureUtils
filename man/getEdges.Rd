@@ -12,7 +12,6 @@ getEdges(
   distThreshold,
   speedThreshUpper,
   speedThreshLower,
-  dateCol,
   timeThreshold = "10 minutes",
   quiet = T
 )

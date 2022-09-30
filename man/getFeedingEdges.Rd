@@ -12,7 +12,6 @@ getFeedingEdges(
   distThreshold = 50,
   speedThreshUpper = 5,
   speedThreshLower = NULL,
-  dateCol = "dateOnly",
   timeThreshold = "10 minutes",
   quiet = T
 )
