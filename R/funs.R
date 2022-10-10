@@ -18,7 +18,7 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
                              dateTimeStartUTC = NULL, dateTimeEndUTC = NULL,
                              addDateOnly = T,
                              dfConvert = T,
-                             quiet = F, ...){
+                             quiet = F){
   # argument checks
   checkmate::assertClass(loginObject, "MovebankLogin")
   checkmate::assertLogical(extraSensors, len = 1)
@@ -35,8 +35,7 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
                                  deploymentAsIndividuals = FALSE,
                                  removeDuplicatedTimestamps = TRUE,
                                  timestamp_start = dateTimeStartUTC,
-                                 timestamp_end = dateTimeEndUTC,
-                                 ...)))
+                                 timestamp_end = dateTimeEndUTC)))
   }else{
     dat <- move::getMovebankData(study = "Ornitela_Vultures_Gyps_fulvus_TAU_UCLA_Israel",
                                  login = loginObject,
@@ -44,8 +43,7 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
                                  deploymentAsIndividuals = FALSE,
                                  removeDuplicatedTimestamps = TRUE,
                                  timestamp_start = dateTimeStartUTC,
-                                 timestamp_end = dateTimeEndUTC,
-                                 ...)
+                                 timestamp_end = dateTimeEndUTC)
   }
 
   if(addDateOnly == T){
