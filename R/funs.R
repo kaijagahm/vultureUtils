@@ -23,6 +23,13 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
   checkmate::assertClass(loginObject, "MovebankLogin")
   checkmate::assertLogical(extraSensors, len = 1)
   checkmate::assertLogical(removeDup, len = 1)
+  # Do the POSIXct converion if datetimes are character
+  if(is.character(dateTimeStartUTC)){
+    dateTimeStartUTC <- as.POSIXct(dateTimeStartUTC)
+  }
+  if(is.character(dateTimeEndUTC)){
+    dateTimeStartUTC <- as.POSIXct(dateTimeEndUTC)
+  }
   checkmate::assertPOSIXct(dateTimeStartUTC, null.ok = TRUE)
   checkmate::assertPOSIXct(dateTimeEndUTC, null.ok = TRUE)
   checkmate::assertLogical(addDateOnly, len = 1)
