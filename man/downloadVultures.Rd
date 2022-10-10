@@ -12,8 +12,7 @@ downloadVultures(
   dateTimeEndUTC = NULL,
   addDateOnly = T,
   dfConvert = T,
-  quiet = F,
-  ...
+  quiet = F
 )
 }
 \arguments{
