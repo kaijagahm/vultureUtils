@@ -28,7 +28,7 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
     dateTimeStartUTC <- as.POSIXct(dateTimeStartUTC)
   }
   if(is.character(dateTimeEndUTC)){
-    dateTimeStartUTC <- as.POSIXct(dateTimeEndUTC)
+    dateTimeEndUTC <- as.POSIXct(dateTimeEndUTC)
   }
   checkmate::assertPOSIXct(dateTimeStartUTC, null.ok = TRUE)
   checkmate::assertPOSIXct(dateTimeEndUTC, null.ok = TRUE)
