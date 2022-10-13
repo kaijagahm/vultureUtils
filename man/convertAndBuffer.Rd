@@ -2,8 +2,10 @@
 % Please edit documentation in R/funs.R
 \name{convertAndBuffer}
 \alias{convertAndBuffer}
-\title{Buffer an sf object}
+\title{Convert coordinates of an sf object}
 \usage{
+convertAndBuffer(obj, dist = 50, crsMeters = 32636)
+
 convertAndBuffer(obj, dist = 50, crsMeters = 32636)
 }
 \arguments{
@@ -15,7 +17,9 @@ convertAndBuffer(obj, dist = 50, crsMeters = 32636)
 }
 \value{
 A buffered sf object
+
+A buffered sf object
 }
 \description{
-Given an sf object in WGS84, convert it to a CRS with meters as the units, buffer by a given distance, and then convert it back.
+Given an sf object in WGS84, convert it to a CRS with meters as the units.
 }
