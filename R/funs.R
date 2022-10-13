@@ -37,12 +37,12 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
 
   if(quiet == T){
     dat <- suppressWarnings(suppressMessages(move::getMovebankData(study = "Ornitela_Vultures_Gyps_fulvus_TAU_UCLA_Israel",
-                                 login = loginObject,
-                                 includeExtraSensors = FALSE,
-                                 deploymentAsIndividuals = FALSE,
-                                 removeDuplicatedTimestamps = TRUE,
-                                 timestamp_start = dateTimeStartUTC,
-                                 timestamp_end = dateTimeEndUTC)))
+                                                                   login = loginObject,
+                                                                   includeExtraSensors = FALSE,
+                                                                   deploymentAsIndividuals = FALSE,
+                                                                   removeDuplicatedTimestamps = TRUE,
+                                                                   timestamp_start = dateTimeStartUTC,
+                                                                   timestamp_end = dateTimeEndUTC)))
   }else{
     dat <- move::getMovebankData(study = "Ornitela_Vultures_Gyps_fulvus_TAU_UCLA_Israel",
                                  login = loginObject,
@@ -716,8 +716,26 @@ computeProbs <- function(graphList){
   return(histdfLong)
 }
 
-#' Buffer an sf object
+#' Convert coordinates of an sf object
 #'
+#' Given an sf object in WGS84, convert it to a CRS with meters as the units.
+#' @param obj an sf object to be buffered
+#' @param crsMeters crs with units of meters to be used. Default is 32636 (Israel, UTM zone 36)
+#' @return A buffered sf object
+#' @export
+convertAndBuffer <- function(obj, dist = 50, crsMeters = 32636){
+  checkmate::assertClass(obj, "sf")
+  originalCRS <- sf::st_crs(obj)
+  if(is.null(originalCRS)){
+    stop("Object does not have a valid CRS.")
+  }
+
+  converted <- obj %>%
+    sf::st_transform(crsMeters)
+
+  return(converted)
+}
+
 #' Given an sf object in WGS84, convert it to a CRS with meters as the units, buffer by a given distance, and then convert it back.
 #' @param obj an sf object to be buffered
 #' @param dist buffer distance, in meters (m)
