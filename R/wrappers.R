@@ -124,6 +124,7 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
                         distance = as.numeric(),
                         minTimestamp = as.POSIXct(character()),
                         maxTimestamp = as.POSIXct(character()))
+    warning("After filtering, the dataset had 0 rows. Returning an empty edge list.")
     return(dummy)
   }else{
     if(quiet == T){
@@ -186,6 +187,7 @@ getFeedingEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThre
                         distance = as.numeric(),
                         minTimestamp = as.POSIXct(character()),
                         maxTimestamp = as.POSIXct(character()))
+    warning("After filtering, the dataset had 0 rows. Returning an empty edge list.")
     return(dummy)
   }else{
     if(quiet == T){
@@ -246,6 +248,7 @@ getFlightEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThres
                         distance = as.numeric(),
                         minTimestamp = as.POSIXct(character()),
                         maxTimestamp = as.POSIXct(character()))
+    warning("After filtering, the dataset had 0 rows. Returning an empty edge list.")
     return(dummy)
   }else{
     # Create edge list using spaceTimeGroups
