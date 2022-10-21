@@ -114,7 +114,7 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
   roostPolygons <- convertAndBuffer(roostPolygons, dist = roostBuffer)
 
   # Exclude any points that fall within a (buffered) roost polygon
-  points <- dataset[lengths(sf::st_intersects(dataset, roostPolygons)) == 0,]
+  points <- filteredData[lengths(sf::st_intersects(filteredData, roostPolygons)) == 0,]
 
   # If there are no rows left after filtering, return an empty data frame with the appropriate format.
   if(nrow(points) == 0){
@@ -177,10 +177,10 @@ getFeedingEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThre
   roostPolygons <- convertAndBuffer(roostPolygons, dist = roostBuffer)
 
   # Exclude any points that fall within a (buffered) roost polygon
-  feedingPoints <- dataset[lengths(sf::st_intersects(dataset, roostPolygons)) == 0,]
+  feedingPoints <- filteredData[lengths(sf::st_intersects(filteredData, roostPolygons)) == 0,]
 
   # If there are no rows left after filtering, return an empty data frame with the appropriate format.
-  if(nrow(points) == 0){
+  if(nrow(feedingPoints) == 0){
     dummy <- data.frame(timegroup = as.integer(),
                         ID1 = as.character(),
                         ID2 = as.character(),
@@ -238,10 +238,10 @@ getFlightEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThres
   roostPolygons <- convertAndBuffer(roostPolygons, dist = roostBuffer)
 
   # Exclude any points that fall within a (buffered) roost polygon
-  flightPoints <- dataset[lengths(sf::st_intersects(dataset, roostPolygons)) == 0,]
+  flightPoints <- filteredData[lengths(sf::st_intersects(filteredData, roostPolygons)) == 0,]
 
   # If there are no rows left after filtering, return an empty data frame with the appropriate format.
-  if(nrow(points) == 0){
+  if(nrow(flightPoints) == 0){
     dummy <- data.frame(timegroup = as.integer(),
                         ID1 = as.character(),
                         ID2 = as.character(),
