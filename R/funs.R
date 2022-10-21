@@ -18,7 +18,8 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
                              dateTimeStartUTC = NULL, dateTimeEndUTC = NULL,
                              addDateOnly = T,
                              dfConvert = T,
-                             quiet = F){
+                             quiet = F,
+                             ...){
   # argument checks
   checkmate::assertClass(loginObject, "MovebankLogin")
   checkmate::assertLogical(extraSensors, len = 1)
@@ -42,7 +43,8 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
                                                                    deploymentAsIndividuals = FALSE,
                                                                    removeDuplicatedTimestamps = TRUE,
                                                                    timestamp_start = dateTimeStartUTC,
-                                                                   timestamp_end = dateTimeEndUTC)))
+                                                                   timestamp_end = dateTimeEndUTC,
+                                                                   ...)))
   }else{
     dat <- move::getMovebankData(study = "Ornitela_Vultures_Gyps_fulvus_TAU_UCLA_Israel",
                                  login = loginObject,
@@ -50,7 +52,8 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
                                  deploymentAsIndividuals = FALSE,
                                  removeDuplicatedTimestamps = TRUE,
                                  timestamp_start = dateTimeStartUTC,
-                                 timestamp_end = dateTimeEndUTC)
+                                 timestamp_end = dateTimeEndUTC,
+                                 ...)
   }
 
   if(addDateOnly == T){
@@ -60,6 +63,11 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
   if(dfConvert == TRUE){
     dat <- methods::as(dat, "data.frame")
     # NOTE: DO NOT USE as.data.frame() HERE! The object `dat` being converted is a moveStack object (returned from the `move` R package). This is a special S4 class with defined slots (more info here: https://terpconnect.umd.edu/~egurarie/research/NWT/Step01_LoadingMovebankData.html). One of the slots is `trackId`. For reasons I don't fully understand, using `as.data.frame()` on a moveStack does not retain all the slot names--it will return a dataset that lacks the `trackId` column. But using `methods::as(dat, "data.frame")` converts tht `trackId` slot into a column in the data frame, giving us a `trackId` column that is a factor. We NEED the `trackId` column in order to proceed with other functions further down the pipeline, so it's super important not to use as.data.frame() here.
+  }
+
+  # If there was only one individual requested, the data frame won't have a `trackId` column because of how the movestack-to-data-frame conversion works. Add one.
+  if(!("trackId" %in% names(dat))){
+    dat$trackId <- dat$local_identifier
   }
 
   return(dat)
@@ -388,6 +396,10 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
     # make sure it contains the lat and long cols
     checkmate::assertChoice(latCol, names(dataset))
     checkmate::assertChoice(longCol, names(dataset))
+
+    if(nrow(dataset) == 0){
+      stop("Dataset passed to vultureUtils::spaceTimeGroups has 0 rows. Cannot proceed with grouping.")
+    }
 
     # convert to an sf object
     dataset <- dataset %>%

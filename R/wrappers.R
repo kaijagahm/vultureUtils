@@ -114,22 +114,34 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
   roostPolygons <- convertAndBuffer(roostPolygons, dist = roostBuffer)
 
   # Exclude any points that fall within a (buffered) roost polygon
-  points <- dataset[lengths(sf::st_intersects(dataset, roostPolygons)) == 0,]
+  points <- filteredData[lengths(sf::st_intersects(filteredData, roostPolygons)) == 0,]
 
-  if(quiet == T){
-    edges <- suppressWarnings(vultureUtils::spaceTimeGroups(dataset = points,
-                                                            distThreshold = distThreshold,
-                                                            consecThreshold = consecThreshold,
-                                                            timeThreshold = timeThreshold))
+  # If there are no rows left after filtering, return an empty data frame with the appropriate format.
+  if(nrow(points) == 0){
+    dummy <- data.frame(timegroup = as.integer(),
+                        ID1 = as.character(),
+                        ID2 = as.character(),
+                        distance = as.numeric(),
+                        minTimestamp = as.POSIXct(character()),
+                        maxTimestamp = as.POSIXct(character()))
+    warning("After filtering, the dataset had 0 rows. Returning an empty edge list.")
+    return(dummy)
   }else{
-    edges <- vultureUtils::spaceTimeGroups(dataset = points,
-                                           distThreshold = distThreshold,
-                                           consecThreshold = consecThreshold,
-                                           timeThreshold = timeThreshold)
-  }
+    if(quiet == T){
+      edges <- suppressWarnings(vultureUtils::spaceTimeGroups(dataset = points,
+                                                              distThreshold = distThreshold,
+                                                              consecThreshold = consecThreshold,
+                                                              timeThreshold = timeThreshold))
+    }else{
+      edges <- vultureUtils::spaceTimeGroups(dataset = points,
+                                             distThreshold = distThreshold,
+                                             consecThreshold = consecThreshold,
+                                             timeThreshold = timeThreshold)
+    }
 
-  # Return the edge list
-  return(edges)
+    # Return the edge list
+    return(edges)
+  }
 }
 
 #' Create co-feeding edge list
@@ -165,20 +177,32 @@ getFeedingEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThre
   roostPolygons <- convertAndBuffer(roostPolygons, dist = roostBuffer)
 
   # Exclude any points that fall within a (buffered) roost polygon
-  feedingPoints <- dataset[lengths(sf::st_intersects(dataset, roostPolygons)) == 0,]
+  feedingPoints <- filteredData[lengths(sf::st_intersects(filteredData, roostPolygons)) == 0,]
 
-  if(quiet == T){
-    feedingEdges <- suppressWarnings(vultureUtils::spaceTimeGroups(dataset = feedingPoints, distThreshold = distThreshold,
-                                                  consecThreshold = consecThreshold,
-                                                  timeThreshold = timeThreshold))
+  # If there are no rows left after filtering, return an empty data frame with the appropriate format.
+  if(nrow(feedingPoints) == 0){
+    dummy <- data.frame(timegroup = as.integer(),
+                        ID1 = as.character(),
+                        ID2 = as.character(),
+                        distance = as.numeric(),
+                        minTimestamp = as.POSIXct(character()),
+                        maxTimestamp = as.POSIXct(character()))
+    warning("After filtering, the dataset had 0 rows. Returning an empty edge list.")
+    return(dummy)
   }else{
-    feedingEdges <- vultureUtils::spaceTimeGroups(dataset = feedingPoints, distThreshold = distThreshold,
-                                                  consecThreshold = consecThreshold,
-                                                  timeThreshold = timeThreshold)
-  }
+    if(quiet == T){
+      feedingEdges <- suppressWarnings(vultureUtils::spaceTimeGroups(dataset = feedingPoints, distThreshold = distThreshold,
+                                                                     consecThreshold = consecThreshold,
+                                                                     timeThreshold = timeThreshold))
+    }else{
+      feedingEdges <- vultureUtils::spaceTimeGroups(dataset = feedingPoints, distThreshold = distThreshold,
+                                                    consecThreshold = consecThreshold,
+                                                    timeThreshold = timeThreshold)
+    }
 
-  # Return the edge list
-  return(feedingEdges)
+    # Return the edge list
+    return(feedingEdges)
+  }
 }
 
 #' Create co-flight edge list
@@ -214,22 +238,33 @@ getFlightEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThres
   roostPolygons <- convertAndBuffer(roostPolygons, dist = roostBuffer)
 
   # Exclude any points that fall within a (buffered) roost polygon
-  flightPoints <- dataset[lengths(sf::st_intersects(dataset, roostPolygons)) == 0,]
+  flightPoints <- filteredData[lengths(sf::st_intersects(filteredData, roostPolygons)) == 0,]
 
-  # Create edge list using spaceTimeGroups
-  if(quiet == T){
-    flightEdges <- suppressWarnings(vultureUtils::spaceTimeGroups(dataset = flightPoints, distThreshold = distThreshold,
-                                                 consecThreshold = consecThreshold,
-                                                 timeThreshold = timeThreshold))
+  # If there are no rows left after filtering, return an empty data frame with the appropriate format.
+  if(nrow(flightPoints) == 0){
+    dummy <- data.frame(timegroup = as.integer(),
+                        ID1 = as.character(),
+                        ID2 = as.character(),
+                        distance = as.numeric(),
+                        minTimestamp = as.POSIXct(character()),
+                        maxTimestamp = as.POSIXct(character()))
+    warning("After filtering, the dataset had 0 rows. Returning an empty edge list.")
+    return(dummy)
   }else{
-    flightEdges <- vultureUtils::spaceTimeGroups(dataset = flightPoints, distThreshold = distThreshold,
-                                                 consecThreshold = consecThreshold,
-                                                 timeThreshold = timeThreshold)
+    # Create edge list using spaceTimeGroups
+    if(quiet == T){
+      flightEdges <- suppressWarnings(vultureUtils::spaceTimeGroups(dataset = flightPoints, distThreshold = distThreshold,
+                                                                    consecThreshold = consecThreshold,
+                                                                    timeThreshold = timeThreshold))
+    }else{
+      flightEdges <- vultureUtils::spaceTimeGroups(dataset = flightPoints, distThreshold = distThreshold,
+                                                   consecThreshold = consecThreshold,
+                                                   timeThreshold = timeThreshold)
+    }
+
+    # Return the edge list
+    return(flightEdges)
   }
-
-
-  # Return the edge list
-  return(flightEdges)
 }
 
 #' #' Create co-roosting edge list XXX START HERE
