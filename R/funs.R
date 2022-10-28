@@ -458,11 +458,58 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
   return(edgesFiltered)
 }
 
+#' Make a single graph from an edge list.
+#'
+#' This is basically a wrapper of igraph::graph_from_data_frame. Takes into account the formatting returned from vultureUtils::get*Edges().
+#' @param edges a data frame containing edges and their associated `timegroup`s. Returned from vultureUtils::get*Edges().
+#' @param weighted whether or not the resulting graphs should have weights attached. Default is FALSE (unweighted graph).
+#' @param id1Col name of the column in `edges` containing the ID of the first individual in a dyad. Default is "ID1".
+#' @param id2Col name of the column in `edges` containing the ID of the second individual in a dyad. Default is "ID2".
+#' @return an igraph object. An undirected graph that is either weighted or unweighted, depending on whether `weighted` is T or F.
+#' @export
+makeGraph <- function(edges, weighted = FALSE, id1Col = "ID1", id2Col = "ID2"){
+  # Some basic argument checks
+  checkmate::assertLogical(weighted, len = 1)
+  checkmate::assertCharacter(minTimestampCol, len = 1)
+  checkmate::assertCharacter(maxTimestampCol, len = 1)
+  checkmate::assertClass(edges[[minTimestampCol]], "POSIXct")
+  checkmate::assertClass(edges[[maxTimestampCol]], "POSIXct")
+
+  # Simplify the edgelist to just the columns needed
+  edgesSimple <- edges %>%
+    dplyr::select(.data[[id1Col]], .data[[id2Col]])
+
+  # Make graph differently depending on `weighted`
+  if(weighted == FALSE){
+    # Make an unweighted graph
+    edgesSimple <- edgesSimple %>%
+      dplyr::distinct()
+    g <- igraph::graph_from_data_frame(d = edgesSimple, directed = FALSE)
+  }else{
+    # Make a weighted graph
+    edgesWeighted <- edgesSimple %>%
+      dplyr::mutate(weight = 1) %>%
+      dplyr::group_by(.data[[id1Col]],
+                      .data[[id2Col]]) %>%
+      dplyr::summarize(weight = sum(.data$weight)) %>%
+      dplyr::ungroup()
+    g <- igraph::graph_from_data_frame(d = edgesWeighted, directed = FALSE)
+  }
+
+  return(g)
+}
+
+
+
+
+
+
+
 #' Make a list of networks, given a time interval
 #'
 #' Inputs: a data frame containing time-grouped edges, and given an interval for making the networks. This function separates the data frame into a list of edge lists according to the provided time interval. Then, it generates a network (weighted or unweighted) for each of the edge lists. Note that depending on whether or not `interval` divides evenly into the range between `dateTimeStart` and `dateTimeEnd`, the last graph may be created from a smaller time period than the other graphs.
 #' @param edges a data frame containing edges and their associated `timegroup`s.
-#' @param interval A character string specifying an interval such as "3 days" or "2 hours" or "1 month" or "1.5 hours" or "3 days 2 hours". Interval will be coerced to a duration object using lubridate::as.duration()
+#' @param interval Either "full" (default, entire length of the data, after accounting for dateTimeStart and dateTimeEnd. Will create just one network.) or a character string specifying an interval such as "3 days" or "2 hours" or "1 month" or "1.5 hours" or "3 days 2 hours". Interval will be coerced to a duration object using lubridate::as.duration()
 #' @param dateTimeStart the dateTime object that defines the beginning of the time period to be divided. If not specified, defaults to the earliest `timestamp` in `fullData`. Must be in one of the following formats: "YYYY-MM-DD hh:mm:ss" or "YYYY-MM-DD hh:mm" or "YYYY-MM-DD". Hours must use 24 hour time--e.g. 5:00 pm would be 17:00.
 #' @param dateTimeEnd the dateTime object that defines the end of the time period to be divided. If not specified, defaults to the latest `timestamp` in `fullData`. Must be in one of the following formats: "YYYY-MM-DD hh:mm:ss" or "YYYY-MM-DD hh:mm" or "YYYY-MM-DD". Hours must use 24 hour time--e.g. 5:00 pm would be 17:00.
 #' @param id1Col name of the column in `edges` containing the ID of the first individual in a dyad
@@ -473,24 +520,17 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
 #' @param allVertices whether to include all possible vertices in all graphs produced, even if they are not involved in any edges in the current time slice. Default is FALSE.
 #' @return A list of igraph graph objects
 #' @export
-makeGraphs <- function(edges, interval, dateTimeStart = NULL,
+makeGraphs <- function(edges, interval = "full", dateTimeStart = NULL,
                        dateTimeEnd = NULL, id1Col = "ID1", id2Col = "ID2",
                        weighted = FALSE, minTimestampCol = "minTimestamp",
                        maxTimestampCol = "maxTimestamp", allVertices = FALSE){
+
   # Some basic argument checks
   checkmate::assertLogical(weighted, len = 1)
   checkmate::assertCharacter(minTimestampCol, len = 1)
   checkmate::assertCharacter(maxTimestampCol, len = 1)
   checkmate::assertClass(edges[[minTimestampCol]], "POSIXct")
   checkmate::assertClass(edges[[maxTimestampCol]], "POSIXct")
-
-  # Check that the user-defined time interval is coercible to a duration
-  int <- lubridate::as.duration(interval)
-  if(is.na(int)){
-    stop("Argument `interval` could not be expressed as a duration: lubridate::as.duration() returned NA. Please make sure you are specifying a valid interval, such as '1 day', '3 hours', '2 weeks', etc.")
-  }
-  checkmate::assertClass(int, "Duration")
-  # Note that even though we checked if this was coercible to a duration, we're not actually going to *use* the object `int`, because `cut()` just wants us to pass a character string.
 
   # Either assign dateTimeStart and dateTimeEnd, or coerce the user-provided inputs to lubridate datetimes.
   if(is.null(dateTimeStart)){
@@ -510,6 +550,19 @@ makeGraphs <- function(edges, interval, dateTimeStart = NULL,
   if(is.na(end)){
     stop("`dateTimeEnd` could not be parsed. Please make sure you have used one of the following formats: YYYY-MM-DD hh:mm:ss, YYYY-MM-DD hh:mm, or YYYY-MM-DD.")
   }
+
+  # If "interval" is "full," then create a duration object based on `end` and `start` times as calculated above.
+  if(interval == "full"){
+    interval <- lubridate::as.duration(end-start)
+  }
+
+  # Check that the user-defined time interval is coercible to a duration
+  int <- lubridate::as.duration(interval)
+  if(is.na(int)){
+    stop("Argument `interval` could not be expressed as a duration: lubridate::as.duration() returned NA. Please make sure you are specifying a valid interval, such as '1 day', '3 hours', '2 weeks', etc.")
+  }
+  checkmate::assertClass(int, "Duration")
+  # Note that even though we checked if this was coercible to a duration, we're not actually going to *use* the object `int`, because `cut()` just wants us to pass a character string.
 
   # Get a vector of all the vertices that appear in the entire dataset.
   allVerticesVec <- sort(unique(c(edges[[id1Col]], edges[[id2Col]])))

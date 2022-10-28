@@ -6,7 +6,7 @@
 \usage{
 makeGraphs(
   edges,
-  interval,
+  interval = "full",
   dateTimeStart = NULL,
   dateTimeEnd = NULL,
   id1Col = "ID1",
@@ -20,7 +20,7 @@ makeGraphs(
 \arguments{
 \item{edges}{a data frame containing edges and their associated `timegroup`s.}
 
-\item{interval}{A character string specifying an interval such as "3 days" or "2 hours" or "1 month" or "1.5 hours" or "3 days 2 hours". Interval will be coerced to a duration object using lubridate::as.duration()}
+\item{interval}{Either "full" (default, entire length of the data, after accounting for dateTimeStart and dateTimeEnd. Will create just one network.) or a character string specifying an interval such as "3 days" or "2 hours" or "1 month" or "1.5 hours" or "3 days 2 hours". Interval will be coerced to a duration object using lubridate::as.duration()}
 
 \item{dateTimeStart}{the dateTime object that defines the beginning of the time period to be divided. If not specified, defaults to the earliest `timestamp` in `fullData`. Must be in one of the following formats: "YYYY-MM-DD hh:mm:ss" or "YYYY-MM-DD hh:mm" or "YYYY-MM-DD". Hours must use 24 hour time--e.g. 5:00 pm would be 17:00.}
 
