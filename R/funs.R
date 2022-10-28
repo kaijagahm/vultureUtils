@@ -499,6 +499,92 @@ makeGraph <- function(edges, weighted = FALSE, id1Col = "ID1", id2Col = "ID2"){
   return(g)
 }
 
+#' Make temporal slices of an edge list
+#'
+#' This function takes an edge list (returned by `vultureUtils::get*Edges()`) and slices it temporally. Returns a list of data frames (edge lists). Includes specifications for whether the time slices should start at the beginning or end, and what to do with any odd-length slice if/when the specified time interval doesn't divide evenly into the amount of time given.
+#' @param edges a data frame containing edges and their associated `timegroup`s. Returned by `vultureUtils::get*Edges()`
+#' @param interval a character string specifying an interval such as "3 days" or "2 hours" or "1 month" or "1.5 hours" or "3 days 2 hours". Interval will be coerced to a duration object using lubridate::as.duration()
+#' @param dateTimeStart a dateTime object that defines the beginning of the time period to be divided. If not specified, defaults to the earliest `timestamp` in `edges`. Must be in one of the following formats: "YYYY-MM-DD hh:mm:ss" or "YYYY-MM-DD hh:mm" or "YYYY-MM-DD". Hours must use 24 hour time--e.g. 5:00 pm would be 17:00.
+#' @param dateTimeEnd a dateTime object that defines the end of the time period to be divided. If not specified, defaults to the latest `timestamp` in `edges`. Must be in one of the following formats: "YYYY-MM-DD hh:mm:ss" or "YYYY-MM-DD hh:mm" or "YYYY-MM-DD". Hours must use 24 hour time--e.g. 5:00 pm would be 17:00.
+#' @param id1Col name of the column in `edges` containing the ID of the first individual in a dyad
+#' @param id2Col name of the column in `edges` containing the ID of the second individual in a dyad
+#' @param minTimestampCol the name of the column to use for assigning the minimum timestamp, if no `dateTimeStart` is provided. Default is "minTimestamp".
+#' @param maxTimestampCol the name of the column to use for assigning the maximum timestamp, if no `dateTimeEnd` is provided. Default is "maxTimestamp".
+#' @return A list of data frames (i.e. "edgelists")
+#' @export
+sliceTemporal <- function(edges, interval, dateTimeStart = NULL,
+                       dateTimeEnd = NULL, id1Col = "ID1", id2Col = "ID2",
+                       wminTimestampCol = "minTimestamp",
+                       maxTimestampCol = "maxTimestamp"){
+
+  # Some basic argument checks
+  checkmate::assertCharacter(minTimestampCol, len = 1)
+  checkmate::assertCharacter(maxTimestampCol, len = 1)
+  checkmate::assertClass(edges[[minTimestampCol]], "POSIXct")
+  checkmate::assertClass(edges[[maxTimestampCol]], "POSIXct")
+
+  # Either assign dateTimeStart and dateTimeEnd, or coerce the user-provided inputs to lubridate datetimes.
+  if(is.null(dateTimeStart)){
+    dateTimeStart <- min(edges[[minTimestampCol]])
+    message(paste0("No start datetime provided. Using earliest timestamp, which is ", dateTimeStart, "."))
+  }
+  if(is.null(dateTimeEnd)){
+    dateTimeEnd <- max(edges[[maxTimestampCol]])
+    message(paste0("No end datetime provided. Using latest timestamp, which is ", dateTimeEnd, "."))
+  }
+
+  # Parse the start and end times into standard datetime format
+  start <- lubridate::parse_date_time(dateTimeStart, orders = c("%Y%m%d %H%M%S", "%Y%m%d %H%M", "%Y%m%d"))
+  if(is.na(start)){
+    stop("`dateTimeStart` could not be parsed. Please make sure you have used one of the following formats: YYYY-MM-DD hh:mm:ss, YYYY-MM-DD hh:mm, or YYYY-MM-DD.")
+  }
+  end <- lubridate::parse_date_time(dateTimeEnd, orders = c("%Y%m%d %H%M%S", "%Y%m%d %H%M", "%Y%m%d"))
+  if(is.na(end)){
+    stop("`dateTimeEnd` could not be parsed. Please make sure you have used one of the following formats: YYYY-MM-DD hh:mm:ss, YYYY-MM-DD hh:mm, or YYYY-MM-DD.")
+  }
+
+  # Check that the user-defined time interval is coercible to a duration
+  int <- lubridate::as.duration(interval)
+  if(is.na(int)){
+    stop("Argument `interval` could not be expressed as a duration: lubridate::as.duration() returned NA. Please make sure you are specifying a valid interval, such as '1 day', '3 hours', '2 weeks', etc.")
+  }
+  checkmate::assertClass(int, "Duration")
+  # Note that even though we checked if this was coercible to a duration, we're not actually going to *use* the object `int`, because `cut()` just wants us to pass a character string.
+
+  # Check that the time interval is less than the full length of the data
+  fullDuration <- lubridate::as.duration(end-start)
+  if(int >= fullDuration){
+    stop(paste0("Your time interval, ", interval, ", is greater than or equal to the full time span of the trimmed dataset: ", fullDuration, ". Please select a shorter time interval."))
+  }
+
+  # Separate sequences by user-defined time interval
+  # append the first and last dates to the data frame
+  edges <- edges %>%
+    tibble::add_row("minTimestamp" = start, .before = 1) %>%
+    tibble::add_row("maxTimestamp" = end)
+
+  # Now use `cut` and `seq` to group the data
+  edges <- edges %>%
+    dplyr::mutate(intervalGroup = lubridate::floor_date(.data$minTimestamp, unit = eval(interval)))
+
+  # Split the data into a list
+  dataList <- edges %>%
+    dplyr::filter(!is.na(.data$ID1)) %>%
+    dplyr::ungroup() %>%
+    dplyr::select(.data[[id1Col]], .data[[id2Col]], .data$timegroup, .data$intervalGroup) %>%
+    dplyr::group_by(.data$intervalGroup) %>%
+    dplyr::group_split(.keep = T)
+
+  # Name the list according to the interval groups
+  nms <- map_chr(dataList, ~as.character(.x$intervalGroup[1]))
+  names(dataList) <- nms
+
+  # Return the final data
+  return(dataList)
+}
+
+
+
 
 
 
@@ -509,7 +595,7 @@ makeGraph <- function(edges, weighted = FALSE, id1Col = "ID1", id2Col = "ID2"){
 #'
 #' Inputs: a data frame containing time-grouped edges, and given an interval for making the networks. This function separates the data frame into a list of edge lists according to the provided time interval. Then, it generates a network (weighted or unweighted) for each of the edge lists. Note that depending on whether or not `interval` divides evenly into the range between `dateTimeStart` and `dateTimeEnd`, the last graph may be created from a smaller time period than the other graphs.
 #' @param edges a data frame containing edges and their associated `timegroup`s.
-#' @param interval Either "full" (default, entire length of the data, after accounting for dateTimeStart and dateTimeEnd. Will create just one network.) or a character string specifying an interval such as "3 days" or "2 hours" or "1 month" or "1.5 hours" or "3 days 2 hours". Interval will be coerced to a duration object using lubridate::as.duration()
+#' @param interval Either "full" (default, entire length of the data, after accounting for dateTimeStart and dateTimeEnd. Will create just one network.) or a character string
 #' @param dateTimeStart the dateTime object that defines the beginning of the time period to be divided. If not specified, defaults to the earliest `timestamp` in `fullData`. Must be in one of the following formats: "YYYY-MM-DD hh:mm:ss" or "YYYY-MM-DD hh:mm" or "YYYY-MM-DD". Hours must use 24 hour time--e.g. 5:00 pm would be 17:00.
 #' @param dateTimeEnd the dateTime object that defines the end of the time period to be divided. If not specified, defaults to the latest `timestamp` in `fullData`. Must be in one of the following formats: "YYYY-MM-DD hh:mm:ss" or "YYYY-MM-DD hh:mm" or "YYYY-MM-DD". Hours must use 24 hour time--e.g. 5:00 pm would be 17:00.
 #' @param id1Col name of the column in `edges` containing the ID of the first individual in a dyad
