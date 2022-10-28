@@ -503,7 +503,10 @@ makeGraph <- function(edges, weighted = FALSE, id1Col = "ID1", id2Col = "ID2"){
 #'
 #' This function takes an edge list (returned by `vultureUtils::get*Edges()`) and slices it temporally. Returns a list of data frames (edge lists). Includes specifications for whether the time slices should start at the beginning or end, and what to do with any odd-length slice if/when the specified time interval doesn't divide evenly into the amount of time given.
 #' @param edges a data frame containing edges and their associated `timegroup`s. Returned by `vultureUtils::get*Edges()`
-#' @param interval a character string specifying an interval such as "3 days" or "2 hours" or "1 month" or "1.5 hours" or "3 days 2 hours". Interval will be coerced to a duration object using lubridate::as.duration()
+#' @param n an integer value
+#' @param unit unit for the interval. Will be combined with the integer value of `interval`. So if `unit` is "days" and `interval` is 5, then your data will be separated into an interval of "5 days".
+#' @param from character, either "start" (default) or "end", to indicate whether the time slices should be taken forwards from the beginning of the data ("start") or backwards from the end of the data ("end").
+#' @param dropEdgeGroup logical. Whether to get rid of the "stub" group of uneven size at the opposite end of the data. Default is FALSE--the group will be kept, even though it may contain incomplete data. If TRUE, drop the last group (if `from` == "end") or the first group (if `from` == "start")
 #' @param dateTimeStart a dateTime object that defines the beginning of the time period to be divided. If not specified, defaults to the earliest `timestamp` in `edges`. Must be in one of the following formats: "YYYY-MM-DD hh:mm:ss" or "YYYY-MM-DD hh:mm" or "YYYY-MM-DD". Hours must use 24 hour time--e.g. 5:00 pm would be 17:00.
 #' @param dateTimeEnd a dateTime object that defines the end of the time period to be divided. If not specified, defaults to the latest `timestamp` in `edges`. Must be in one of the following formats: "YYYY-MM-DD hh:mm:ss" or "YYYY-MM-DD hh:mm" or "YYYY-MM-DD". Hours must use 24 hour time--e.g. 5:00 pm would be 17:00.
 #' @param id1Col name of the column in `edges` containing the ID of the first individual in a dyad
@@ -512,16 +515,22 @@ makeGraph <- function(edges, weighted = FALSE, id1Col = "ID1", id2Col = "ID2"){
 #' @param maxTimestampCol the name of the column to use for assigning the maximum timestamp, if no `dateTimeEnd` is provided. Default is "maxTimestamp".
 #' @return A list of data frames (i.e. "edgelists")
 #' @export
-sliceTemporal <- function(edges, interval, dateTimeStart = NULL,
-                       dateTimeEnd = NULL, id1Col = "ID1", id2Col = "ID2",
-                       wminTimestampCol = "minTimestamp",
-                       maxTimestampCol = "maxTimestamp"){
+sliceTemporal <- function(edges, n, unit = "days", from = "start",
+                          dropEdgeGroup = FALSE,
+                          dateTimeStart = NULL,
+                          dateTimeEnd = NULL, id1Col = "ID1", id2Col = "ID2",
+                          minTimestampCol = "minTimestamp",
+                          maxTimestampCol = "maxTimestamp"){
 
   # Some basic argument checks
   checkmate::assertCharacter(minTimestampCol, len = 1)
   checkmate::assertCharacter(maxTimestampCol, len = 1)
   checkmate::assertClass(edges[[minTimestampCol]], "POSIXct")
   checkmate::assertClass(edges[[maxTimestampCol]], "POSIXct")
+  checkmate::assertNumeric(n, len = 1)
+  checkmate::assertCharacter(from)
+  checkmate::assertSubset(from, choices = c("start", "end"), empty.ok = FALSE)
+  checkmate::assertLogical(dropEdgeGroup, len = 1)
 
   # Either assign dateTimeStart and dateTimeEnd, or coerce the user-provided inputs to lubridate datetimes.
   if(is.null(dateTimeStart)){
@@ -544,40 +553,62 @@ sliceTemporal <- function(edges, interval, dateTimeStart = NULL,
   }
 
   # Check that the user-defined time interval is coercible to a duration
-  int <- lubridate::as.duration(interval)
+  compositeInterval <- paste(n, unit)
+  int <- lubridate::as.duration(compositeInterval)
   if(is.na(int)){
-    stop("Argument `interval` could not be expressed as a duration: lubridate::as.duration() returned NA. Please make sure you are specifying a valid interval, such as '1 day', '3 hours', '2 weeks', etc.")
+    stop("Arguments `n` and `unit` could not be expressed as a duration: lubridate::as.duration() returned NA. Please make sure you have specified `n` as an integer and `unit` as a unit such as `hours` or `days`.")
   }
   checkmate::assertClass(int, "Duration")
   # Note that even though we checked if this was coercible to a duration, we're not actually going to *use* the object `int`, because `cut()` just wants us to pass a character string.
 
   # Check that the time interval is less than the full length of the data
-  fullDuration <- lubridate::as.duration(end-start)
+  fullDuration <- difftime(end, start, units = unit) # in same units as specified by the `unit` arg.
   if(int >= fullDuration){
-    stop(paste0("Your time interval, ", interval, ", is greater than or equal to the full time span of the trimmed dataset: ", fullDuration, ". Please select a shorter time interval."))
+    stop(paste0("Your time interval, ", compositeInterval, ", is greater than or equal to the full time span of the trimmed dataset: ", fullDuration, ". Please select a shorter time interval."))
   }
 
-  # Separate sequences by user-defined time interval
   # append the first and last dates to the data frame
   edges <- edges %>%
     tibble::add_row("minTimestamp" = start, .before = 1) %>%
     tibble::add_row("maxTimestamp" = end)
 
-  # Now use `cut` and `seq` to group the data
-  edges <- edges %>%
-    dplyr::mutate(intervalGroup = lubridate::floor_date(.data$minTimestamp, unit = eval(interval)))
+  # Now time to separate the dates, using seq and group.
+  ## First, we have to determine how many groups we're going to have.
+  nGroups <- ceiling(as.numeric(fullDuration)/n)
+  nBreaks <- nGroups + 1
 
-  # Split the data into a list
+  ## Now we can create a sequence, going either backwards or forwards, depending
+  if(from == "end"){
+    negInterval <- paste0("-", compositeInterval)
+    breaksSequence <- rev(seq(from = end, length = nBreaks, by = negInterval))
+    edges <- edges %>%
+      dplyr::mutate(intervalGroup_lowerBound = cut.POSIXt(maxTimestamp,
+                                                     breaks = breaksSequence, right = TRUE))
+  }else{
+    breaksSequence <- seq(from = start, length = nBreaks, by = compositeInterval)
+    edges <- edges %>%
+      dplyr::mutate(intervalGroup_lowerBound = cut.POSIXt(minTimestamp,
+                                                     breaks = breaksSequence, right = TRUE))
+  }
+
+  # Split the data into a list by group
   dataList <- edges %>%
     dplyr::filter(!is.na(.data$ID1)) %>%
     dplyr::ungroup() %>%
-    dplyr::select(.data[[id1Col]], .data[[id2Col]], .data$timegroup, .data$intervalGroup) %>%
-    dplyr::group_by(.data$intervalGroup) %>%
+    dplyr::select(.data[[id1Col]], .data[[id2Col]], .data$timegroup, .data$intervalGroup_lowerBound) %>%
+    dplyr::group_by(.data$intervalGroup_lowerBound) %>%
     dplyr::group_split(.keep = T)
 
   # Name the list according to the interval groups
-  nms <- map_chr(dataList, ~as.character(.x$intervalGroup[1]))
+  nms <- map_chr(dataList, ~as.character(.x$intervalGroup_lowerBound[1]))
   names(dataList) <- nms
+
+  # If `dropEdgeGroup` == T, then drop the first/last group
+  if(dropEdgeGroup & from == "start"){
+    dataList <- dataList[-length(dataList)]
+  }else if(dropEdgeGroup & from == "end"){
+    dataList <- dataList[-1]
+  }
 
   # Return the final data
   return(dataList)

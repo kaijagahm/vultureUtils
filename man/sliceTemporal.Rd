@@ -6,19 +6,28 @@
 \usage{
 sliceTemporal(
   edges,
-  interval,
+  n,
+  unit = "days",
+  from = "start",
+  dropEdgeGroup = FALSE,
   dateTimeStart = NULL,
   dateTimeEnd = NULL,
   id1Col = "ID1",
   id2Col = "ID2",
-  wminTimestampCol = "minTimestamp",
+  minTimestampCol = "minTimestamp",
   maxTimestampCol = "maxTimestamp"
 )
 }
 \arguments{
 \item{edges}{a data frame containing edges and their associated `timegroup`s. Returned by `vultureUtils::get*Edges()`}
 
-\item{interval}{a character string specifying an interval such as "3 days" or "2 hours" or "1 month" or "1.5 hours" or "3 days 2 hours". Interval will be coerced to a duration object using lubridate::as.duration()}
+\item{n}{an integer value}
+
+\item{unit}{unit for the interval. Will be combined with the integer value of `interval`. So if `unit` is "days" and `interval` is 5, then your data will be separated into an interval of "5 days".}
+
+\item{from}{character, either "start" (default) or "end", to indicate whether the time slices should be taken forwards from the beginning of the data ("start") or backwards from the end of the data ("end").}
+
+\item{dropEdgeGroup}{logical. Whether to get rid of the "stub" group of uneven size at the opposite end of the data. Default is FALSE--the group will be kept, even though it may contain incomplete data. If TRUE, drop the last group (if `from` == "end") or the first group (if `from` == "start")}
 
 \item{dateTimeStart}{a dateTime object that defines the beginning of the time period to be divided. If not specified, defaults to the earliest `timestamp` in `edges`. Must be in one of the following formats: "YYYY-MM-DD hh:mm:ss" or "YYYY-MM-DD hh:mm" or "YYYY-MM-DD". Hours must use 24 hour time--e.g. 5:00 pm would be 17:00.}
 
@@ -28,9 +37,9 @@ sliceTemporal(
 
 \item{id2Col}{name of the column in `edges` containing the ID of the second individual in a dyad}
 
-\item{maxTimestampCol}{the name of the column to use for assigning the maximum timestamp, if no `dateTimeEnd` is provided. Default is "maxTimestamp".}
-
 \item{minTimestampCol}{the name of the column to use for assigning the minimum timestamp, if no `dateTimeStart` is provided. Default is "minTimestamp".}
+
+\item{maxTimestampCol}{the name of the column to use for assigning the maximum timestamp, if no `dateTimeEnd` is provided. Default is "maxTimestamp".}
 }
 \value{
 A list of data frames (i.e. "edgelists")
