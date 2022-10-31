@@ -458,50 +458,89 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
   return(edgesFiltered)
 }
 
-#' Make a list of networks, given a time interval
+#' Make a single graph from an edge list.
 #'
-#' Inputs: a data frame containing time-grouped edges, and given an interval for making the networks. This function separates the data frame into a list of edge lists according to the provided time interval. Then, it generates a network (weighted or unweighted) for each of the edge lists. Note that depending on whether or not `interval` divides evenly into the range between `dateTimeStart` and `dateTimeEnd`, the last graph may be created from a smaller time period than the other graphs.
-#' @param edges a data frame containing edges and their associated `timegroup`s.
-#' @param interval A character string specifying an interval such as "3 days" or "2 hours" or "1 month" or "1.5 hours" or "3 days 2 hours". Interval will be coerced to a duration object using lubridate::as.duration()
-#' @param dateTimeStart the dateTime object that defines the beginning of the time period to be divided. If not specified, defaults to the earliest `timestamp` in `fullData`. Must be in one of the following formats: "YYYY-MM-DD hh:mm:ss" or "YYYY-MM-DD hh:mm" or "YYYY-MM-DD". Hours must use 24 hour time--e.g. 5:00 pm would be 17:00.
-#' @param dateTimeEnd the dateTime object that defines the end of the time period to be divided. If not specified, defaults to the latest `timestamp` in `fullData`. Must be in one of the following formats: "YYYY-MM-DD hh:mm:ss" or "YYYY-MM-DD hh:mm" or "YYYY-MM-DD". Hours must use 24 hour time--e.g. 5:00 pm would be 17:00.
-#' @param id1Col name of the column in `edges` containing the ID of the first individual in a dyad
-#' @param id2Col name of the column in `edges` containing the ID of the second individual in a dyad
-#' @param weighted whether or not the resulting graphs should have weights attached
-#' @param minTimestampCol the name of the column to use for assigning the minimum timestamp, if no `dateTimeStart` is provided. Default is "minTimestamp".
-#' @param maxTimestampCol the name of the column to use for assigning the maximum timestamp, if no `dateTimeEnd` is provided. Default is "maxTimestamp".
-#' @param allVertices whether to include all possible vertices in all graphs produced, even if they are not involved in any edges in the current time slice. Default is FALSE.
-#' @return A list of igraph graph objects
+#' This is basically a wrapper of igraph::graph_from_data_frame. Takes into account the formatting returned from vultureUtils::get*Edges().
+#' @param edges a data frame containing edges and their associated `timegroup`s. Returned from vultureUtils::get*Edges().
+#' @param weighted whether or not the resulting graphs should have weights attached. Default is FALSE (unweighted graph).
+#' @param id1Col name of the column in `edges` containing the ID of the first individual in a dyad. Default is "ID1".
+#' @param id2Col name of the column in `edges` containing the ID of the second individual in a dyad. Default is "ID2".
+#' @return an igraph object. An undirected graph that is either weighted or unweighted, depending on whether `weighted` is T or F.
 #' @export
-makeGraphs <- function(edges, interval, dateTimeStart = NULL,
-                       dateTimeEnd = NULL, id1Col = "ID1", id2Col = "ID2",
-                       weighted = FALSE, minTimestampCol = "minTimestamp",
-                       maxTimestampCol = "maxTimestamp", allVertices = FALSE){
+makeGraph <- function(edges, weighted = FALSE, id1Col = "ID1", id2Col = "ID2"){
   # Some basic argument checks
   checkmate::assertLogical(weighted, len = 1)
+  checkmate::assertCharacter(id1Col, len = 1)
+  checkmate::assertCharacter(id2Col, len = 1)
+
+  # Simplify the edgelist to just the columns needed
+  edgesSimple <- edges %>%
+    dplyr::select(.data[[id1Col]], .data[[id2Col]])
+
+  # Make graph differently depending on `weighted`
+  if(weighted == FALSE){
+    # Make an unweighted graph
+    edgesSimple <- edgesSimple %>%
+      dplyr::distinct()
+    g <- igraph::graph_from_data_frame(d = edgesSimple, directed = FALSE)
+  }else{
+    # Make a weighted graph
+    edgesWeighted <- edgesSimple %>%
+      dplyr::mutate(weight = 1) %>%
+      dplyr::group_by(.data[[id1Col]],
+                      .data[[id2Col]]) %>%
+      dplyr::summarize(weight = sum(.data$weight)) %>%
+      dplyr::ungroup()
+    g <- igraph::graph_from_data_frame(d = edgesWeighted, directed = FALSE)
+  }
+
+  return(g)
+}
+
+#' Make temporal slices of an edge list
+#'
+#' This function takes an edge list (returned by `vultureUtils::get*Edges()`) and slices it temporally. Returns a list of data frames (edge lists). Includes specifications for whether the time slices should start at the beginning or end, and what to do with any odd-length slice if/when the specified time interval doesn't divide evenly into the amount of time given.
+#' @param edges a data frame containing edges and their associated `timegroup`s. Returned by `vultureUtils::get*Edges()`
+#' @param n an integer value
+#' @param unit unit for the interval. Will be combined with the integer value of `interval`. So if `unit` is "days" and `interval` is 5, then your data will be separated into an interval of "5 days".
+#' @param from character, either "start" (default) or "end", to indicate whether the time slices should be taken forwards from the beginning of the data ("start") or backwards from the end of the data ("end").
+#' @param dropEdgeGroup logical. Whether to get rid of the "stub" group of uneven size at the opposite end of the data. Default is FALSE--the group will be kept, even though it may contain incomplete data. If TRUE, drop the last group (if `from` == "end") or the first group (if `from` == "start")
+#' @param dateTimeStart a dateTime object that defines the beginning of the time period to be divided. If not specified, defaults to the earliest `timestamp` in `edges`. Must be in one of the following formats: "YYYY-MM-DD hh:mm:ss" or "YYYY-MM-DD hh:mm" or "YYYY-MM-DD". Hours must use 24 hour time--e.g. 5:00 pm would be 17:00.
+#' @param dateTimeEnd a dateTime object that defines the end of the time period to be divided. If not specified, defaults to the latest `timestamp` in `edges`. Must be in one of the following formats: "YYYY-MM-DD hh:mm:ss" or "YYYY-MM-DD hh:mm" or "YYYY-MM-DD". Hours must use 24 hour time--e.g. 5:00 pm would be 17:00.
+#' @param id1Col name of the column in `edges` containing the ID of the first individual in a dyad
+#' @param id2Col name of the column in `edges` containing the ID of the second individual in a dyad
+#' @param minTimestampCol the name of the column to use for assigning the minimum timestamp, if no `dateTimeStart` is provided. Default is "minTimestamp".
+#' @param maxTimestampCol the name of the column to use for assigning the maximum timestamp, if no `dateTimeEnd` is provided. Default is "maxTimestamp".
+#' @return A list of data frames (i.e. "edgelists")
+#' @export
+sliceTemporal <- function(edges, n, unit = "days", from = "start",
+                          dropEdgeGroup = FALSE,
+                          dateTimeStart = NULL,
+                          dateTimeEnd = NULL, id1Col = "ID1", id2Col = "ID2",
+                          minTimestampCol = "minTimestamp",
+                          maxTimestampCol = "maxTimestamp"){
+
+  # Some basic argument checks
   checkmate::assertCharacter(minTimestampCol, len = 1)
   checkmate::assertCharacter(maxTimestampCol, len = 1)
   checkmate::assertClass(edges[[minTimestampCol]], "POSIXct")
   checkmate::assertClass(edges[[maxTimestampCol]], "POSIXct")
-
-  # Check that the user-defined time interval is coercible to a duration
-  int <- lubridate::as.duration(interval)
-  if(is.na(int)){
-    stop("Argument `interval` could not be expressed as a duration: lubridate::as.duration() returned NA. Please make sure you are specifying a valid interval, such as '1 day', '3 hours', '2 weeks', etc.")
-  }
-  checkmate::assertClass(int, "Duration")
-  # Note that even though we checked if this was coercible to a duration, we're not actually going to *use* the object `int`, because `cut()` just wants us to pass a character string.
+  checkmate::assertNumeric(n, len = 1)
+  checkmate::assertCharacter(from)
+  checkmate::assertSubset(from, choices = c("start", "end"), empty.ok = FALSE)
+  checkmate::assertLogical(dropEdgeGroup, len = 1)
 
   # Either assign dateTimeStart and dateTimeEnd, or coerce the user-provided inputs to lubridate datetimes.
   if(is.null(dateTimeStart)){
     dateTimeStart <- min(edges[[minTimestampCol]])
-    warning(paste0("No start datetime provided. Using earliest timestamp, which is ", dateTimeStart, "."))
+    message(paste0("No start datetime provided. Using earliest timestamp, which is ", dateTimeStart, "."))
   }
   if(is.null(dateTimeEnd)){
     dateTimeEnd <- max(edges[[maxTimestampCol]])
-    warning(paste0("No end datetime provided. Using latest timestamp, which is ", dateTimeEnd, "."))
+    message(paste0("No end datetime provided. Using latest timestamp, which is ", dateTimeEnd, "."))
   }
 
+  # Parse the start and end times into standard datetime format
   start <- lubridate::parse_date_time(dateTimeStart, orders = c("%Y%m%d %H%M%S", "%Y%m%d %H%M", "%Y%m%d"))
   if(is.na(start)){
     stop("`dateTimeStart` could not be parsed. Please make sure you have used one of the following formats: YYYY-MM-DD hh:mm:ss, YYYY-MM-DD hh:mm, or YYYY-MM-DD.")
@@ -511,141 +550,66 @@ makeGraphs <- function(edges, interval, dateTimeStart = NULL,
     stop("`dateTimeEnd` could not be parsed. Please make sure you have used one of the following formats: YYYY-MM-DD hh:mm:ss, YYYY-MM-DD hh:mm, or YYYY-MM-DD.")
   }
 
-  # Get a vector of all the vertices that appear in the entire dataset.
-  allVerticesVec <- sort(unique(c(edges[[id1Col]], edges[[id2Col]])))
+  # Check that the user-defined time interval is coercible to a duration
+  compositeInterval <- paste(n, unit)
+  int <- lubridate::as.duration(compositeInterval)
+  if(is.na(int)){
+    stop("Arguments `n` and `unit` could not be expressed as a duration: lubridate::as.duration() returned NA. Please make sure you have specified `n` as an integer and `unit` as a unit such as `hours` or `days`.")
+  }
+  checkmate::assertClass(int, "Duration")
+  # Note that even though we checked if this was coercible to a duration, we're not actually going to *use* the object `int`, because `cut()` just wants us to pass a character string.
 
-  # Separate sequences by user-defined time interval
+  # Check that the time interval is less than the full length of the data
+  fullDuration <- difftime(end, start, units = unit) # in same units as specified by the `unit` arg.
+  if(int >= fullDuration){
+    stop(paste0("Your time interval, ", compositeInterval, ", is greater than or equal to the full time span of the trimmed dataset: ", fullDuration, ". Please select a shorter time interval."))
+  }
+
   # append the first and last dates to the data frame
   edges <- edges %>%
     tibble::add_row("minTimestamp" = start, .before = 1) %>%
     tibble::add_row("maxTimestamp" = end)
 
-  # Now use `cut` and `seq` to group the data
-  edges <- edges %>%
-    dplyr::mutate(intervalGroup = lubridate::floor_date(.data$minTimestamp, unit = eval(interval)))
+  # Now time to separate the dates, using seq and group.
+  ## First, we have to determine how many groups we're going to have.
+  nGroups <- ceiling(as.numeric(fullDuration)/n)
+  nBreaks <- nGroups + 1
 
-  # Split the data into a list
+  ## Now we can create a sequence, going either backwards or forwards, depending
+  if(from == "end"){
+    negInterval <- paste0("-", compositeInterval)
+    breaksSequence <- rev(seq(from = end, length = nBreaks, by = negInterval))
+    edges <- edges %>%
+      dplyr::mutate(intervalGroup_lowerBound = cut.POSIXt(maxTimestamp,
+                                                     breaks = breaksSequence, right = TRUE))
+  }else{
+    breaksSequence <- seq(from = start, length = nBreaks, by = compositeInterval)
+    edges <- edges %>%
+      dplyr::mutate(intervalGroup_lowerBound = cut.POSIXt(minTimestamp,
+                                                     breaks = breaksSequence, right = TRUE))
+  }
+
+  # Split the data into a list by group
   dataList <- edges %>%
     dplyr::filter(!is.na(.data$ID1)) %>%
     dplyr::ungroup() %>%
-    dplyr::select(.data[[id1Col]], .data[[id2Col]], .data$timegroup, .data$intervalGroup) %>%
-    dplyr::group_by(.data$intervalGroup) %>%
+    dplyr::select(.data[[id1Col]], .data[[id2Col]], .data$timegroup, .data$intervalGroup_lowerBound) %>%
+    dplyr::group_by(.data$intervalGroup_lowerBound) %>%
     dplyr::group_split(.keep = T)
 
-  nms <- unlist(lapply(dataList, function(x){
-    as.character(utils::head(x$intervalGroup, 1))
-  }))
-  # XXX would make MUCH more sense to just call lapply on a function, instead of having the function makeGraphsList rely on having a list passed to it. that would also simplify the allVerticesVec argument because for each one you could pass in a complete list of vertices if allVertices == FALSE. Do this later.
+  # Name the list according to the interval groups
+  nms <- map_chr(dataList, ~as.character(.x$intervalGroup_lowerBound[1]))
+  names(dataList) <- nms
 
-  # Now make the networks, calling vultureUtils::makeGraphsList().
-  networks <- makeGraphsList(dataList = dataList, weighted = weighted, id1Col = id1Col, id2Col = id2Col, allVertices = TRUE, allVerticesVec = allVerticesVec)
-
-  # Name the networks by the breaks
-  names(networks$graphs) <- nms
-
-  # return the list of graphs and associated data
-  return(networks)
-}
-
-#' Make a list of graphs
-#'
-#' Creates a list of igraph graphs (and the data to go along with them) from a list of edgelists.
-#' @param dataList a list of edge lists (data frames).
-#' @param weighted whether or not the resulting graphs should have weights attached
-#' @param id1Col name of the column containing the ID of the first individual in a dyad
-#' @param id2Col name of the column containing the ID of the second individual in a dyad
-#' @param allVertices whether to include all possible vertices in all graphs produced, even if they are not involved in any edges in the current time slice. Default is FALSE
-#' @param allVerticesVec vector to use to define all possible vertices.
-#' @return A list of igraph graph objects
-#' @export
-#'
-makeGraphsList <- function (dataList, weighted = FALSE, id1Col = "ID1", id2Col = "ID2", allVertices = FALSE, allVerticesVec = NULL)
-{
-  # If we specify all vertices, then we need a vector containing the names of all vertices.
-  if(allVertices){
-    checkmate::assertVector(allVerticesVec, null.ok = FALSE)
+  # If `dropEdgeGroup` == T, then drop the first/last group
+  if(dropEdgeGroup & from == "start"){
+    dataList <- dataList[-length(dataList)]
+  }else if(dropEdgeGroup & from == "end"){
+    dataList <- dataList[-1]
   }
 
-  # Simplify the list down to just the columns needed
-  simplified <- lapply(dataList, function(x) {
-    x <- x %>% dplyr::select(.data[[id1Col]], .data[[id2Col]])
-  })
-
-  # Make graphs differently depending on whether weighted == FALSE or weighted == TRUE.
-  if (weighted == FALSE) {
-    simplified <- lapply(simplified, function(x) {
-      x <- x %>% dplyr::distinct()
-    })
-    gs <- lapply(simplified, function(x) {
-      if(allVertices){
-        igraph::graph_from_data_frame(d = x, directed = FALSE,
-                                      vertices = allVerticesVec)
-      }else{
-        igraph::graph_from_data_frame(d = x, directed = FALSE)
-      }
-    })
-  }
-  else {
-    simplified <- lapply(simplified, function(x) {
-      x <- x %>% dplyr::mutate(weight = 1) %>% dplyr::group_by(.data[[id1Col]],
-                                                               .data[[id2Col]]) %>% dplyr::summarize(weight = sum(.data$weight)) %>%
-        dplyr::ungroup()
-    })
-    gs <- lapply(simplified, function(x) {
-      if(allVertices){
-        igraph::graph_from_data_frame(d = x, directed = FALSE,
-                                      vertices = allVerticesVec)
-      }else{
-        igraph::graph_from_data_frame(d = x, directed = FALSE)
-      }
-    })
-  }
-  return(list(graphs = gs, simplifiedData = simplified))
-}
-
-#' Create plots from a list of graphs
-#'
-#' Given a list of graphs, make plots. Optionally, use a consistent layout to visualize change over time.
-#' @param graphList a list of graph objects.
-#' @param coords either "fixed" (use same coordinates for all plots, to visualize change over time), or "free" (different coords for each plot)
-#' @return A list of plot objects
-#' @export
-plotGraphs <- function(graphList, coords = "fixed"){
-  checkmate::assertList(graphList)
-  checkmate::assertSubset(coords, c("fixed", "free"))
-
-  # For fixed coords:
-  if(coords == "fixed"){
-    # Get coordinates to use
-    bigGraph <- do.call(igraph::union, graphList)
-    xy <- as.data.frame(igraph::layout_nicely(bigGraph))
-    row.names(xy) <- names(igraph::V(bigGraph))
-
-    # Make a list to store the plots
-    plotList <- lapply(graphList, function(x){
-      verts <- names(igraph::V(x))
-      coords <- xy[verts,]
-      p <- ggraph::ggraph(x, layout = "manual", x = coords[,1], y = coords[,2])+
-        ggraph::geom_edge_link()+
-        ggraph::geom_node_point(shape = 19, size = 6)+
-        ggraph::theme_graph()
-      return(p)
-    })
-  }
-
-  # For free coords:
-  if(coords == "free"){
-    # Make a list of plots
-    plotList <- lapply(graphList, function(x){
-      p <- ggraph::ggraph(x)+
-        ggraph::geom_edge_link()+
-        ggraph::geom_node_point(shape = 19, size = 6)+
-        ggraph::theme_graph()
-      return(p)
-    })
-  }
-
-  return(plotList)
+  # Return the final data
+  return(dataList)
 }
 
 #' Make a gif from a graph list
