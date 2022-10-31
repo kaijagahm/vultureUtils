@@ -470,10 +470,8 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
 makeGraph <- function(edges, weighted = FALSE, id1Col = "ID1", id2Col = "ID2"){
   # Some basic argument checks
   checkmate::assertLogical(weighted, len = 1)
-  checkmate::assertCharacter(minTimestampCol, len = 1)
-  checkmate::assertCharacter(maxTimestampCol, len = 1)
-  checkmate::assertClass(edges[[minTimestampCol]], "POSIXct")
-  checkmate::assertClass(edges[[maxTimestampCol]], "POSIXct")
+  checkmate::assertCharacter(id1Col, len = 1)
+  checkmate::assertCharacter(id2Col, len = 1)
 
   # Simplify the edgelist to just the columns needed
   edgesSimple <- edges %>%
