@@ -612,51 +612,6 @@ sliceTemporal <- function(edges, n, unit = "days", from = "start",
   return(dataList)
 }
 
-#' Create plots from a list of graphs
-#'
-#' Given a list of graphs, make plots. Optionally, use a consistent layout to visualize change over time.
-#' @param graphList a list of graph objects.
-#' @param coords either "fixed" (use same coordinates for all plots, to visualize change over time), or "free" (different coords for each plot)
-#' @return A list of plot objects
-#' @export
-plotGraphs <- function(graphList, coords = "fixed"){
-  checkmate::assertList(graphList)
-  checkmate::assertSubset(coords, c("fixed", "free"))
-
-  # For fixed coords:
-  if(coords == "fixed"){
-    # Get coordinates to use
-    bigGraph <- do.call(igraph::union, graphList)
-    xy <- as.data.frame(igraph::layout_nicely(bigGraph))
-    row.names(xy) <- names(igraph::V(bigGraph))
-
-    # Make a list to store the plots
-    plotList <- lapply(graphList, function(x){
-      verts <- names(igraph::V(x))
-      coords <- xy[verts,]
-      p <- ggraph::ggraph(x, layout = "manual", x = coords[,1], y = coords[,2])+
-        ggraph::geom_edge_link()+
-        ggraph::geom_node_point(shape = 19, size = 6)+
-        ggraph::theme_graph()
-      return(p)
-    })
-  }
-
-  # For free coords:
-  if(coords == "free"){
-    # Make a list of plots
-    plotList <- lapply(graphList, function(x){
-      p <- ggraph::ggraph(x)+
-        ggraph::geom_edge_link()+
-        ggraph::geom_node_point(shape = 19, size = 6)+
-        ggraph::theme_graph()
-      return(p)
-    })
-  }
-
-  return(plotList)
-}
-
 #' Make a gif from a graph list
 #'
 #' Given a list of plots, create a gif.
