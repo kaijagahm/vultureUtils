@@ -651,12 +651,10 @@ computeProbs <- function(graphList){
     as.matrix()
 
   # get edge list for each element of the graph list
-  els <- lapply(graphList, igraph::get.edgelist)
+  els <- map(graphList, igraph::get.edgelist)
 
   # for each graph, check whether each edge is present or not
-  tf <- lapply(els, function(x){
-    complete_edgelist %in% x
-  })
+  tf <- map(els, ~complete_edgelist %in% .x)
 
   # bind into a data frame showing presence/absence of edges over time.
   overTime <- do.call(cbind, tf) %>% as.data.frame()
