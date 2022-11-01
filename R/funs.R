@@ -912,7 +912,24 @@ get_roosts <- function(id, timestamp, x, y, ground_speed, speed_units = c("m/s",
 #' @param night_hours optional, vector indicating the range of hours (in UTC) that are considered the night period. The pre-defined vector is `c(13:23)`
 #' @return a data frame of the calculated roosts for every animal.
 #' @export
-get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", x = "location_long", y = "location_lat", ground_speed = "ground_speed", speed_units = c("m/s", "km/h"), buffer = 1, twilight = 61, morning_hours = c(0:12), night_hours = c(13:23)){
+get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", x = "location_long", y = "location_lat", ground_speed = "ground_speed", speed_units = "m/s", buffer = 1, twilight = 61, morning_hours = c(0:12), night_hours = c(13:23)){
+
+  checkmate::assertCharacter(id, len = 1)
+  checkmate::assertSubset(id, names(df))
+  checkmate::assertCharacter(timestamp, len = 1)
+  checkmate::assertSubset(timestamp, names(df))
+  checkmate::assertCharacter(x, len = 1)
+  checkmate::assertSubset(x, names(df))
+  checkmate::assertCharacter(y, len = 1)
+  checkmate::assertSubset(y, names(df))
+  checkmate::assertCharacter(ground_speed, len = 1)
+  checkmate::assertSubset(ground_speed, names(df))
+  checkmate::assertCharacter(speed_units, len = 1)
+  checkmate::assertSubset(speed_units, c("m/s", "km/h"))
+  checkmate::assertNumeric(buffer, len = 1)
+  checkmate::assertNumeric(twilight, len = 1)
+  checkmate::assertNumeric(morning_hours, upper = 24, lower = 0)
+  checkmate::assertNumeric(night_hours, upper = 24, lower = 0)
 
   # Transform the twilight period into seconds
   twilight <- twilight * 60

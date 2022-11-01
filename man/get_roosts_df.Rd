@@ -11,7 +11,7 @@ get_roosts_df(
   x = "location_long",
   y = "location_lat",
   ground_speed = "ground_speed",
-  speed_units = c("m/s", "km/h"),
+  speed_units = "m/s",
   buffer = 1,
   twilight = 61,
   morning_hours = c(0:12),
