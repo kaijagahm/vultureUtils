@@ -950,15 +950,15 @@ get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", 
 
   df$date <- as.Date(df[[timestamp]])
 
-  # Calculate the roosts
-  roost.df <- df[FALSE,]
+  # Separate into a list of individuals
+  indivs <- df %>%
+    dplyr::group_by(.data[[id]]) %>%
+    dplyr::group_split(.keep = T)
 
-  for(i in 1:dplyr::n_distinct(df[[id]])){
+  roosts <- purrr::map_dfr(indivs, ~{
+    temp.id <- unique(.x[[id]])
 
-    temp.id <- unique(df[[id]])[i]
-
-    id.df <- df %>%
-      dplyr::filter(.data[[id]] == temp.id) %>%
+    id.df <- .x %>%
       dplyr::group_by(date) %>%
       dplyr::arrange({{timestamp}}) %>%
       dplyr::mutate(
@@ -970,13 +970,13 @@ get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", 
       dplyr::ungroup() %>%
       dplyr::mutate(day_diff = round(difftime(dplyr::lead(date), date, units="days")))
 
-      matrix <- as.matrix(id.df[,c(x, y)])
-      leadMatrix <- as.matrix(cbind(lead(id.df[[x]]),
-                                    lead(id.df[[y]])))
-      distances <- geosphere::distGeo(p1 = matrix, p2 = leadMatrix)*0.001 %>%
-        round(., 2)
-      id.df$dist_km <- distances
-      id.df$dist_km[id.df$day_diff != 1] <- NA
+    matrix <- as.matrix(id.df[,c(x, y)])
+    leadMatrix <- as.matrix(cbind(lead(id.df[[x]]),
+                                  lead(id.df[[y]])))
+    distances <- geosphere::distGeo(p1 = matrix, p2 = leadMatrix)*0.001 %>%
+      round(., 2)
+    id.df$dist_km <- distances
+    id.df$dist_km[id.df$day_diff != 1] <- NA
 
     # Calculate the time of sunrise and sunset for the locations
     crds <- matrix(c(id.df[[x]],
@@ -1034,9 +1034,9 @@ get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", 
       dplyr::ungroup() %>%
       dplyr::select(-c("row_id", "hour"))
 
-    roost.df <- rbind(roost.df, temp.id.roosts)
-  }
+    return(temp.id.roosts)
+  })
 
-  return(roost.df)
+  return(roosts)
 
 }
