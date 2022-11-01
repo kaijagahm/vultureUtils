@@ -802,17 +802,17 @@ get_roosts <- function(id, timestamp, x, y, ground_speed, speed_units = c("m/s",
           dplyr::row_number() == 1 ~ "first",
           dplyr::row_number() == max(dplyr::row_number()) ~ "last"),
         hour = lubridate::hour(timestamp)) %>%
-      dplyr::filter({{row_id}} %in% c("first", "last")) %>%
+      dplyr::filter(row_id %in% c("first", "last")) %>%
       dplyr::ungroup() %>%
       dplyr::mutate(
         day_diff = round(difftime(dplyr::lead(date), date, units="days")),
-        dist_km = ifelse(.data[[day_diff]] == 1,
+        dist_km = ifelse(day_diff == 1,
                          round(geosphere::distGeo(p1 =
-                                                    cbind(dplyr::lead(.data[[location_long]]),
-                                                          dplyr::lead(.data[[location_lat]])),
+                                                    cbind(dplyr::lead(location_long),
+                                                          dplyr::lead(location_lat)),
                                                   p2 =
-                                                    cbind(.data[[location_long]],
-                                                          .data[[location_lat]]))*0.001, 2), NA))
+                                                    cbind(location_long,
+                                                          location_lat))*0.001, 2), NA))
 
     # Calculate the time of sunrise and sunset for the locations
     crds <- matrix(c(id.df$location_long,
@@ -823,14 +823,14 @@ get_roosts <- function(id, timestamp, x, y, ground_speed, speed_units = c("m/s",
     id.df$sunrise <- maptools::sunriset(crds,
                                         id.df$timestamp,
                                         proj4string =
-                                          rgdal::CRS("+proj=longlat +datum=WGS84"),
+                                          sp::CRS("+proj=longlat +datum=WGS84"),
                                         direction = "sunrise",
                                         POSIXct.out = TRUE)$time
 
     id.df$sunset <- maptools::sunriset(crds,
                                        id.df$timestamp,
                                        proj4string =
-                                         rgdal::CRS("+proj=longlat +datum=WGS84"),
+                                         sp::CRS("+proj=longlat +datum=WGS84"),
                                        direction = "sunset",
                                        POSIXct.out = TRUE)$time
 
@@ -839,8 +839,8 @@ get_roosts <- function(id, timestamp, x, y, ground_speed, speed_units = c("m/s",
     id.df$sunset_twilight <- id.df$sunset - twilight
 
     id.df <- id.df %>%
-      dplyr::mutate(daylight = ifelse(timestamp >= .data[[sunrise_twilight]] &
-                                        timestamp <= .data[[sunset_twilight]],
+      dplyr::mutate(daylight = ifelse(timestamp >= sunrise_twilight &
+                                        timestamp <= sunset_twilight,
                                       "day", "night"))
 
     rm(crds)
@@ -849,27 +849,27 @@ get_roosts <- function(id, timestamp, x, y, ground_speed, speed_units = c("m/s",
     id.df <- id.df %>%
       dplyr::mutate(
         is_roost = dplyr::case_when(
-          .data[[row_id]] == "last" & daylight == "night" & hour %in% night_hours &
+          row_id == "last" & daylight == "night" & hour %in% night_hours &
             ground_speed <= 4 ~ 1,
-          .data[[row_id]] == "last" & daylight == "night" & hour %in% night_hours &
+          row_id == "last" & daylight == "night" & hour %in% night_hours &
             is.na(ground_speed) ~ 1,
-          .data[[row_id]] == "first" & daylight == "night" & hour %in% morning_hours &
+          row_id == "first" & daylight == "night" & hour %in% morning_hours &
             ground_speed <= 4 ~ 1,
-          .data[[row_id]] == "first" & daylight == "night" & hour %in% morning_hours &
+          row_id == "first" & daylight == "night" & hour %in% morning_hours &
             is.na(ground_speed) ~ 1,
           dist_km <= buffer ~ 1),
 
         roost_date = dplyr::case_when(
-          .data[[is_roost]] == 1 & .data[[row_id]] == "last" ~ paste(as.character(date)),
-          .data[[is_roost]] == 1 & .data[[row_id]] == "first" ~ paste(as.character(date-1))),
+          is_roost == 1 & row_id == "last" ~ paste(as.character(date)),
+          is_roost == 1 & row_id == "first" ~ paste(as.character(date-1))),
 
-        roost_date = as.Date(.data[[roost_date]]))
+        roost_date = as.Date(roost_date))
 
-    temp.id.roosts <- dplyr::filter(id.df, .data[[is_roost]] == 1)
+    temp.id.roosts <- dplyr::filter(id.df, is_roost == 1)
 
     # If there is more than 1 roost per day, keep the earliest roost (night roost)
     temp.id.roosts <- temp.id.roosts %>%
-      dplyr::group_by(.data[[roost_date]]) %>%
+      dplyr::group_by(roost_date) %>%
       dplyr::arrange(timestamp) %>%
       dplyr::filter(dplyr::row_number() == 1) %>%
       dplyr::ungroup() %>%
