@@ -598,7 +598,7 @@ sliceTemporal <- function(edges, n, unit = "days", from = "start",
     dplyr::group_split(.keep = T)
 
   # Name the list according to the interval groups
-  nms <- map_chr(dataList, ~as.character(.x$intervalGroup_lowerBound[1]))
+  nms <- purrr::map_chr(dataList, ~as.character(.x$intervalGroup_lowerBound[1]))
   names(dataList) <- nms
 
   # If `dropEdgeGroup` == T, then drop the first/last group
@@ -651,10 +651,10 @@ computeProbs <- function(graphList){
     as.matrix()
 
   # get edge list for each element of the graph list
-  els <- map(graphList, igraph::get.edgelist)
+  els <- purrr::map(graphList, igraph::get.edgelist)
 
   # for each graph, check whether each edge is present or not
-  tf <- map(els, ~complete_edgelist %in% .x)
+  tf <- purrr::map(els, ~complete_edgelist %in% .x)
 
   # bind into a data frame showing presence/absence of edges over time.
   overTime <- do.call(cbind, tf) %>% as.data.frame()
@@ -697,7 +697,7 @@ computeProbs <- function(graphList){
 #' @param crsMeters crs with units of meters to be used. Default is 32636 (Israel, UTM zone 36)
 #' @return A buffered sf object
 #' @export
-convert <- function(obj, dist = 50, crsMeters = 32636){
+convert <- function(obj, crsMeters = 32636){
   checkmate::assertClass(obj, "sf")
   originalCRS <- sf::st_crs(obj)
   if(is.null(originalCRS)){
@@ -733,4 +733,161 @@ convertAndBuffer <- function(obj, dist = 50, crsMeters = 32636){
     sf::st_transform(originalCRS)
 
   return(convertedBack)
+}
+
+#' Get roosts
+#'
+#' With several methods, get the roost locations of a vulture on each night. This function was written by Marta Acácio. The function consecutively calculates the night roost based on the following five methods:
+#' 1.  It is the last GPS location of the day, and it is at night (and during the "night hours"), and the speed is equal or less than 4m/s (i.e., the bird was considered to not be flying);
+#' 2.  It is the last GPS location of the day, and it is at night (and during the "night hours"), and the speed is NA;
+#' 3.  It is the first GPS location of the day, and it is at night (and during the "morning hours"), and the speed is equal or less than 4m/s;
+#' 4.  It is the first GPS location of the day, and it is at night (and during the "morning hours"), and the speed is NA;
+#' 5.  The last GPS location of the day (independently of the light or the hours) is within the defined buffer (pre-defined, 1km) of the first GPS location of the following day.
+#' The roost day is assigned in the following way:
+#' 1.  If it is the last location of the day, it is that day's night roost;
+#' 2.  If it was the first location of the day, it was the previous day's night roost;
+#' 3.  If for a particular date, the roost was calculated using more than 1 method, the selected roost is the earliest calculated roost.
+#' @param id animal identifier
+#' @param timestamp object of class `as.POSIXct`
+#' @param x longitude, in decimal degrees
+#' @param y latitude, in decimal degrees
+#' @param ground_speed ground speed of the animal
+#' @param speed_units units of speed (either "m/s" or "km/h"). If speed is provided in "km/h" it is transformed to "m/s".
+#' @param buffer optional, numerical value indicating the number of kms to consider the buffer for the roost calculation. The pre-defined value is 1km
+#' @param twilight optional, numerical value indicating number of minutes to consider the twilight for calculating the day and night positions. If set to 0, the night period starts at sunset and the day period starts at sunrise. The pre-defined value is 61, so the night period starts 61 minutes before sunset and the day period starts 61 minutes after sunrise
+#' @param morning_hours optional, vector indicating the range of hours (in UTC) that are considered the morning period. The pre-defined vector is `c(0:12)`
+#' @param night_hours optional, vector indicating the range of hours (in UTC) that are considered the night period. The pre-defined vector is `c(13:23)`
+#' @export
+get_roosts <- function(id, timestamp, x, y, ground_speed, speed_units = c("m/s", "km/h"), buffer = 1, twilight = 61, morning_hours = c(0:12), night_hours = c(13:23)){
+
+  # Transform the twilight period into seconds
+  twilight <- twilight * 60
+
+  # If the speed is in km/h transform into m/s
+  if(speed_units == "km/h"){
+
+    ground_speed <- round(ground_speed / 3.6, 3)
+
+  }else if(speed_units == "m/s"){
+
+    ground_speed <- ground_speed
+
+  }
+
+  # Create the dataset
+  df <- data.frame("id" = id,
+                   "timestamp" = timestamp,
+                   "location_long" = x,
+                   "location_lat" =  y,
+                   "ground_speed" = ground_speed)
+
+  df$timestamp <- as.POSIXct(df$timestamp,
+                             format = "%Y-%m-%d %H:%M:%S",
+                             tz = "UTC")
+
+  if(sum(is.na(df$timestamp))) stop("Timestamp needs to be
+                                    defined as.POSIXct (%Y-%m-%d %H:%M:%S)")
+
+  df$date <- as.Date(df$timestamp)
+
+  # Calculate the roosts
+  roost.df <- df[FALSE,]
+
+  for(i in 1:n_distinct(df$id)){
+
+    temp.id <- unique(df$id)[i]
+
+    id.df <- df %>%
+      dplyr::filter(id == temp.id) %>%
+      group_by(date) %>%
+      arrange(timestamp) %>%
+      mutate(
+        row_id = case_when(
+          row_number() == 1 ~ "first",
+          row_number() == max(row_number()) ~ "last"),
+        hour = hour(timestamp)) %>%
+      dplyr::filter(row_id %in% c("first", "last")) %>%
+      ungroup() %>%
+      mutate(
+        day_diff = round(difftime(lead(date), date, units="days")),
+        dist_km = ifelse(day_diff == 1,
+                         round(distGeo(p1 =
+                                         cbind(lead(location_long),
+                                               lead(location_lat)),
+                                       p2 =
+                                         cbind(location_long,
+                                               location_lat))*0.001, 2), NA))
+
+    # Calculate the time of sunrise and sunset for the locations
+    crds <- matrix(c(id.df$location_long,
+                     id.df$location_lat),
+                   nrow = nrow(id.df),
+                   ncol = 2)
+
+    id.df$sunrise <- sunriset(crds,
+                              id.df$timestamp,
+                              proj4string =
+                                CRS("+proj=longlat +datum=WGS84"),
+                              direction = "sunrise",
+                              POSIXct.out = TRUE)$time
+
+    id.df$sunset <- sunriset(crds,
+                             id.df$timestamp,
+                             proj4string =
+                               CRS("+proj=longlat +datum=WGS84"),
+                             direction = "sunset",
+                             POSIXct.out = TRUE)$time
+
+    # Set the twilight
+    id.df$sunrise_twilight <- id.df$sunrise + twilight
+    id.df$sunset_twilight <- id.df$sunset - twilight
+
+    id.df <- id.df %>%
+      mutate(daylight = ifelse(timestamp >= sunrise_twilight &
+                                 timestamp <= sunset_twilight,
+                               "day", "night"))
+
+    rm(crds)
+
+
+    # Identify the roosts
+    id.df <- id.df %>%
+      mutate(
+        is_roost = case_when(
+          row_id == "last" & daylight == "night" & hour %in% night_hours &
+            ground_speed <= 4 ~ 1,
+          row_id == "last" & daylight == "night" & hour %in% night_hours &
+            is.na(ground_speed) ~ 1,
+          row_id == "first" & daylight == "night" & hour %in% morning_hours &
+            ground_speed <= 4 ~ 1,
+          row_id == "first" & daylight == "night" & hour %in% morning_hours &
+            is.na(ground_speed) ~ 1,
+          dist_km <= buffer ~ 1),
+
+        roost_date = case_when(
+          is_roost == 1 & row_id == "last" ~ paste(as.character(date)),
+          is_roost == 1 & row_id == "first" ~ paste(as.character(date-1))),
+
+        roost_date = as.Date(roost_date))
+
+    temp.id.roosts <- filter(id.df, is_roost == 1)
+
+    # If there is more than 1 roost per day, keep the earliest roost (night roost)
+    temp.id.roosts <- temp.id.roosts %>%
+      group_by(roost_date) %>%
+      arrange(timestamp) %>%
+      dplyr::filter(row_number() == 1) %>%
+      ungroup() %>%
+      dplyr::select(-c("row_id", "hour"))
+
+    roost.df <- rbind(roost.df, temp.id.roosts)
+
+    rm(temp.id.roosts)
+    rm(id.df)
+    rm(temp.id)
+
+  }
+
+  return(roost.df)
+
 }
