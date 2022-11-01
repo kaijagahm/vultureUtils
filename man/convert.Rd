@@ -4,7 +4,7 @@
 \alias{convert}
 \title{Convert coordinates of an sf object}
 \usage{
-convert(obj, dist = 50, crsMeters = 32636)
+convert(obj, crsMeters = 32636)
 }
 \arguments{
 \item{obj}{an sf object to be buffered}
