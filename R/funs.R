@@ -737,7 +737,7 @@ convertAndBuffer <- function(obj, dist = 50, crsMeters = 32636){
 
 #' Get roosts
 #'
-#' With several methods, get the roost locations of a vulture on each night. This function was written by Marta Acácio. The function consecutively calculates the night roost based on the following five methods:
+#' With several methods, get the roost locations of a vulture on each night. This function was written by Marta Acácio and edited by Kaija Gahm. The function consecutively calculates the night roost based on the following five methods:
 #' 1.  It is the last GPS location of the day, and it is at night (and during the "night hours"), and the speed is equal or less than 4m/s (i.e., the bird was considered to not be flying);
 #' 2.  It is the last GPS location of the day, and it is at night (and during the "night hours"), and the speed is NA;
 #' 3.  It is the first GPS location of the day, and it is at night (and during the "morning hours"), and the speed is equal or less than 4m/s;
