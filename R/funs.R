@@ -932,7 +932,7 @@ get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", 
   checkmate::assertNumeric(night_hours, upper = 24, lower = 0)
 
   # Transform the twilight period into seconds
-  twilight <- twilight * 60
+  twilight_secs <- twilight * 60
 
   # If the speed is in km/h transform into m/s
   if(speed_units == "km/h"){
@@ -999,8 +999,8 @@ get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", 
                                        POSIXct.out = TRUE)$time
 
     # Set the twilight
-    id.df$sunrise_twilight <- id.df$sunrise + twilight
-    id.df$sunset_twilight <- id.df$sunset - twilight
+    id.df$sunrise_twilight <- id.df$sunrise + twilight_secs
+    id.df$sunset_twilight <- id.df$sunset - twilight_secs
 
     id.df <- id.df %>%
       dplyr::mutate(daylight = ifelse(.data[[timestamp]] >= sunrise_twilight &
@@ -1011,10 +1011,10 @@ get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", 
     id.df <- id.df %>%
       dplyr::mutate(
         is_roost = dplyr::case_when(
-          row_id == "last" & daylight == "night" & hour %in% night_hours & {{ground_speed}} <= 4 ~ 1,
-          row_id == "last" & daylight == "night" & hour %in% night_hours & is.na({{ground_speed}}) ~ 1,
-          row_id == "first" & daylight == "night" & hour %in% morning_hours & {{ground_speed}} <= 4 ~ 1,
-          row_id == "first" & daylight == "night" & hour %in% morning_hours & is.na({{ground_speed}}) ~ 1,
+          row_id == "last" & daylight == "night" & hour %in% night_hours & ({{ground_speed}} <= 4 |
+                                                                              is.na({{ground_speed}})) ~ 1,
+          row_id == "first" & daylight == "night" & hour %in% morning_hours & ({{ground_speed}} <= 4 |
+                                                                                 is.na({{ground_speed}})) ~ 1,
           dist_km <= buffer ~ 1
         ),
         roost_date = dplyr::case_when(
