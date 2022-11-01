@@ -697,7 +697,7 @@ computeProbs <- function(graphList){
 #' @param crsMeters crs with units of meters to be used. Default is 32636 (Israel, UTM zone 36)
 #' @return A buffered sf object
 #' @export
-convertAndBuffer <- function(obj, dist = 50, crsMeters = 32636){
+convert <- function(obj, dist = 50, crsMeters = 32636){
   checkmate::assertClass(obj, "sf")
   originalCRS <- sf::st_crs(obj)
   if(is.null(originalCRS)){
