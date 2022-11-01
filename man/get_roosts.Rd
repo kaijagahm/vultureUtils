@@ -38,6 +38,9 @@ get_roosts(
 
 \item{night_hours}{optional, vector indicating the range of hours (in UTC) that are considered the night period. The pre-defined vector is `c(13:23)`}
 }
+\value{
+a data frame of the calculated roosts for every animal.
+}
 \description{
 With several methods, get the roost locations of a vulture on each night. This function was written by Marta Acácio. The function consecutively calculates the night roost based on the following five methods:
 1.  It is the last GPS location of the day, and it is at night (and during the "night hours"), and the speed is equal or less than 4m/s (i.e., the bird was considered to not be flying);
