@@ -936,6 +936,12 @@ get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", 
   checkmate::assertNumeric(df[[y]])
   checkmate::assertNumeric(df[[ground_speed]])
 
+  # If the data is an sf object, remove the geometry to make it easier to work with. The computations in this function just depend on lat/long columns being present.
+  if("sf" %in% class(df)){
+    df <- df %>%
+      sf::st_drop_geometry()
+  }
+
   # Transform the twilight period into seconds
   twilight_secs <- twilight * 60
 
