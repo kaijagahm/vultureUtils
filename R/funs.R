@@ -914,6 +914,8 @@ get_roosts <- function(id, timestamp, x, y, ground_speed, speed_units = c("m/s",
 #' @export
 get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", x = "location_long", y = "location_lat", ground_speed = "ground_speed", speed_units = "m/s", buffer = 1, twilight = 61, morning_hours = c(0:12), night_hours = c(13:23)){
 
+  # Argument checks
+  checkmate::assertDataFrame(df)
   checkmate::assertCharacter(id, len = 1)
   checkmate::assertSubset(id, names(df))
   checkmate::assertCharacter(timestamp, len = 1)
@@ -930,6 +932,9 @@ get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", 
   checkmate::assertNumeric(twilight, len = 1)
   checkmate::assertNumeric(morning_hours, upper = 24, lower = 0)
   checkmate::assertNumeric(night_hours, upper = 24, lower = 0)
+  checkmate::assertNumeric(df[[x]])
+  checkmate::assertNumeric(df[[y]])
+  checkmate::assertNumeric(df[[ground_speed]])
 
   # Transform the twilight period into seconds
   twilight_secs <- twilight * 60
