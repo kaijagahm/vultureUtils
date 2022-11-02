@@ -1038,57 +1038,101 @@ get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", 
 
 }
 
+
+#' Calculate speeds based on lead/lag
+#'
+#' Supporting function for removeSpeedOutliers
+#' @param dataset the dataset to remove outliers from
+#' @param idCol name of the column containing the animal identifier
+#' @param timestampCol name of the column containing timestamps
+#' @param x name of the column containing longitude values
+#' @param y name of the column containing latitude values
+#' @return a dataset with speeds calculated
+#' @export
+calculateSpeeds <- function(dataset, idCol, timestampCol, x, y){
+  out <- dataset %>%
+    dplyr::group_by(.data[[idCol]]) %>%
+    dplyr::arrange({{timestampCol}}) %>%
+    dplyr::mutate(lead_hour_diff_sec = round(as.numeric(difftime(dplyr::lead(.data[[timestampCol]]), .data[[timestampCol]], units = "secs")), 3),
+                  lead_hour_diff_sec = ifelse(.data$lead_hour_diff_sec == 0, 0.01, .data$lead_hour_diff_sec),
+                  lag_hour_diff_sec = round(as.numeric(difftime(dplyr::lag(.data[[timestampCol]]), .data[[timestampCol]], units = "secs")), 3),
+                  lag_hour_diff_sec = ifelse(.data$lag_hour_diff_sec == 0, 0.01, .data$lag_hour_diff_sec),
+                  lead_dist_m = round(geosphere::distGeo(p1 = cbind(dplyr::lead(.data[[x]]), dplyr::lead(.data[[y]])),
+                                                         p2 = cbind(.data[[x]], .data[[y]])), 3),
+                  lag_dist_m = round(geosphere::distGeo(p1 = cbind(dplyr::lag(.data[[x]]), dplyr::lag(.data[[y]])),
+                                                        p2 = cbind(.data[[x]], .data[[y]])), 3)) %>%
+    dplyr::mutate(lead_speed_m_s = round(.data$lead_dist_m / .data$lead_hour_diff_sec, 2),
+           lag_speed_m_s = round(.data$lag_dist_m / .data$lag_hour_diff_sec, 2)) %>%
+    dplyr::ungroup()
+  return(out)
+}
+
 #' Remove speed outliers
 #'
 #' This function identifies points that are errors/outliers based on the inferred lead/lag speed. Written by Marta Acácio as part of the data cleaning workflow; adapted for this package by Kaija Gahm.
 #' @param dataset the dataset to remove outliers from
+#' @param idCol name of the column containing the animal identifier
+#' @param timestampCol name of the column containing timestamps
+#' @param x name of the column containing longitude values
+#' @param y name of the column containing latitude values
+#' @param includeSpeedCols logical, whether to return a data frame including the calculated speeds (T) or remove the calculated speed columns (F, default)
 #' @return a data frame with speed-based outliers removed.
 #' @export
-# removeSpeedOutliers <- function(dataset){
-#   # then, calculate the "lead" and "lag" speed between GPS locations
-#   df.noout <- df.noout %>%
-#     group_by(local_identifier) %>%
-#     arrange(timestamp) %>%
-#     mutate(lead_hour_diff_sec = round(as.numeric(difftime(lead(timestamp),
-#                                                           timestamp, units = "secs")), 3),
-#            lead_hour_diff_sec = ifelse(lead_hour_diff_sec == 0, 0.01, lead_hour_diff_sec),
-#            lag_hour_diff_sec= round(as.numeric(difftime(lag(timestamp),
-#                                                         timestamp, units = "secs")), 3),
-#            lag_hour_diff_sec = ifelse(lag_hour_diff_sec == 0, 0.01, lag_hour_diff_sec),
-#            lead_dist_m = round(distGeo(p1 = cbind(lead(location_long), lead(location_lat)),
-#                                        p2 = cbind(location_long, location_lat)), 3),
-#            lag_dist_m = round(distGeo(p1 = cbind(lag(location_long), lag(location_lat)),
-#                                       p2 = cbind(location_long, location_lat)), 3),
-#            lead_speed_m_s = round(lead_dist_m / lead_hour_diff_sec, 2),
-#            lag_speed_m_s = round(lag_dist_m / lag_hour_diff_sec, 2),) %>%
-#     ungroup()
-#
-#
-#   # first remove those that are for sure outliers: lead + lag > 180km/h
-#   df.noout.2 <- df.noout %>%
-#     filter(lead_speed_m_s <= 50 & abs(lag_speed_m_s) <= 50) %>%
-#     dplyr::select(-c("lead_hour_diff_sec", "lead_dist_m", "lead_speed_m_s",
-#                      "lag_hour_diff_sec", "lag_dist_m", "lag_speed_m_s"))
-#
-#   # Re-calculate the speeds (because we removed some observations before)
-#   df.noout.2 <- df.noout.2 %>%
-#     group_by(local_identifier) %>%
-#     arrange(timestamp) %>%
-#     mutate(lead_hour_diff_sec = round(as.numeric(difftime(lead(timestamp),
-#                                                           timestamp, units = "secs")), 3),
-#            lead_hour_diff_sec = ifelse(lead_hour_diff_sec == 0, 0.01, lead_hour_diff_sec),
-#            lag_hour_diff_sec= round(as.numeric(difftime(lag(timestamp),
-#                                                         timestamp, units = "secs")), 3),
-#            lag_hour_diff_sec = ifelse(lag_hour_diff_sec == 0, 0.01, lag_hour_diff_sec),
-#            lead_dist_m = round(distGeo( p1 = cbind(lead(location_long), lead(location_lat)),
-#                                         p2 = cbind(location_long, location_lat)), 3),
-#            lag_dist_m = round(distGeo( p1 = cbind(lag(location_long), lag(location_lat)),
-#                                        p2 = cbind(location_long, location_lat)), 3),
-#            lead_speed_m_s = round(lead_dist_m / lead_hour_diff_sec, 2),
-#            lag_speed_m_s = round(lag_dist_m / lag_hour_diff_sec, 2),) %>%
-#     ungroup()
-# }
-#
-# # However, this does not get rid of all the outliers, unfortunately. So I will use only the lead to remove some more outliers
-# df.noout.3 <- df.noout.2 %>%
-#   filter(lead_speed_m_s <= 50)
+removeSpeedOutliers <- function(dataset, idCol = "trackId", timestampCol = "timestamp", x = "location_long", y = "location_lat", includeSpeedCols = FALSE){
+
+  dataset <- vultureUtils::calculateSpeeds(dataset = dataset, idCol = idCol, timestampCol = timestampCol, x = x, y = y)
+
+  # First remove those that are for sure outliers: lead + lag > 180km/h
+  dataset2 <- dataset %>%
+    dplyr::filter(.data$lead_speed_m_s <= 50 & abs(.data$lag_speed_m_s) <= 50) %>%
+    dplyr::select(-c("lead_hour_diff_sec", "lead_dist_m", "lead_speed_m_s",
+                     "lag_hour_diff_sec", "lag_dist_m", "lag_speed_m_s"))
+
+  # Re-calculate the speeds (because we removed some observations before)
+  dataset3 <- vultureUtils::calculateSpeeds(dataset = dataset2, idCol = idCol, timestampCol = timestampCol, x = x, y = y)
+
+  # However, this does not get rid of all the outliers, unfortunately. So I will use only the lead to remove some more outliers
+  dataset3 <- dataset3 %>%
+    dplyr::filter(.data$lead_speed_m_s <= 50)
+
+  # This also does not get rid of all the outliers... But most of them are at night, which because of the reduced schedule, does not seem like such a large speed (many hours divided by a few kms)
+
+  # so first, we will calculate if the fix is during the day or during the night
+  crds <- matrix(c(dataset3[[x]], dataset3[[y]]),
+                 nrow = nrow(dataset3),
+                 ncol = 2)
+
+  dataset3$sunrise <- maptools::sunriset(crds, dataset3[[timestampCol]],
+                                         proj4string = sp::CRS("+proj=longlat +datum=WGS84"),
+                                         direction = "sunrise", POSIXct.out = TRUE)$time
+  dataset3$sunset <- maptools::sunriset(crds, dataset3[[timestampCol]],
+                                        proj4string = sp::CRS("+proj=longlat +datum=WGS84"),
+                                        direction = "sunset", POSIXct.out = TRUE)$time
+
+  dataset3 <- dataset3 %>%
+    dplyr::mutate(daylight = ifelse(.data[[timestampCol]] >= .data$sunrise & .data[[timestampCol]] <= .data$sunset, "day", "night"))
+
+  # Re-calculate the speeds
+  dataset4 <- vultureUtils::calculateSpeeds(dataset = dataset3, idCol = idCol, timestampCol = timestampCol, x = x, y = y)
+
+  # Exclude if during the night the distance between two locations are more than 10km apart
+  dataset4 <- dataset4 %>%
+    dplyr::mutate(
+      day_diff = as.numeric(difftime(dplyr::lead(.data$date), .data$date, units = "days")),
+      night_outlier = ifelse(.data$daylight == "night" &
+                               .data$day_diff %in% c(0,1) &
+                               dplyr::lead(.data$daylight) == "night" &
+                               .data$lead_dist_m > 10000 , 1, 0)) %>%
+    dplyr::filter(.data$night_outlier == 0)
+
+  if(includeSpeedCols){
+    return(dataset4)
+  }else{
+    dataset4 <- dataset4 %>%
+      dplyr::select(-c("lead_hour_diff_sec", "lead_dist_m", "lead_speed_m_s",
+                       "lag_hour_diff_sec", "lag_dist_m", "lag_speed_m_s"))
+    return(dataset4)
+  }
+}
+
+
