@@ -29,21 +29,21 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
 
   # Basic data quality filters ----------------------------------------------
   # Remove outlier points based on zeroes (Marta's code)
-  df <- df %>%
-    mutate(outlier = ifelse(.data$external_temperature == 0 & .data$barometric_height == 0 & .data$ground_speed == 0, 1, 0)) %>%
-    filter(is.na(.data$outlier) | .data$outlier == 0) %>%
+  dataset <- dataset %>%
+    dplyr::mutate(outlier = ifelse(.data$external_temperature == 0 & .data$barometric_height == 0 & .data$ground_speed == 0, 1, 0)) %>%
+    dplyr::filter(is.na(.data$outlier) | .data$outlier == 0) %>%
     dplyr::select(-.data$outlier)
 
   # filter out bad gps data
-  df <- df %>%
+  dataset <- dataset %>%
     dplyr::filter(.data$gps_time_to_fix <= 89)
 
   # filter out bad heading data
-  df <- df %>%
+  dataset <- dataset %>%
     dplyr::filter(.data$heading < 360 & .data$heading > 0) # only reasonable headings, between 0 and 360.
 
   # only take locs that have at least 3 satellites
-  df <- df %>%
+  dataset <- dataset %>%
     dplyr::filter(.data$gps_satellite_count >= 3) # must have at least 3 satellites in order to triangulate.
 
   # Remove unnecessary variables, if desired. ---------------------------
