@@ -968,8 +968,8 @@ get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", 
       dplyr::mutate(day_diff = round(difftime(dplyr::lead(date), date, units="days")))
 
     matrix <- as.matrix(id.df[,c(x, y)])
-    leadMatrix <- as.matrix(cbind(lead(id.df[[x]]),
-                                  lead(id.df[[y]])))
+    leadMatrix <- as.matrix(cbind(dplyr::lead(id.df[[x]]),
+                                  dplyr::lead(id.df[[y]])))
     distances <- geosphere::distGeo(p1 = matrix, p2 = leadMatrix)*0.001 %>%
       round(., 2)
     id.df$dist_km <- distances
