@@ -555,8 +555,8 @@ sliceTemporal <- function(edges, n, unit = "days", from = "start",
 
   # append the first and last dates to the data frame
   edges <- edges %>%
-    tibble::add_row("minTimestamp" = start, .before = 1) %>%
-    tibble::add_row("maxTimestamp" = end)
+    tibble::add_row({{minTimestampCol}} := start, .before = 1) %>%
+    tibble::add_row({{minTimestampCol}} := end)
 
   # Now time to separate the dates, using seq and group.
   ## First, we have to determine how many groups we're going to have.
@@ -568,12 +568,12 @@ sliceTemporal <- function(edges, n, unit = "days", from = "start",
     negInterval <- paste0("-", compositeInterval)
     breaksSequence <- rev(seq(from = end, length = nBreaks, by = negInterval))
     edges <- edges %>%
-      dplyr::mutate(intervalGroup_lowerBound = cut.POSIXt(maxTimestamp,
+      dplyr::mutate(intervalGroup_lowerBound = cut.POSIXt(.data[[maxTimestampCol]],
                                                           breaks = breaksSequence, right = TRUE))
   }else{
     breaksSequence <- seq(from = start, length = nBreaks, by = compositeInterval)
     edges <- edges %>%
-      dplyr::mutate(intervalGroup_lowerBound = cut.POSIXt(minTimestamp,
+      dplyr::mutate(intervalGroup_lowerBound = cut.POSIXt(.data[[minTimestampCol]],
                                                           breaks = breaksSequence, right = TRUE))
   }
 
@@ -754,7 +754,7 @@ get_roosts <- function(id, timestamp, x, y, ground_speed, speed_units = c("m/s",
 
   # If the speed is in km/h transform into m/s
   if(speed_units == "km/h"){
-    ground_speed <- round(ground_speed / 3.6, 3)
+    ground_speed <- round(.data$ground_speed / 3.6, 3)
   }
 
   # Create the dataset
@@ -782,25 +782,25 @@ get_roosts <- function(id, timestamp, x, y, ground_speed, speed_units = c("m/s",
     temp.id <- unique(df$id)[i]
 
     id.df <- df %>%
-      dplyr::filter(id == temp.id) %>%
-      dplyr::group_by(date) %>%
-      dplyr::arrange(timestamp) %>%
+      dplyr::filter(.data$id == temp.id) %>%
+      dplyr::group_by(.data$date) %>%
+      dplyr::arrange(.data$timestamp) %>%
       dplyr::mutate(
         row_id = dplyr::case_when(
           dplyr::row_number() == 1 ~ "first",
           dplyr::row_number() == max(dplyr::row_number()) ~ "last"),
-        hour = lubridate::hour(timestamp)) %>%
-      dplyr::filter(row_id %in% c("first", "last")) %>%
+        hour = lubridate::hour(.data$timestamp)) %>%
+      dplyr::filter(.data$row_id %in% c("first", "last")) %>%
       dplyr::ungroup() %>%
       dplyr::mutate(
-        day_diff = round(difftime(dplyr::lead(date), date, units="days")),
-        dist_km = ifelse(day_diff == 1,
+        day_diff = round(difftime(dplyr::lead(.data$date), .data$date, units="days")),
+        dist_km = ifelse(.data$day_diff == 1,
                          round(geosphere::distGeo(p1 =
-                                                    cbind(dplyr::lead(location_long),
-                                                          dplyr::lead(location_lat)),
+                                                    cbind(dplyr::lead(.data$location_long),
+                                                          dplyr::lead(.data$location_lat)),
                                                   p2 =
-                                                    cbind(location_long,
-                                                          location_lat))*0.001, 2), NA))
+                                                    cbind(.data$location_long,
+                                                          .data$location_lat))*0.001, 2), NA))
 
     # Calculate the time of sunrise and sunset for the locations
     crds <- matrix(c(id.df$location_long,
@@ -827,8 +827,8 @@ get_roosts <- function(id, timestamp, x, y, ground_speed, speed_units = c("m/s",
     id.df$sunset_twilight <- id.df$sunset - twilight
 
     id.df <- id.df %>%
-      dplyr::mutate(daylight = ifelse(timestamp >= sunrise_twilight &
-                                        timestamp <= sunset_twilight,
+      dplyr::mutate(daylight = ifelse(.data$timestamp >= .data$sunrise_twilight &
+                                        .data$timestamp <= .data$sunset_twilight,
                                       "day", "night"))
 
     rm(crds)
@@ -837,28 +837,26 @@ get_roosts <- function(id, timestamp, x, y, ground_speed, speed_units = c("m/s",
     id.df <- id.df %>%
       dplyr::mutate(
         is_roost = dplyr::case_when(
-          row_id == "last" & daylight == "night" & hour %in% night_hours &
-            ground_speed <= 4 ~ 1,
-          row_id == "last" & daylight == "night" & hour %in% night_hours &
-            is.na(ground_speed) ~ 1,
-          row_id == "first" & daylight == "night" & hour %in% morning_hours &
-            ground_speed <= 4 ~ 1,
-          row_id == "first" & daylight == "night" & hour %in% morning_hours &
-            is.na(ground_speed) ~ 1,
+          .data$row_id == "last" & .data$daylight == "night" & .data$hour %in% night_hours &
+            .data$ground_speed <= 4 ~ 1,
+          .data$row_id == "last" & .data$daylight == "night" & .data$hour %in% night_hours &
+            is.na(.data$ground_speed) ~ 1,
+          .data$row_id == "first" & .data$daylight == "night" & .data$hour %in% morning_hours &
+            .data$ground_speed <= 4 ~ 1,
+          .data$row_id == "first" & .data$daylight == "night" & .data$hour %in% morning_hours &
+            is.na(.data$ground_speed) ~ 1,
           dist_km <= buffer ~ 1),
-
         roost_date = dplyr::case_when(
-          is_roost == 1 & row_id == "last" ~ paste(as.character(date)),
-          is_roost == 1 & row_id == "first" ~ paste(as.character(date-1))),
+          .data$is_roost == 1 & .data$row_id == "last" ~ paste(as.character(.data$date)),
+          .data$is_roost == 1 & .data$row_id == "first" ~ paste(as.character(.data$date-1))),
+        roost_date = as.Date(.data$roost_date))
 
-        roost_date = as.Date(roost_date))
-
-    temp.id.roosts <- dplyr::filter(id.df, is_roost == 1)
+    temp.id.roosts <- dplyr::filter(id.df, .data$is_roost == 1)
 
     # If there is more than 1 roost per day, keep the earliest roost (night roost)
     temp.id.roosts <- temp.id.roosts %>%
-      dplyr::group_by(roost_date) %>%
-      dplyr::arrange(timestamp) %>%
+      dplyr::group_by(.data$roost_date) %>%
+      dplyr::arrange(.data$timestamp) %>%
       dplyr::filter(dplyr::row_number() == 1) %>%
       dplyr::ungroup() %>%
       dplyr::select(-c("row_id", "hour"))
@@ -1039,3 +1037,58 @@ get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", 
   return(roosts)
 
 }
+
+#' Remove speed outliers
+#'
+#' This function identifies points that are errors/outliers based on the inferred lead/lag speed. Written by Marta Acácio as part of the data cleaning workflow; adapted for this package by Kaija Gahm.
+#' @param dataset the dataset to remove outliers from
+#' @return a data frame with speed-based outliers removed.
+#' @export
+# removeSpeedOutliers <- function(dataset){
+#   # then, calculate the "lead" and "lag" speed between GPS locations
+#   df.noout <- df.noout %>%
+#     group_by(local_identifier) %>%
+#     arrange(timestamp) %>%
+#     mutate(lead_hour_diff_sec = round(as.numeric(difftime(lead(timestamp),
+#                                                           timestamp, units = "secs")), 3),
+#            lead_hour_diff_sec = ifelse(lead_hour_diff_sec == 0, 0.01, lead_hour_diff_sec),
+#            lag_hour_diff_sec= round(as.numeric(difftime(lag(timestamp),
+#                                                         timestamp, units = "secs")), 3),
+#            lag_hour_diff_sec = ifelse(lag_hour_diff_sec == 0, 0.01, lag_hour_diff_sec),
+#            lead_dist_m = round(distGeo(p1 = cbind(lead(location_long), lead(location_lat)),
+#                                        p2 = cbind(location_long, location_lat)), 3),
+#            lag_dist_m = round(distGeo(p1 = cbind(lag(location_long), lag(location_lat)),
+#                                       p2 = cbind(location_long, location_lat)), 3),
+#            lead_speed_m_s = round(lead_dist_m / lead_hour_diff_sec, 2),
+#            lag_speed_m_s = round(lag_dist_m / lag_hour_diff_sec, 2),) %>%
+#     ungroup()
+#
+#
+#   # first remove those that are for sure outliers: lead + lag > 180km/h
+#   df.noout.2 <- df.noout %>%
+#     filter(lead_speed_m_s <= 50 & abs(lag_speed_m_s) <= 50) %>%
+#     dplyr::select(-c("lead_hour_diff_sec", "lead_dist_m", "lead_speed_m_s",
+#                      "lag_hour_diff_sec", "lag_dist_m", "lag_speed_m_s"))
+#
+#   # Re-calculate the speeds (because we removed some observations before)
+#   df.noout.2 <- df.noout.2 %>%
+#     group_by(local_identifier) %>%
+#     arrange(timestamp) %>%
+#     mutate(lead_hour_diff_sec = round(as.numeric(difftime(lead(timestamp),
+#                                                           timestamp, units = "secs")), 3),
+#            lead_hour_diff_sec = ifelse(lead_hour_diff_sec == 0, 0.01, lead_hour_diff_sec),
+#            lag_hour_diff_sec= round(as.numeric(difftime(lag(timestamp),
+#                                                         timestamp, units = "secs")), 3),
+#            lag_hour_diff_sec = ifelse(lag_hour_diff_sec == 0, 0.01, lag_hour_diff_sec),
+#            lead_dist_m = round(distGeo( p1 = cbind(lead(location_long), lead(location_lat)),
+#                                         p2 = cbind(location_long, location_lat)), 3),
+#            lag_dist_m = round(distGeo( p1 = cbind(lag(location_long), lag(location_lat)),
+#                                        p2 = cbind(location_long, location_lat)), 3),
+#            lead_speed_m_s = round(lead_dist_m / lead_hour_diff_sec, 2),
+#            lag_speed_m_s = round(lag_dist_m / lag_hour_diff_sec, 2),) %>%
+#     ungroup()
+# }
+#
+# # However, this does not get rid of all the outliers, unfortunately. So I will use only the lead to remove some more outliers
+# df.noout.3 <- df.noout.2 %>%
+#   filter(lead_speed_m_s <= 50)
