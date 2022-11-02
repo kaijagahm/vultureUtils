@@ -1050,6 +1050,16 @@ get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", 
 #' @return a dataset with speeds calculated
 #' @export
 calculateSpeeds <- function(dataset, idCol, timestampCol, x, y){
+  # argument checks
+  checkmate::assertDataFrame(dataset)
+  checkmate::assertCharacter(idCol, len = 1)
+  checkmate::assertCharacter(timestampCol, len = 1)
+  checkmate::assertCharacter(x, len = 1)
+  checkmate::assertCharacter(y, len = 1)
+  checkmate::assertNumeric(dataset[[x]])
+  checkmate::assertNumeric(dataset[[y]])
+
+  # speed calculations
   out <- dataset %>%
     dplyr::group_by(.data[[idCol]]) %>%
     dplyr::arrange({{timestampCol}}) %>%
@@ -1079,7 +1089,17 @@ calculateSpeeds <- function(dataset, idCol, timestampCol, x, y){
 #' @return a data frame with speed-based outliers removed.
 #' @export
 removeSpeedOutliers <- function(dataset, idCol = "trackId", timestampCol = "timestamp", x = "location_long", y = "location_lat", includeSpeedCols = FALSE){
+  # argument checks
+  checkmate::assertDataFrame(dataset)
+  checkmate::assertCharacter(idCol, len = 1)
+  checkmate::assertCharacter(timestampCol, len = 1)
+  checkmate::assertCharacter(x, len = 1)
+  checkmate::assertCharacter(y, len = 1)
+  checkmate::assertNumeric(dataset[[x]])
+  checkmate::assertNumeric(dataset[[y]])
+  checkmate::assertLogical(includeSpeedCols, len = 1)
 
+  # Compute speeds and filter
   dataset <- vultureUtils::calculateSpeeds(dataset = dataset, idCol = idCol, timestampCol = timestampCol, x = x, y = y)
 
   # First remove those that are for sure outliers: lead + lag > 180km/h
