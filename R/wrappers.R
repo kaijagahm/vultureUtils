@@ -27,11 +27,31 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
   checkmate::assertCharacter(dateCol, len = 1)
   checkmate::assertSubset(x = c(longCol, latCol, dateCol), choices = names(dataset))
 
-  # Remove unnecessary variables, if desired.
+  # Basic data quality filters ----------------------------------------------
+  # Remove outlier points based on zeroes (Marta's code)
+  df <- df %>%
+    mutate(outlier = ifelse(.data$external_temperature == 0 & .data$barometric_height == 0 & .data$ground_speed == 0, 1, 0)) %>%
+    filter(is.na(.data$outlier) | .data$outlier == 0) %>%
+    dplyr::select(-.data$outlier)
+
+  # filter out bad gps data
+  df <- df %>%
+    dplyr::filter(.data$gps_time_to_fix <= 89)
+
+  # filter out bad heading data
+  df <- df %>%
+    dplyr::filter(.data$heading < 360 & .data$heading > 0) # only reasonable headings, between 0 and 360.
+
+  # only take locs that have at least 3 satellites
+  df <- df %>%
+    dplyr::filter(.data$gps_satellite_count >= 3) # must have at least 3 satellites in order to triangulate.
+
+  # Remove unnecessary variables, if desired. ---------------------------
   if(removeVars == T){
     dataset <- vultureUtils::removeUnnecessaryVars(dataset)
   }
 
+  # Filter to in-mask threshold -----------------------------------------
   # If an inMaskThreshold is given (it usually is), then filter to only the individuals that spend at least the threshold proportion of their days within the mask. Otherwise, just pass the dataset through unfiltered.
   if(!is.null(inMaskThreshold)){
     # Select only points that fall in the mask

@@ -273,18 +273,6 @@ filterLocs <- function(df, speedThreshLower = NULL, speedThreshUpper = NULL){
   checkmate::assertNumeric(speedThreshLower, null.ok = TRUE, len = 1)
   checkmate::assertNumeric(speedThreshUpper, null.ok = TRUE, len = 1)
 
-  # filter out bad gps data
-  df <- df %>%
-    dplyr::filter(.data$gps_time_to_fix <= 89)
-
-  # filter out bad heading data
-  df <- df %>%
-    dplyr::filter(.data$heading < 360 & .data$heading > 0) # only reasonable headings, between 0 and 360.
-
-  # only take locs that have at least 3 satellites
-  df <- df %>%
-    dplyr::filter(.data$gps_satellite_count >= 3) # must have at least 3 satellites in order to triangulate.
-
   # Apply speed filters
   # if no speed thresholds are set, warn that we're not applying filtering.
   if(is.null(speedThreshLower) & is.null(speedThreshUpper)){
