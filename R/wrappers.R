@@ -112,9 +112,10 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
 #' @param speedThreshLower Lower speed threshold, in m/s.
 #' @param timeThreshold timeThreshold Passed to spatsoc::group_times. Threshold for grouping times. e.g.: '2 hours', '10 minutes', etc. if not provided, times will be matched exactly. Note that provided threshold must be in the expected format: '## unit'. Default is "10 minutes"
 #' @param quiet Whether to silence the warning messages about grouping individuals with themselves inside the time threshold. Default is T. This occurs because if we set our time threshold to e.g. 10 minutes (the default), there are some GPS points that occur closer together than 10 minutes apart (e.g. if we experimentally set the tags to take points every 5 minutes). As a result, we will "group" together the same individual with itself, resulting in some self edges. I currently have a step in the code that simply removes these self edges, so there should be no problem here. But if you set `quiet = F`, you will at least be warned with the message `"Warning: found duplicate id in a timegroup and/or splitBy - does your group_times threshold match the fix rate?"` when this is occurring.
+#' @param includeAllVertices logical. Whether to include another list item in the output that's a vector of all individuals in the dataset. For use in creating sparse graphs. Default is F.
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.
 #' @export
-getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distThreshold, speedThreshUpper, speedThreshLower, timeThreshold = "10 minutes", quiet = T){
+getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distThreshold, speedThreshUpper, speedThreshLower, timeThreshold = "10 minutes", quiet = T, includeAllVertices = F){
   # Argument checks
   checkmate::assertDataFrame(dataset)
   checkmate::assertClass(roostPolygons, "sf")
@@ -124,6 +125,11 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
   checkmate::assertNumeric(speedThreshUpper, len = 1, null.ok = TRUE)
   checkmate::assertNumeric(speedThreshLower, len = 1, null.ok = TRUE)
   checkmate::assertCharacter(timeThreshold, len = 1)
+
+  # Get all unique individuals before applying any filtering
+  if(includeAllVertices){
+    uniqueIndivs <- unique(dataset$trackId)
+  }
 
   # Restrict to non-flight interactions.
   filteredData <- vultureUtils::filterLocs(df = dataset,
@@ -145,7 +151,13 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
                         minTimestamp = as.POSIXct(character()),
                         maxTimestamp = as.POSIXct(character()))
     warning("After filtering, the dataset had 0 rows. Returning an empty edge list.")
-    return(dummy)
+    if(includeAllVertices){
+      toReturn <- list("edges" = dummy,
+                       "allVertices" = uniqueIndivs)
+      return(toReturn)
+    }else{
+      return(dummy)
+    }
   }else{
     if(quiet == T){
       edges <- suppressWarnings(vultureUtils::spaceTimeGroups(dataset = points,
@@ -158,9 +170,12 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
                                              consecThreshold = consecThreshold,
                                              timeThreshold = timeThreshold)
     }
-
-    # Return the edge list
-    return(edges)
+    if(includeAllVertices){
+      toReturn <- list("edges" = edges,
+                       "allVertices" = uniqueIndivs)
+    }else{
+      return(edges)
+    }
   }
 }
 
