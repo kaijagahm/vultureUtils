@@ -453,9 +453,10 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
 #' @param weighted whether or not the resulting graphs should have weights attached. Default is FALSE (unweighted graph).
 #' @param id1Col name of the column in `edges` containing the ID of the first individual in a dyad. Default is "ID1".
 #' @param id2Col name of the column in `edges` containing the ID of the second individual in a dyad. Default is "ID2".
+#' @param vertices optional. Either NULL (default) or a data frame/vector with vertex names and optional metadata. If a vector is provided, it will be coerced to a data frame (see documentation for igraph::graph_from_data_frame).
 #' @return an igraph object. An undirected graph that is either weighted or unweighted, depending on whether `weighted` is T or F.
 #' @export
-makeGraph <- function(edges, weighted = FALSE, id1Col = "ID1", id2Col = "ID2"){
+makeGraph <- function(edges, weighted = FALSE, id1Col = "ID1", id2Col = "ID2", vertices = NULL){
   # Some basic argument checks
   checkmate::assertLogical(weighted, len = 1)
   checkmate::assertCharacter(id1Col, len = 1)
@@ -470,7 +471,8 @@ makeGraph <- function(edges, weighted = FALSE, id1Col = "ID1", id2Col = "ID2"){
     # Make an unweighted graph
     edgesSimple <- edgesSimple %>%
       dplyr::distinct()
-    g <- igraph::graph_from_data_frame(d = edgesSimple, directed = FALSE)
+    g <- igraph::graph_from_data_frame(d = edgesSimple, directed = FALSE,
+                                       vertices = vertices)
   }else{
     # Make a weighted graph
     edgesWeighted <- edgesSimple %>%
@@ -479,7 +481,8 @@ makeGraph <- function(edges, weighted = FALSE, id1Col = "ID1", id2Col = "ID2"){
                       .data[[id2Col]]) %>%
       dplyr::summarize(weight = sum(.data$weight)) %>%
       dplyr::ungroup()
-    g <- igraph::graph_from_data_frame(d = edgesWeighted, directed = FALSE)
+    g <- igraph::graph_from_data_frame(d = edgesWeighted, directed = FALSE,
+                                       vertices = vertices)
   }
 
   return(g)
