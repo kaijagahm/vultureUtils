@@ -4,7 +4,13 @@
 \alias{makeGraph}
 \title{Make a single graph from an edge list.}
 \usage{
-makeGraph(edges, weighted = FALSE, id1Col = "ID1", id2Col = "ID2")
+makeGraph(
+  edges,
+  weighted = FALSE,
+  id1Col = "ID1",
+  id2Col = "ID2",
+  vertices = NULL
+)
 }
 \arguments{
 \item{edges}{a data frame containing edges and their associated `timegroup`s. Returned from vultureUtils::get*Edges().}
@@ -14,6 +20,8 @@ makeGraph(edges, weighted = FALSE, id1Col = "ID1", id2Col = "ID2")
 \item{id1Col}{name of the column in `edges` containing the ID of the first individual in a dyad. Default is "ID1".}
 
 \item{id2Col}{name of the column in `edges` containing the ID of the second individual in a dyad. Default is "ID2".}
+
+\item{vertices}{optional. Either NULL (default) or a data frame/vector with vertex names and optional metadata. If a vector is provided, it will be coerced to a data frame (see documentation for igraph::graph_from_data_frame).}
 }
 \value{
 an igraph object. An undirected graph that is either weighted or unweighted, depending on whether `weighted` is T or F.
