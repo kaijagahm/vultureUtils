@@ -181,7 +181,7 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
 
 #' Create co-feeding edge list
 #'
-#' Given a dataset of GPS points, a geographic mask, and some roost polygons, create an edge list.
+#' Wrapper of getEdges() with defaults for co-feeding edges. Can still be customized!
 #' @param dataset The cleaned GPS dataset to be used to create the edge list. This should be the output from `vultureUtils::cleanData()`.
 #' @param roostPolygons Roost polygons. Must be an sf object with a CRS that matches the dataset CRS.
 #' @param roostBuffer Number of meters to buffer the roost polygons by before intersecting them. Default is 50 m.
@@ -200,7 +200,7 @@ getFeedingEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThre
 
 #' Create co-flight edge list
 #'
-#' Given a dataset of GPS points, a geographic mask, and some roost polygons, create an edge list.
+#' Wrapper of getEdges() with defaults for co-flight edges. Can still be customized!
 #' @param dataset The cleaned GPS dataset to be used to create the edge list. This should be the output from `vultureUtils::cleanData()`.
 #' @param roostPolygons Roost polygons. Must be an sf object with a CRS that matches the dataset CRS.
 #' @param roostBuffer Number of meters to buffer the roost polygons by before intersecting them. Default is 50 m.

@@ -42,5 +42,5 @@ getFeedingEdges(
 An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.
 }
 \description{
-Given a dataset of GPS points, a geographic mask, and some roost polygons, create an edge list.
+Wrapper of getEdges() with defaults for co-feeding edges. Can still be customized!
 }
