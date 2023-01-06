@@ -415,7 +415,7 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
   data.table::setDT(dataset)
 
   # Group the points into timegroups using spatsoc::group_times.
-  spatsoc::group_times(dataset, datetime = timestampCol, threshold = timeThreshold)
+  dataset <- spatsoc::group_times(dataset, datetime = timestampCol, threshold = timeThreshold)
   timegroupData <- dataset %>% # save information about when each timegroup starts and ends.
     dplyr::select(.data[[timestampCol]], .data$timegroup) %>%
     dplyr::group_by(.data$timegroup) %>%
@@ -423,7 +423,7 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
                      maxTimestamp = max(.data[[timestampCol]]))
 
   # Group into point groups (spatial)
-  spatsoc::group_pts(dataset, threshold = distThreshold, id = idCol,
+  dataset <- spatsoc::group_pts(dataset, threshold = distThreshold, id = idCol,
                      coords = c("utmE", "utmN"), timegroup = "timegroup")
 
   # Generate edge lists by timegroup
