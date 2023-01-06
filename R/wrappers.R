@@ -131,7 +131,7 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
     uniqueIndivs <- unique(dataset$trackId)
   }
 
-  # Restrict to non-flight interactions.
+  # Restrict interactions based on ground speed
   filteredData <- vultureUtils::filterLocs(df = dataset,
                                            speedThreshUpper = speedThreshUpper,
                                            speedThreshLower = speedThreshLower)
