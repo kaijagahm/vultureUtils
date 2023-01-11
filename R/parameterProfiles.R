@@ -1,4 +1,5 @@
 # Parameter profiles (for feeding, flying, and roosting)
+# I think this is deprecated? Maybe ignore.
 
 coFeedingParams <- list(
   # Key parameter values
