@@ -1,4 +1,5 @@
 # Misc functions (deprecated, not fully developed, etc.)
+if(getRversion() >= "2.15.1")  utils::globalVariables(".") # this supposedly helps deal with some of the data masking issues with dplyr/tidyverse syntax.
 
 #' Convert coordinates of an sf object
 #'

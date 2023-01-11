@@ -1,4 +1,5 @@
 # Supporting functions (called by main functions)
+if(getRversion() >= "2.15.1")  utils::globalVariables(".") # this supposedly helps deal with some of the data masking issues with dplyr/tidyverse syntax.
 
 #' Mask dataset
 #'
