@@ -291,45 +291,7 @@ getFlightEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThres
   getEdges(dataset, roostPolygons = roostPolygons, roostBuffer = roostBuffer, consecThreshold = consecThreshold, distThreshold = distThreshold, speedThreshUpper = speedThreshUpper, speedThreshLower = speedThreshLower, timeThreshold = timeThreshold, quiet = quiet, includeAllVertices = includeAllVertices)
 }
 
-# XXX THIS IS WHERE THE CODE FOR getRoostEdges will go! Have not written it yet (purple on the diagram).
-#' #' Create co-roosting edge list XXX START HERE
-#' #'
-#' #' Given a dataset of GPS points, a geographic mask, and some roost polygons, create an edge list.
-#' #' @param dataset The cleaned GPS dataset to be used to create the edge list. This should be the output from `vultureUtils::cleanData()`.
-#' #' @param roostPolygons Roost polygons. Must be an sf object with a CRS that matches the dataset CRS.
-#' #' @param roostBuffer Number of meters to buffer the roost polygons by before intersecting them. Default is 50 m.
-#' #' @param consecThreshold Minimal number of co-occurrences for considering a viable pair of interacting vultures (default is 2 consecutive time steps). Passed to `vultureUtils::spaceTimeGroups()`. Must be numeric.
-#' #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.
-#' #' @export
-#' getRoostingEdges <- function(dataset, roostPolygons, roostBuffer = 50,
-#'                              consecThreshold = 2){
-#'   # Argument checks
-#'   checkmate::assertDataFrame(dataset)
-#'   checkmate::assertClass(roostPolygons, "sf")
-#'   checkmate::assertNumeric(roostBuffer, len = 1)
-#'   checkmate::assertNumeric(consecThreshold, len = 1)
-#'   checkmate::assertNumeric(distThreshold, len = 1)
-#'   checkmate::assertNumeric(speedThreshUpper, len = 1, null.ok = TRUE)
-#'   checkmate::assertNumeric(speedThreshLower, len = 1, null.ok = TRUE)
-#'
-#'
-#'
-#'   # Return the edge list
-#'   return(flightEdges)
-#' }
-
-# b. Nocturnal ground interactions (Co-Roosting): Speed<=5m/s;
-# Distance threshold - vultures that slept in the same roost on a given date;
-# Time threshold - the vultures roosted together on the same date; Roost buffer = 50m.
-#
-# i. Assigned last locations of each vulture on each night to a roost polygon
-# ii. If locations unassigned, found the first location for the morning after (location of where a vulture woke up the next day)
-# ---> assigned to a roost polygon
-# iii. If still unassigned, found the average location of the last location at night and first location the following morning and then
-# ----> assigned to a roost polygon
-# iv. If owing to the 50m buffer around roost polygons, a location is assigned to >1 roost, then remove duplicates and
-# -----> assign the location to the closer roost polygon
-#
+# XXX Here is where the code will go for getRoostEdges(), when I write it.
 
 #' Get roosts (data frame version)
 #'
