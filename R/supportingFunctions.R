@@ -267,14 +267,14 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
   # Group the points into timegroups using spatsoc::group_times.
   dataset <- spatsoc::group_times(dataset, datetime = timestampCol, threshold = timeThreshold)
   timegroupData <- dataset %>% # save information about when each timegroup starts and ends.
-    dplyr::select(.data[[timestampCol]], .data$timegroup) %>%
+    dplyr::select(.data[[timestampCol]], timegroup) %>%
     dplyr::group_by(.data$timegroup) %>%
     dplyr::summarize(minTimestamp = min(.data[[timestampCol]]),
                      maxTimestamp = max(.data[[timestampCol]]))
 
   # Retain timestamps for each point, with timegroup information appending. This will be joined back at the end, to fix #43 and make individual points traceable.
   timestamps <- dataset %>%
-    dplyr::select(.data[[timestampCol]], .data[[idCol]], data$timegroup)
+    dplyr::select(.data[[timestampCol]], .data[[idCol]], timegroup)
 
   # Group into point groups (spatial)
   dataset <- spatsoc::group_pts(dataset, threshold = distThreshold, id = idCol,
