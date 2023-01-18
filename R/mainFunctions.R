@@ -201,8 +201,6 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
   checkmate::assertNumeric(speedThreshLower, len = 1, null.ok = TRUE)
   checkmate::assertCharacter(timeThreshold, len = 1)
   checkmate::assertLogical(daytimeOnly, len = 1)
-  checkmate::assertCharacter(longCol, len = 1)
-  checkmate::assertCharacter(latCol, len = 1)
 
   # Get all unique individuals before applying any filtering
   if(includeAllVertices){
@@ -212,8 +210,7 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
   # Restrict interactions based on ground speed
   filteredData <- vultureUtils::filterLocs(df = dataset,
                                            speedThreshUpper = speedThreshUpper,
-                                           speedThreshLower = speedThreshLower,
-                                           daytimeOnly = daytimeOnly)
+                                           speedThreshLower = speedThreshLower)
 
   # Restrict based on daylight
   if(daytimeOnly){
@@ -230,7 +227,10 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
     filteredData <- filteredData %>%
       filter(daytime == T)
     nDayPoints <- nrow(filteredData)
-    cat(paste0("Removed ", nNightPoints, " nighttime points, leaving ", nDayPoints, " points."))
+    if(quiet == F){
+      cat(paste0("Removed ", nNightPoints, " nighttime points, leaving ",
+                 nDayPoints, " points.\n"))
+    }
   }
 
   # Buffer the roost polygons
