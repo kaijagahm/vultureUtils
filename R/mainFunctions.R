@@ -187,9 +187,10 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
 #' @param timeThreshold timeThreshold Passed to spatsoc::group_times. Threshold for grouping times. e.g.: '2 hours', '10 minutes', etc. if not provided, times will be matched exactly. Note that provided threshold must be in the expected format: '## unit'. Default is "10 minutes"
 #' @param quiet Whether to silence the warning messages about grouping individuals with themselves inside the time threshold. Default is T. This occurs because if we set our time threshold to e.g. 10 minutes (the default), there are some GPS points that occur closer together than 10 minutes apart (e.g. if we experimentally set the tags to take points every 5 minutes). As a result, we will "group" together the same individual with itself, resulting in some self edges. I currently have a step in the code that simply removes these self edges, so there should be no problem here. But if you set `quiet = F`, you will at least be warned with the message `"Warning: found duplicate id in a timegroup and/or splitBy - does your group_times threshold match the fix rate?"` when this is occurring.
 #' @param includeAllVertices logical. Whether to include another list item in the output that's a vector of all individuals in the dataset. For use in creating sparse graphs. Default is F.
+#' @param daytimeOnly T/F, whether to restrict interactions to daytime only. Default is T.
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.
 #' @export
-getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distThreshold, speedThreshUpper, speedThreshLower, timeThreshold = "10 minutes", quiet = T, includeAllVertices = F){
+getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distThreshold, speedThreshUpper, speedThreshLower, timeThreshold = "10 minutes", quiet = T, includeAllVertices = F, daytimeOnly = T){
   # Argument checks
   checkmate::assertDataFrame(dataset)
   checkmate::assertClass(roostPolygons, "sf")
@@ -199,6 +200,9 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
   checkmate::assertNumeric(speedThreshUpper, len = 1, null.ok = TRUE)
   checkmate::assertNumeric(speedThreshLower, len = 1, null.ok = TRUE)
   checkmate::assertCharacter(timeThreshold, len = 1)
+  checkmate::assertLogical(daytimeOnly, len = 1)
+  checkmate::assertCharacter(longCol, len = 1)
+  checkmate::assertCharacter(latCol, len = 1)
 
   # Get all unique individuals before applying any filtering
   if(includeAllVertices){
@@ -208,7 +212,26 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
   # Restrict interactions based on ground speed
   filteredData <- vultureUtils::filterLocs(df = dataset,
                                            speedThreshUpper = speedThreshUpper,
-                                           speedThreshLower = speedThreshLower)
+                                           speedThreshLower = speedThreshLower,
+                                           daytimeOnly = daytimeOnly)
+
+  # Restrict based on daylight
+  if(daytimeOnly){
+    times <- suncalc::getSunlightTimes(date = unique(lubridate::date(dataset$timestamp)), lat = 31.434306, lon = 34.991889,
+                                       keep = c("sunrise", "sunset")) %>%
+      dplyr::select(date, sunrise, sunset) # XXX the coordinates I'm using here are from the centroid of Israel calculated here: https://rona.sh/centroid. This is just a placeholder until we decide on a more accurate way of doing this.
+    filteredData <- filteredData %>%
+      left_join(times, by = c("dateOnly" = "date")) %>%
+      mutate(daytime = case_when(timestamp > sunrise & timestamp < sunset ~ T,
+                                 TRUE ~ F))
+
+    # Filter out nighttimes
+    nNightPoints <- nrow(filteredData[filteredData$daytime == F,])
+    filteredData <- filteredData %>%
+      filter(daytime == T)
+    nDayPoints <- nrow(filteredData)
+    cat(paste0("Removed ", nNightPoints, " nighttime points, leaving ", nDayPoints, " points."))
+  }
 
   # Buffer the roost polygons
   roostPolygons <- convertAndBuffer(roostPolygons, dist = roostBuffer)
@@ -266,10 +289,11 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
 #' @param timeThreshold timeThreshold Passed to spatsoc::group_times. Threshold for grouping times. e.g.: '2 hours', '10 minutes', etc. if not provided, times will be matched exactly. Note that provided threshold must be in the expected format: '## unit'. Default is "10 minutes"
 #' @param quiet Whether to silence the warning messages about grouping individuals with themselves inside the time threshold. Default is T. This occurs because if we set our time threshold to e.g. 10 minutes (the default), there are some GPS points that occur closer together than 10 minutes apart (e.g. if we experimentally set the tags to take points every 5 minutes). As a result, we will "group" together the same individual with itself, resulting in some self edges. I currently have a step in the code that simply removes these self edges, so there should be no problem here. But if you set `quiet = F`, you will at least be warned with the message `"Warning: found duplicate id in a timegroup and/or splitBy - does your group_times threshold match the fix rate?"` when this is occurring.
 #' @param includeAllVertices logical. Whether to include another list item in the output that's a vector of all individuals in the dataset. For use in creating sparse graphs. Default is F.
+#' @param daytimeOnly T/F, whether to restrict interactions to daytime only. Default is T.
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.
 #' @export
-getFeedingEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThreshold = 2, distThreshold = 50, speedThreshUpper = 5, speedThreshLower = NULL, timeThreshold = "10 minutes", quiet = T, includeAllVertices = F){
-  getEdges(dataset, roostPolygons = roostPolygons, roostBuffer = roostBuffer, consecThreshold = consecThreshold, distThreshold = distThreshold, speedThreshUpper = speedThreshUpper, speedThreshLower = speedThreshLower, timeThreshold = timeThreshold, quiet = quiet, includeAllVertices = includeAllVertices)
+getFeedingEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThreshold = 2, distThreshold = 50, speedThreshUpper = 5, speedThreshLower = NULL, timeThreshold = "10 minutes", quiet = T, includeAllVertices = F, daytimeOnly = T){
+  getEdges(dataset, roostPolygons = roostPolygons, roostBuffer = roostBuffer, consecThreshold = consecThreshold, distThreshold = distThreshold, speedThreshUpper = speedThreshUpper, speedThreshLower = speedThreshLower, timeThreshold = timeThreshold, quiet = quiet, includeAllVertices = includeAllVertices, daytimeOnly = daytimeOnly)
 }
 
 #' Create co-flight edge list
@@ -285,10 +309,11 @@ getFeedingEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThre
 #' @param timeThreshold timeThreshold Passed to spatsoc::group_times. Threshold for grouping times. e.g.: '2 hours', '10 minutes', etc. if not provided, times will be matched exactly. Note that provided threshold must be in the expected format: '## unit'. Default is "10 minutes"
 #' @param quiet Whether to silence the warning messages about grouping individuals with themselves inside the time threshold. Default is T. This occurs because if we set our time threshold to e.g. 10 minutes (the default), there are some GPS points that occur closer together than 10 minutes apart (e.g. if we experimentally set the tags to take points every 5 minutes). As a result, we will "group" together the same individual with itself, resulting in some self edges. I currently have a step in the code that simply removes these self edges, so there should be no problem here. But if you set `quiet = F`, you will at least be warned with the message `"Warning: found duplicate id in a timegroup and/or splitBy - does your group_times threshold match the fix rate?"` when this is occurring.
 #' @param includeAllVertices logical. Whether to include another list item in the output that's a vector of all individuals in the dataset. For use in creating sparse graphs. Default is F.
+#' @param daytimeOnly T/F, whether to restrict interactions to daytime only. Default is T.
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.
 #' @export
-getFlightEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThreshold = 2, distThreshold = 1000, speedThreshUpper = NULL, speedThreshLower = 5, timeThreshold = "10 minutes", quiet = T, includeAllVertices = F){
-  getEdges(dataset, roostPolygons = roostPolygons, roostBuffer = roostBuffer, consecThreshold = consecThreshold, distThreshold = distThreshold, speedThreshUpper = speedThreshUpper, speedThreshLower = speedThreshLower, timeThreshold = timeThreshold, quiet = quiet, includeAllVertices = includeAllVertices)
+getFlightEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThreshold = 2, distThreshold = 1000, speedThreshUpper = NULL, speedThreshLower = 5, timeThreshold = "10 minutes", quiet = T, includeAllVertices = F, daytimeOnly = T){
+  getEdges(dataset, roostPolygons = roostPolygons, roostBuffer = roostBuffer, consecThreshold = consecThreshold, distThreshold = distThreshold, speedThreshUpper = speedThreshUpper, speedThreshLower = speedThreshLower, timeThreshold = timeThreshold, quiet = quiet, includeAllVertices = includeAllVertices, daytimeOnly = daytimeOnly)
 }
 
 # XXX Here is where the code will go for getRoostEdges(), when I write it.
