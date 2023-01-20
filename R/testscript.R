@@ -14,43 +14,41 @@ timegroupsList <- test %>%
 
 timegroups <- unique(test$timegroup)
 
-# Each of the below things has to happen once *for each dyad*, which means we will be looping through the rows of allPairs.
+# Each of the below things has to happen once *for each dyad*, which means we will be looping through the rows of allPairs. To do that, I've turned allPairs into a list, called allPairsList, because I'm not sure if there is a way to directly map through the rows of a data frame.
+# Can probably use pmap for this. Come back. # XXX
 
-# ya = n timegroups with just A, but not B
-ya <- map_dbl(allPairsList, ~{
-  a <- .x[1]
-  containsA <- timegroups[map_lgl(timegroupsList, ~a %in% .x)]
-  return(length(containsA))
-})
-
-# yb = n timegroups with just B, but not A
-yb <- map_dbl(allPairsList, ~{
-  b <- .x[2]
-  containsB <- timegroups[map_lgl(timegroupsList, ~b %in% .x)]
-  return(length(containsB))
-})
-
-# x = n timegroups with an edge between A and B
-x <- map_dbl(allPairsList, ~{
+# Going to map through allPairsList. The output of this will be a data frame, which I can append to the allPairs data frame.
+dfSRI <- map_dfr(allPairsList, ~{
+  # define the two individuals
   a <- .x[1]
   b <- .x[2]
-  hasEdge <- edges %>% filter(ID1 %in% c(a, b) & ID2 %in% c(a, b)) %>% pull(timegroup) %>% unique()
-  return(length(hasEdge))
-})
 
-# yab = timegroups with both A and B, but not together. So, [timegroups with both A and B] - x
-bothAB <- map_dbl(allPairsList, ~{
-  a <- .x[1]
-  b <- .x[2]
-  hasBoth <- timegroups[map_lgl(timegroupsList, ~{a %in% .x & b %in% .x})]
-  return(length(hasBoth))
-})
-yab <- bothAB - x
-
-# ynull = timegroups with neither A nor B
-ynull <- map_dbl(allPairsList, ~{
-  a <- .x[1]
-  b <- .x[2]
+  # compute groups that have just a, just b, both, neither, or an edge.
+  justA <- timegroups[map_lgl(timegroupsList, ~{(a %in% .x) & !(b %in% .x)})]
+  justB <- timegroups[map_lgl(timegroupsList, ~{(b %in% .x) & !(a %in% .x)})]
+  hasBoth <- timegroups[map_lgl(timegroupsList, ~{(a %in% .x) & (b %in% .x)})]
+  hasEdge <- edges %>%
+    filter(ID1 %in% c(a, b) & ID2 %in% c(a, b)) %>%
+    pull(timegroup) %>%
+    unique()
   hasNeither <- timegroups[map_lgl(timegroupsList, ~{!(a %in% .x) & !(b %in% .x)})]
-  return(length(hasNeither))
+
+  # use this information to compute ya, yb, x, yab, and ynull.
+  ya <- length(justA) # n timegroups with A but not B
+  yb <- length(justB) # n timegroups with B but not A
+  x <- length(hasEdge) # n timegroups with an interaction between A and B
+  yab <- length(hasBoth) - x
+  ynull <- length(hasNeither) # n timegroups with neither A nor B
+
+  # return all of these measures as a data frame row.
+  out <- data.frame("ya" = ya, "yb" = yb, "x" = x, "yab" = yab, "ynull" = ynull)
 })
+
+# Attach the data frame to the allPairs data frame
+allPairs <- allPairs %>%
+  bind_cols(dfSRI)
+
+# Calculate SRI. Note that SRI ignores ynull... this just is the way it is. But I wanted to calculate ynull anyway to make sure I knew what we were dealing with.
+allPairs <- allPairs %>%
+  mutate(sri = x/(x + ya + yb + yab))
+
