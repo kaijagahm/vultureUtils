@@ -212,32 +212,32 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
                                            speedThreshUpper = speedThreshUpper,
                                            speedThreshLower = speedThreshLower)
 
-  # Restrict based on daylight
-  if(daytimeOnly){
-    times <- suncalc::getSunlightTimes(date = unique(lubridate::date(dataset$timestamp)), lat = 31.434306, lon = 34.991889,
-                                       keep = c("sunrise", "sunset")) %>%
-      dplyr::select(date, sunrise, sunset) # XXX the coordinates I'm using here are from the centroid of Israel calculated here: https://rona.sh/centroid. This is just a placeholder until we decide on a more accurate way of doing this.
-    filteredData <- filteredData %>%
-      left_join(times, by = c("dateOnly" = "date")) %>%
-      mutate(daytime = case_when(timestamp > sunrise & timestamp < sunset ~ T,
-                                 TRUE ~ F))
-
-    # Filter out nighttimes
-    nNightPoints <- nrow(filteredData[filteredData$daytime == F,])
-    filteredData <- filteredData %>%
-      filter(daytime == T)
-    nDayPoints <- nrow(filteredData)
-    if(quiet == F){
-      cat(paste0("Removed ", nNightPoints, " nighttime points, leaving ",
-                 nDayPoints, " points.\n"))
-    }
-  }
-
   # Buffer the roost polygons
   roostPolygons <- convertAndBuffer(roostPolygons, dist = roostBuffer)
 
   # Exclude any points that fall within a (buffered) roost polygon
   points <- filteredData[lengths(sf::st_intersects(filteredData, roostPolygons)) == 0,]
+
+  # Restrict based on daylight
+  if(daytimeOnly){
+    times <- suncalc::getSunlightTimes(date = unique(lubridate::date(points$timestamp)), lat = 31.434306, lon = 34.991889,
+                                       keep = c("sunrise", "sunset")) %>%
+      dplyr::select(date, sunrise, sunset) # XXX the coordinates I'm using here are from the centroid of Israel calculated here: https://rona.sh/centroid. This is just a placeholder until we decide on a more accurate way of doing this.
+    points <- points %>%
+      left_join(times, by = c("dateOnly" = "date")) %>%
+      mutate(daytime = case_when(timestamp > sunrise & timestamp < sunset ~ T,
+                                 TRUE ~ F))
+
+    # Filter out nighttimes
+    nNightPoints <- nrow(points[points$daytime == F,])
+    points <- points %>%
+      filter(daytime == T)
+    nDayPoints <- nrow(points)
+    if(quiet == F){
+      cat(paste0("Removed ", nNightPoints, " nighttime points, leaving ",
+                 nDayPoints, " points.\n"))
+    }
+  }
 
   # If there are no rows left after filtering, return an empty data frame with the appropriate format.
   if(nrow(points) == 0){
