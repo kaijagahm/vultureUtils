@@ -290,6 +290,16 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
   edges <- edges %>%
     dplyr::filter(as.character(.data$ID1) < as.character(.data$ID2))
 
+  # Calculate SRI
+  dfSRI <- calcSRI(dataset, edges)
+
+  allPairs <- allPairs %>%
+    bind_cols(dfSRI)
+
+  allPairs <- allPairs %>%
+    mutate(sri = x/(x + ya + yb + yab))
+  # XXX
+
   # Now create a list where the edge only stays if it occurred in at least `consecThreshold` consecutive time steps.
   edgesFiltered <- consecEdges(edgeList = edges, consecThreshold = consecThreshold) %>%
     dplyr::ungroup()
@@ -351,4 +361,68 @@ consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = 
   }else{
     return(consec)
   }
+}
+
+#' Calculate SRI
+#'
+#' Calculates SRI based on timegroup and individual occurrence information
+#' @param dataset the cleaned dataset
+#' @param edges edgelist created by spatsoc, with self edges and duplicate edges removed.
+#' @return A data frame of SRI and component parts
+#' @export
+calcSRI <- function(dataset, edges){
+  ## get individuals per timegroup as a list
+  # Info about timegroups and individuals, for SRI calculation
+  timegroupsList <- dataset %>%
+    dplyr::select(timegroup, trackId) %>%
+    mutate(trackId = as.character(trackId)) %>%
+    distinct() %>%
+    arrange(timegroup, trackId) %>%
+    group_by(timegroup) %>%
+    group_split() %>%
+    map(~pull(.x, trackId))
+
+  ## get unique set of timegroups
+  timegroups <- unique(dataset$timegroup)
+
+  ## get all unique pairs of individuals
+  allPairs <- expand.grid("ID1" = unique(dataset$trackId),
+                          "ID2" = unique(dataset$trackId)) %>%
+    mutate(across(everything(), as.character)) %>%
+    filter(ID1 < ID2)
+
+  ## get all unique pairs of individuals as a list
+  allPairsList <- allPairs %>%
+    group_by(ID1, ID2) %>%
+    group_split() %>%
+    map(., as.matrix)
+
+  ## get SRI information
+  dfSRI <- map_dfr(allPairsList, ~{
+    # define the two individuals
+    a <- .x[1]
+    b <- .x[2]
+
+    # compute groups that have just a, just b, both, neither, or an edge.
+    justA <- timegroups[map_lgl(timegroupsList, ~{(a %in% .x) & !(b %in% .x)})]
+    justB <- timegroups[map_lgl(timegroupsList, ~{(b %in% .x) & !(a %in% .x)})]
+    hasBoth <- timegroups[map_lgl(timegroupsList, ~{(a %in% .x) & (b %in% .x)})]
+    hasEdge <- edges %>%
+      filter(ID1 %in% c(a, b) & ID2 %in% c(a, b)) %>%
+      pull(timegroup) %>%
+      unique()
+    hasNeither <- timegroups[map_lgl(timegroupsList, ~{!(a %in% .x) & !(b %in% .x)})]
+
+    # use this information to compute ya, yb, x, yab, and ynull.
+    ya <- length(justA) # n timegroups with A but not B
+    yb <- length(justB) # n timegroups with B but not A
+    x <- length(hasEdge) # n timegroups with an interaction between A and B
+    yab <- length(hasBoth) - x
+    ynull <- length(hasNeither) # n timegroups with neither A nor B
+
+    # return all of these measures as a data frame row.
+    out <- data.frame("ya" = ya, "yb" = yb, "x" = x, "yab" = yab, "ynull" = ynull)
+  })
+
+  return(dfSRI)
 }

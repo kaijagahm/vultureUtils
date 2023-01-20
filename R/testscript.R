@@ -52,3 +52,4 @@ allPairs <- allPairs %>%
 allPairs <- allPairs %>%
   mutate(sri = x/(x + ya + yb + yab))
 
+# To incorporate this into the package, will need the equivalent of data, edges, timegroups...
