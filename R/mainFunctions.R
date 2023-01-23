@@ -261,11 +261,11 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
     if(return == "edges"){ # if SRI is not needed, we can save time by not computing it.
       if(quiet){
         ### EDGES ONLY, QUIET
-        out <- suppressWarnings(vultureUtils::spaceTimeGroups(dataset = points,
+        out <- suppressMessages(suppressWarnings(vultureUtils::spaceTimeGroups(dataset = points,
                                                               distThreshold = distThreshold,
                                                               consecThreshold = consecThreshold,
                                                               timeThreshold = timeThreshold,
-                                                              sri = FALSE))
+                                                              sri = FALSE)))
       }else{
         ### EDGES ONLY, WARNINGS
         # compute edges without suppressing warnings
@@ -280,11 +280,11 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
       if(quiet){
         ### EDGES AND SRI, QUIET
         # suppress warnings while computing edges and SRI, returning a list of edges+sri
-        out <- suppressWarnings(vultureUtils::spaceTimeGroups(dataset = points,
+        out <- suppressMessages(suppressWarnings(vultureUtils::spaceTimeGroups(dataset = points,
                                                               distThreshold = distThreshold,
                                                               consecThreshold = consecThreshold,
                                                               timeThreshold = timeThreshold,
-                                                              sri = TRUE))
+                                                              sri = TRUE)))
       }else{
         ### EDGES AND SRI, WARNINGS
         # compute edges and SRI without suppressing warnings, returning a list of edges+sri
