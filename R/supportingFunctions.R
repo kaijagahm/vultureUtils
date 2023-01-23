@@ -301,7 +301,7 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
 
   if(sri){
     # Calculate SRI
-    cat("Computing SRI... this may take a while if your dataset is large.\n")
+    cat("\nComputing SRI... this may take a while if your dataset is large.\n")
     start <- Sys.time()
     dfSRI <- calcSRI(dataset = dataset, edges = edgesFiltered)
     end <- Sys.time()
