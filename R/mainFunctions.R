@@ -285,6 +285,9 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
                                                               consecThreshold = consecThreshold,
                                                               timeThreshold = timeThreshold,
                                                               sri = TRUE)))
+        if(return == "sri"){
+          out <- out["sri"]
+        }
       }else{
         ### EDGES AND SRI, WARNINGS
         # compute edges and SRI without suppressing warnings, returning a list of edges+sri
@@ -293,6 +296,9 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
                                              consecThreshold = consecThreshold,
                                              timeThreshold = timeThreshold,
                                              sri = TRUE)
+        if(return == "sri"){
+          out <- out["sri"]
+        }
       }
     }
   }
