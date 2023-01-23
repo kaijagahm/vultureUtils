@@ -12,7 +12,7 @@ calcSRI(dataset, edges)
 \item{edges}{edgelist created by spatsoc, with self edges and duplicate edges removed.}
 }
 \value{
-A data frame of SRI and component parts
+A data frame containing ID1, ID2, and SRI value.
 }
 \description{
 Calculates SRI based on timegroup and individual occurrence information
