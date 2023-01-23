@@ -5,7 +5,8 @@
 \title{Make a single graph from an edge list.}
 \usage{
 makeGraph(
-  edges,
+  mode = "edgelist",
+  data,
   weighted = FALSE,
   id1Col = "ID1",
   id2Col = "ID2",
@@ -13,7 +14,9 @@ makeGraph(
 )
 }
 \arguments{
-\item{edges}{a data frame containing edges and their associated `timegroup`s. Returned from vultureUtils::get*Edges().}
+\item{mode}{One of "edgelist" (default; creates a graph from an edgelist) or "sri" (creates a graph from a data frame containing each dyad once, with its SRI value).}
+
+\item{data}{a data frame containing edges and their associated `timegroup`s. Returned from vultureUtils::get*Edges().}
 
 \item{weighted}{whether or not the resulting graphs should have weights attached. Default is FALSE (unweighted graph).}
 
@@ -27,5 +30,5 @@ makeGraph(
 an igraph object. An undirected graph that is either weighted or unweighted, depending on whether `weighted` is T or F.
 }
 \description{
-This is basically a wrapper of igraph::graph_from_data_frame. Takes into account the formatting returned from vultureUtils::get*Edges().
+A wrapper of igraph::graph_from_data_frame. Takes into account the formatting returned from vultureUtils::get*Edges(). Has two modes--can either take an edgelist (optionally with a full list of vertices) or an SRI data frame.
 }
