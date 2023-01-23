@@ -188,9 +188,10 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
 #' @param quiet Whether to silence the warning messages about grouping individuals with themselves inside the time threshold. Default is T. This occurs because if we set our time threshold to e.g. 10 minutes (the default), there are some GPS points that occur closer together than 10 minutes apart (e.g. if we experimentally set the tags to take points every 5 minutes). As a result, we will "group" together the same individual with itself, resulting in some self edges. I currently have a step in the code that simply removes these self edges, so there should be no problem here. But if you set `quiet = F`, you will at least be warned with the message `"Warning: found duplicate id in a timegroup and/or splitBy - does your group_times threshold match the fix rate?"` when this is occurring.
 #' @param includeAllVertices logical. Whether to include another list item in the output that's a vector of all individuals in the dataset. For use in creating sparse graphs. Default is F.
 #' @param daytimeOnly T/F, whether to restrict interactions to daytime only. Default is T.
+#' @param return One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist. Also includes timegroup information, which SRI cannot do. One row in this data frame represents a single edge in a single timegroup.); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.
 #' @export
-getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distThreshold, speedThreshUpper, speedThreshLower, timeThreshold = "10 minutes", quiet = T, includeAllVertices = F, daytimeOnly = T){
+getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distThreshold, speedThreshUpper, speedThreshLower, timeThreshold = "10 minutes", quiet = T, includeAllVertices = F, daytimeOnly = T, return = "edges"){
   # Argument checks
   checkmate::assertDataFrame(dataset)
   checkmate::assertClass(roostPolygons, "sf")
@@ -201,12 +202,15 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
   checkmate::assertNumeric(speedThreshLower, len = 1, null.ok = TRUE)
   checkmate::assertCharacter(timeThreshold, len = 1)
   checkmate::assertLogical(daytimeOnly, len = 1)
+  checkmate::assertSubset(return, choices = c("edges", "sri", "both"),
+                          empty.ok = FALSE)
 
   # Get all unique individuals before applying any filtering
   if(includeAllVertices){
     uniqueIndivs <- unique(dataset$trackId)
   }
 
+  ## FILTER THE POINTS
   # Restrict interactions based on ground speed
   filteredData <- vultureUtils::filterLocs(df = dataset,
                                            speedThreshUpper = speedThreshUpper,
@@ -239,41 +243,69 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
     }
   }
 
-  # If there are no rows left after filtering, return an empty data frame with the appropriate format.
+  # If there are no rows left after filtering, create an empty data frame with the appropriate format.
   if(nrow(points) == 0){
-    dummy <- data.frame(timegroup = as.integer(),
-                        ID1 = as.character(),
-                        ID2 = as.character(),
-                        distance = as.numeric(),
-                        minTimestamp = as.POSIXct(character()),
-                        maxTimestamp = as.POSIXct(character()))
-    warning("After filtering, the dataset had 0 rows. Returning an empty edge list.")
-    if(includeAllVertices){
-      toReturn <- list("edges" = dummy,
-                       "allVertices" = uniqueIndivs)
-      return(toReturn)
-    }else{
-      return(dummy)
-    }
-  }else{
-    if(quiet == T){
-      edges <- suppressWarnings(vultureUtils::spaceTimeGroups(dataset = points,
+    # DUMMY EDGELIST, NO SRI TO COMPUTE
+    out <- data.frame(timegroup = as.integer(),
+                      ID1 = as.character(),
+                      ID2 = as.character(),
+                      distance = as.numeric(),
+                      minTimestamp = as.POSIXct(character()),
+                      maxTimestamp = as.POSIXct(character()))
+    warning("After filtering, the dataset had 0 rows.")
+  }
+
+  ## GET EDGELIST (optionally compute SRI)
+  if(nrow(points) != 0){
+    ## Do we need to compute SRI?
+    if(return == "edges"){ # if SRI is not needed, we can save time by not computing it.
+      if(quiet){
+        ### EDGES ONLY, QUIET
+        out <- suppressWarnings(vultureUtils::spaceTimeGroups(dataset = points,
                                                               distThreshold = distThreshold,
                                                               consecThreshold = consecThreshold,
-                                                              timeThreshold = timeThreshold))
-    }else{
-      edges <- vultureUtils::spaceTimeGroups(dataset = points,
+                                                              timeThreshold = timeThreshold,
+                                                              sri = FALSE))
+      }else{
+        ### EDGES ONLY, WARNINGS
+        # compute edges without suppressing warnings
+        out <- vultureUtils::spaceTimeGroups(dataset = points,
                                              distThreshold = distThreshold,
                                              consecThreshold = consecThreshold,
-                                             timeThreshold = timeThreshold)
-    }
-    if(includeAllVertices){
-      toReturn <- list("edges" = edges,
-                       "allVertices" = uniqueIndivs)
-    }else{
-      return(edges)
+                                             timeThreshold = timeThreshold,
+                                             sri = FALSE)
+      }
+
+    }else if(return %in% c("sri", "both")){ # otherwise we need to compute SRI.
+      if(quiet){
+        ### EDGES AND SRI, QUIET
+        # suppress warnings while computing edges and SRI, returning a list of edges+sri
+        out <- suppressWarnings(vultureUtils::spaceTimeGroups(dataset = points,
+                                                              distThreshold = distThreshold,
+                                                              consecThreshold = consecThreshold,
+                                                              timeThreshold = timeThreshold,
+                                                              sri = TRUE))
+      }else{
+        ### EDGES AND SRI, WARNINGS
+        # compute edges and SRI without suppressing warnings, returning a list of edges+sri
+        out <- vultureUtils::spaceTimeGroups(dataset = points,
+                                             distThreshold = distThreshold,
+                                             consecThreshold = consecThreshold,
+                                             timeThreshold = timeThreshold,
+                                             sri = TRUE)
+      }
     }
   }
+
+  ## APPEND VERTICES
+  if(includeAllVertices){
+    toReturn <- purrr::append(out, "allVertices" = uniqueIndivs)
+  }else{
+    toReturn <- out
+  }
+
+  ## RETURN LIST
+  return(toReturn)
 }
 
 #' Create co-feeding edge list
