@@ -209,10 +209,11 @@ convertAndBuffer <- function(obj, dist = 50, crsMeters = 32636){
 #' @param longCol Name of the column containing longitude values
 #' @param returnDist Passed to spatsoc::edge_dist. Boolean indicating if the distance between individuals should be returned. If FALSE (default), only ID1, ID2 columns (and timegroup, splitBy columns if provided) are returned. If TRUE, another column "distance" is returned indicating the distance between ID1 and ID2. Default is TRUE.
 #' @param fillNA Passed to spatsoc::edge_dist. Boolean indicating if NAs should be returned for individuals that were not within the threshold distance of any other. If TRUE, NAs are returned. If FALSE, only edges between individuals within the threshold distance are returned. Default is FALSE.
+#' @param sri T/F (default is T). Whether or not to include SRI calculation.
 #' @return an edge list (data frame)
 #' @export
 # Convert to UTM
-spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSet = "WGS84", timestampCol = "timestamp", timeThreshold = "10 minutes", idCol = "trackId", latCol = "location_lat", longCol = "location_long", returnDist = TRUE, fillNA = FALSE){
+spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSet = "WGS84", timestampCol = "timestamp", timeThreshold = "10 minutes", idCol = "trackId", latCol = "location_lat", longCol = "location_long", returnDist = TRUE, fillNA = FALSE, sri = T){
   # argument checks
   checkmate::assertDataFrame(dataset)
   checkmate::assertNumeric(distThreshold, len = 1, lower = 0, finite = TRUE)
@@ -242,7 +243,7 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
 
     # convert to an sf object
     dataset <- dataset %>%
-      sf::st_as_sf(coords = c(.data[[longCol]], .data[[latCol]]), remove = FALSE) %>%
+      sf::st_as_sf(coords = c(longCol, latCol), remove = FALSE) %>%
       sf::st_set_crs(crsToSet) # assign the CRS
 
   }else{ # otherwise, throw an error.
@@ -268,7 +269,7 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
   # Group the points into timegroups using spatsoc::group_times.
   dataset <- spatsoc::group_times(dataset, datetime = timestampCol, threshold = timeThreshold)
   timegroupData <- dataset %>% # save information about when each timegroup starts and ends.
-    dplyr::select(.data[[timestampCol]], timegroup) %>%
+    dplyr::select(.data[[timestampCol]], timegroup) %>% # XXX this is deprecated, fix.
     dplyr::group_by(.data$timegroup) %>%
     dplyr::summarize(minTimestamp = min(.data[[timestampCol]]),
                      maxTimestamp = max(.data[[timestampCol]]))
@@ -298,9 +299,21 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
   edgesFiltered <- edgesFiltered %>%
     dplyr::left_join(timegroupData, by = "timegroup")
 
+  if(sri){
+    # Calculate SRI
+    cat("\nComputing SRI... this may take a while if your dataset is large.\n")
+    start <- Sys.time()
+    dfSRI <- calcSRI(dataset = dataset, edges = edgesFiltered)
+    end <- Sys.time()
+    duration <- end-start
+    cat(paste0("SRI computation completed in ", duration, " seconds."))
+    outList <- list("edges" = edgesFiltered, "sri" = dfSRI)
+  }else{
+    outList <- list("edges" = edgesFiltered)
+  }
   # XXX need a step here where I join `timestamps` to `edgesFiltered`, in order to address #43. But for this to work, I have to decide what to do about the problem with some individuals showing up twice within the same 10-minute window.
   # Should I average their position during the window? Or should I pick just the first fix? Or should I compute the distance twice and if either of them is close enough to another individual, we consider it an edge? Very important to figure this out.
-  return(edgesFiltered)
+  return(outList)
 }
 
 #' Filter edge list to exclude too few consecutive occurrences
@@ -351,4 +364,74 @@ consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = 
   }else{
     return(consec)
   }
+}
+
+#' Calculate SRI
+#'
+#' Calculates SRI based on timegroup and individual occurrence information
+#' @param dataset the cleaned dataset
+#' @param edges edgelist created by spatsoc, with self edges and duplicate edges removed.
+#' @return A data frame containing ID1, ID2, and SRI value.
+#' @export
+calcSRI <- function(dataset, edges){
+  checkmate::assertSubset("timegroup", names(dataset))
+  checkmate::assertSubset("trackId", names(dataset))
+  checkmate::assertDataFrame(dataset)
+  checkmate::assertDataFrame(edges)
+
+  edges <- dplyr::as_tibble(edges)
+
+  ## get individuals per timegroup as a list
+  # Info about timegroups and individuals, for SRI calculation
+  timegroupsList <- dataset[,c("timegroup", "trackId")] %>%
+    dplyr::mutate(trackId = as.character(.data[[trackId]])) %>%
+    dplyr::distinct() %>%
+    dplyr::group_by(.data[[timegroup]]) %>%
+    dplyr::group_split() %>%
+    purrr::map(~.x$trackId)
+
+  ## get unique set of timegroups
+  timegroups <- unique(dataset$timegroup)
+
+  ## get all unique pairs of individuals
+  inds <- as.character(unique(dataset$trackId))
+  allPairs <- expand.grid(inds, inds, stringsAsFactors = F) %>%
+    stats::setNames(., c("ID1", "ID2")) %>%
+    dplyr::filter(.data[[ID1]] < .data[[ID2]])
+  allPairsList <- allPairs %>%
+    dplyr::group_by(.data[[ID1]], .data[[ID2]]) %>%
+    dplyr::group_split() %>%
+    purrr::map(., as.matrix)
+
+  # wide data
+  datasetWide <- dataset %>%
+    dplyr::select(timegroup, trackId) %>%
+    dplyr::distinct() %>%
+    dplyr::mutate(val = TRUE) %>%
+    tidyr::pivot_wider(id_cols = timegroup, names_from = "trackId",
+                values_from = "val", values_fill = FALSE)
+
+  ## get SRI information
+  dfSRI <- purrr::map_dfr(allPairsList, ~{
+    # define the two individuals
+    a <- .x[1]
+    b <- .x[2]
+    colA <- datasetWide[,a]
+    colB <- datasetWide[,b]
+
+    ya <- sum(colA & !colB)
+    yb <- sum(colB & !colA)
+    nBoth <- sum(colA & colB)
+    x <- edges %>%
+      dplyr::filter(ID1 %in% c(a, b) & ID2 %in% c(a, b)) %>%
+      dplyr::pull(timegroup) %>%
+      unique() %>%
+      length()
+    yab <- nBoth - x
+    sri <- x/(x+ya+yb+yab)
+    dfRow <- data.frame(ID1 = a, ID2 = b, sri = sri)
+    return(dfRow)
+  })
+
+  return(dfSRI)
 }

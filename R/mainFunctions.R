@@ -188,9 +188,10 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
 #' @param quiet Whether to silence the warning messages about grouping individuals with themselves inside the time threshold. Default is T. This occurs because if we set our time threshold to e.g. 10 minutes (the default), there are some GPS points that occur closer together than 10 minutes apart (e.g. if we experimentally set the tags to take points every 5 minutes). As a result, we will "group" together the same individual with itself, resulting in some self edges. I currently have a step in the code that simply removes these self edges, so there should be no problem here. But if you set `quiet = F`, you will at least be warned with the message `"Warning: found duplicate id in a timegroup and/or splitBy - does your group_times threshold match the fix rate?"` when this is occurring.
 #' @param includeAllVertices logical. Whether to include another list item in the output that's a vector of all individuals in the dataset. For use in creating sparse graphs. Default is F.
 #' @param daytimeOnly T/F, whether to restrict interactions to daytime only. Default is T.
+#' @param return One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist. Also includes timegroup information, which SRI cannot do. One row in this data frame represents a single edge in a single timegroup.); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.
 #' @export
-getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distThreshold, speedThreshUpper, speedThreshLower, timeThreshold = "10 minutes", quiet = T, includeAllVertices = F, daytimeOnly = T){
+getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distThreshold, speedThreshUpper, speedThreshLower, timeThreshold = "10 minutes", quiet = T, includeAllVertices = F, daytimeOnly = T, return = "edges"){
   # Argument checks
   checkmate::assertDataFrame(dataset)
   checkmate::assertClass(roostPolygons, "sf")
@@ -201,37 +202,19 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
   checkmate::assertNumeric(speedThreshLower, len = 1, null.ok = TRUE)
   checkmate::assertCharacter(timeThreshold, len = 1)
   checkmate::assertLogical(daytimeOnly, len = 1)
+  checkmate::assertSubset(return, choices = c("edges", "sri", "both"),
+                          empty.ok = FALSE)
 
   # Get all unique individuals before applying any filtering
   if(includeAllVertices){
     uniqueIndivs <- unique(dataset$trackId)
   }
 
+  ## FILTER THE POINTS
   # Restrict interactions based on ground speed
   filteredData <- vultureUtils::filterLocs(df = dataset,
                                            speedThreshUpper = speedThreshUpper,
                                            speedThreshLower = speedThreshLower)
-
-  # Restrict based on daylight
-  if(daytimeOnly){
-    times <- suncalc::getSunlightTimes(date = unique(lubridate::date(dataset$timestamp)), lat = 31.434306, lon = 34.991889,
-                                       keep = c("sunrise", "sunset")) %>%
-      dplyr::select(date, sunrise, sunset) # XXX the coordinates I'm using here are from the centroid of Israel calculated here: https://rona.sh/centroid. This is just a placeholder until we decide on a more accurate way of doing this.
-    filteredData <- filteredData %>%
-      left_join(times, by = c("dateOnly" = "date")) %>%
-      mutate(daytime = case_when(timestamp > sunrise & timestamp < sunset ~ T,
-                                 TRUE ~ F))
-
-    # Filter out nighttimes
-    nNightPoints <- nrow(filteredData[filteredData$daytime == F,])
-    filteredData <- filteredData %>%
-      filter(daytime == T)
-    nDayPoints <- nrow(filteredData)
-    if(quiet == F){
-      cat(paste0("Removed ", nNightPoints, " nighttime points, leaving ",
-                 nDayPoints, " points.\n"))
-    }
-  }
 
   # Buffer the roost polygons
   roostPolygons <- convertAndBuffer(roostPolygons, dist = roostBuffer)
@@ -239,41 +222,97 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
   # Exclude any points that fall within a (buffered) roost polygon
   points <- filteredData[lengths(sf::st_intersects(filteredData, roostPolygons)) == 0,]
 
-  # If there are no rows left after filtering, return an empty data frame with the appropriate format.
-  if(nrow(points) == 0){
-    dummy <- data.frame(timegroup = as.integer(),
-                        ID1 = as.character(),
-                        ID2 = as.character(),
-                        distance = as.numeric(),
-                        minTimestamp = as.POSIXct(character()),
-                        maxTimestamp = as.POSIXct(character()))
-    warning("After filtering, the dataset had 0 rows. Returning an empty edge list.")
-    if(includeAllVertices){
-      toReturn <- list("edges" = dummy,
-                       "allVertices" = uniqueIndivs)
-      return(toReturn)
-    }else{
-      return(dummy)
-    }
-  }else{
-    if(quiet == T){
-      edges <- suppressWarnings(vultureUtils::spaceTimeGroups(dataset = points,
-                                                              distThreshold = distThreshold,
-                                                              consecThreshold = consecThreshold,
-                                                              timeThreshold = timeThreshold))
-    }else{
-      edges <- vultureUtils::spaceTimeGroups(dataset = points,
-                                             distThreshold = distThreshold,
-                                             consecThreshold = consecThreshold,
-                                             timeThreshold = timeThreshold)
-    }
-    if(includeAllVertices){
-      toReturn <- list("edges" = edges,
-                       "allVertices" = uniqueIndivs)
-    }else{
-      return(edges)
+  # Restrict based on daylight
+  if(daytimeOnly){
+    times <- suncalc::getSunlightTimes(date = unique(lubridate::date(points$timestamp)), lat = 31.434306, lon = 34.991889,
+                                       keep = c("sunrise", "sunset")) %>%
+      dplyr::select(.data[[date]], .data[[sunrise]], .data[[sunset]]) # XXX the coordinates I'm using here are from the centroid of Israel calculated here: https://rona.sh/centroid. This is just a placeholder until we decide on a more accurate way of doing this.
+    points <- points %>%
+      dplyr::left_join(times, by = c("dateOnly" = "date")) %>%
+      dplyr::mutate(daytime = dplyr::case_when(.data[[timestamp]] > .data[[sunrise]] &
+                                                 .data[[timestamp]] < data[[sunset]] ~ T,
+                                 TRUE ~ F))
+
+    # Filter out nighttimes
+    nNightPoints <- nrow(points[points$daytime == F,])
+    points <- points %>%
+      dplyr::filter(.data[[daytime]] == T)
+    nDayPoints <- nrow(points)
+    if(quiet == F){
+      cat(paste0("Removed ", nNightPoints, " nighttime points, leaving ",
+                 nDayPoints, " points.\n"))
     }
   }
+
+  # If there are no rows left after filtering, create an empty data frame with the appropriate format.
+  if(nrow(points) == 0){
+    # DUMMY EDGELIST, NO SRI TO COMPUTE
+    out <- data.frame(timegroup = as.integer(),
+                      ID1 = as.character(),
+                      ID2 = as.character(),
+                      distance = as.numeric(),
+                      minTimestamp = as.POSIXct(character()),
+                      maxTimestamp = as.POSIXct(character()))
+    warning("After filtering, the dataset had 0 rows.")
+  }
+
+  ## GET EDGELIST (optionally compute SRI)
+  if(nrow(points) != 0){
+    ## Do we need to compute SRI?
+    if(return == "edges"){ # if SRI is not needed, we can save time by not computing it.
+      if(quiet){
+        ### EDGES ONLY, QUIET
+        out <- suppressMessages(suppressWarnings(vultureUtils::spaceTimeGroups(dataset = points,
+                                                              distThreshold = distThreshold,
+                                                              consecThreshold = consecThreshold,
+                                                              timeThreshold = timeThreshold,
+                                                              sri = FALSE)))
+      }else{
+        ### EDGES ONLY, WARNINGS
+        # compute edges without suppressing warnings
+        out <- vultureUtils::spaceTimeGroups(dataset = points,
+                                             distThreshold = distThreshold,
+                                             consecThreshold = consecThreshold,
+                                             timeThreshold = timeThreshold,
+                                             sri = FALSE)
+      }
+
+    }else if(return %in% c("sri", "both")){ # otherwise we need to compute SRI.
+      if(quiet){
+        ### EDGES AND SRI, QUIET
+        # suppress warnings while computing edges and SRI, returning a list of edges+sri
+        out <- suppressMessages(suppressWarnings(vultureUtils::spaceTimeGroups(dataset = points,
+                                                              distThreshold = distThreshold,
+                                                              consecThreshold = consecThreshold,
+                                                              timeThreshold = timeThreshold,
+                                                              sri = TRUE)))
+        if(return == "sri"){
+          out <- out["sri"]
+        }
+      }else{
+        ### EDGES AND SRI, WARNINGS
+        # compute edges and SRI without suppressing warnings, returning a list of edges+sri
+        out <- vultureUtils::spaceTimeGroups(dataset = points,
+                                             distThreshold = distThreshold,
+                                             consecThreshold = consecThreshold,
+                                             timeThreshold = timeThreshold,
+                                             sri = TRUE)
+        if(return == "sri"){
+          out <- out["sri"]
+        }
+      }
+    }
+  }
+
+  ## APPEND VERTICES
+  if(includeAllVertices){
+    toReturn <- purrr::append(out, "allVertices" = uniqueIndivs)
+  }else{
+    toReturn <- out
+  }
+
+  ## RETURN LIST
+  return(toReturn)
 }
 
 #' Create co-feeding edge list
@@ -290,10 +329,11 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
 #' @param quiet Whether to silence the warning messages about grouping individuals with themselves inside the time threshold. Default is T. This occurs because if we set our time threshold to e.g. 10 minutes (the default), there are some GPS points that occur closer together than 10 minutes apart (e.g. if we experimentally set the tags to take points every 5 minutes). As a result, we will "group" together the same individual with itself, resulting in some self edges. I currently have a step in the code that simply removes these self edges, so there should be no problem here. But if you set `quiet = F`, you will at least be warned with the message `"Warning: found duplicate id in a timegroup and/or splitBy - does your group_times threshold match the fix rate?"` when this is occurring.
 #' @param includeAllVertices logical. Whether to include another list item in the output that's a vector of all individuals in the dataset. For use in creating sparse graphs. Default is F.
 #' @param daytimeOnly T/F, whether to restrict interactions to daytime only. Default is T.
+#' @param return One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist. Also includes timegroup information, which SRI cannot do. One row in this data frame represents a single edge in a single timegroup.); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.
 #' @export
-getFeedingEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThreshold = 2, distThreshold = 50, speedThreshUpper = 5, speedThreshLower = NULL, timeThreshold = "10 minutes", quiet = T, includeAllVertices = F, daytimeOnly = T){
-  getEdges(dataset, roostPolygons = roostPolygons, roostBuffer = roostBuffer, consecThreshold = consecThreshold, distThreshold = distThreshold, speedThreshUpper = speedThreshUpper, speedThreshLower = speedThreshLower, timeThreshold = timeThreshold, quiet = quiet, includeAllVertices = includeAllVertices, daytimeOnly = daytimeOnly)
+getFeedingEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThreshold = 2, distThreshold = 50, speedThreshUpper = 5, speedThreshLower = NULL, timeThreshold = "10 minutes", quiet = T, includeAllVertices = F, daytimeOnly = T, return = "edges"){
+  getEdges(dataset, roostPolygons = roostPolygons, roostBuffer = roostBuffer, consecThreshold = consecThreshold, distThreshold = distThreshold, speedThreshUpper = speedThreshUpper, speedThreshLower = speedThreshLower, timeThreshold = timeThreshold, quiet = quiet, includeAllVertices = includeAllVertices, daytimeOnly = daytimeOnly, return = return)
 }
 
 #' Create co-flight edge list
@@ -310,10 +350,11 @@ getFeedingEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThre
 #' @param quiet Whether to silence the warning messages about grouping individuals with themselves inside the time threshold. Default is T. This occurs because if we set our time threshold to e.g. 10 minutes (the default), there are some GPS points that occur closer together than 10 minutes apart (e.g. if we experimentally set the tags to take points every 5 minutes). As a result, we will "group" together the same individual with itself, resulting in some self edges. I currently have a step in the code that simply removes these self edges, so there should be no problem here. But if you set `quiet = F`, you will at least be warned with the message `"Warning: found duplicate id in a timegroup and/or splitBy - does your group_times threshold match the fix rate?"` when this is occurring.
 #' @param includeAllVertices logical. Whether to include another list item in the output that's a vector of all individuals in the dataset. For use in creating sparse graphs. Default is F.
 #' @param daytimeOnly T/F, whether to restrict interactions to daytime only. Default is T.
+#' @param return One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist. Also includes timegroup information, which SRI cannot do. One row in this data frame represents a single edge in a single timegroup.); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.
 #' @export
-getFlightEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThreshold = 2, distThreshold = 1000, speedThreshUpper = NULL, speedThreshLower = 5, timeThreshold = "10 minutes", quiet = T, includeAllVertices = F, daytimeOnly = T){
-  getEdges(dataset, roostPolygons = roostPolygons, roostBuffer = roostBuffer, consecThreshold = consecThreshold, distThreshold = distThreshold, speedThreshUpper = speedThreshUpper, speedThreshLower = speedThreshLower, timeThreshold = timeThreshold, quiet = quiet, includeAllVertices = includeAllVertices, daytimeOnly = daytimeOnly)
+getFlightEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThreshold = 2, distThreshold = 1000, speedThreshUpper = NULL, speedThreshLower = 5, timeThreshold = "10 minutes", quiet = T, includeAllVertices = F, daytimeOnly = T, return = "edges"){
+  getEdges(dataset, roostPolygons = roostPolygons, roostBuffer = roostBuffer, consecThreshold = consecThreshold, distThreshold = distThreshold, speedThreshUpper = speedThreshUpper, speedThreshLower = speedThreshLower, timeThreshold = timeThreshold, quiet = quiet, includeAllVertices = includeAllVertices, daytimeOnly = daytimeOnly, return = return)
 }
 
 # XXX Here is where the code will go for getRoostEdges(), when I write it.
@@ -600,41 +641,61 @@ sliceTemporal <- function(edges, n, unit = "days", from = "start",
 
 #' Make a single graph from an edge list.
 #'
-#' This is basically a wrapper of igraph::graph_from_data_frame. Takes into account the formatting returned from vultureUtils::get*Edges().
-#' @param edges a data frame containing edges and their associated `timegroup`s. Returned from vultureUtils::get*Edges().
+#' A wrapper of igraph::graph_from_data_frame. Takes into account the formatting returned from vultureUtils::get*Edges(). Has two modes--can either take an edgelist (optionally with a full list of vertices) or an SRI data frame.
+#' @param mode One of "edgelist" (default; creates a graph from an edgelist) or "sri" (creates a graph from a data frame containing each dyad once, with its SRI value).
+#' @param data a data frame containing edges and their associated `timegroup`s. Returned from vultureUtils::get*Edges().
 #' @param weighted whether or not the resulting graphs should have weights attached. Default is FALSE (unweighted graph).
 #' @param id1Col name of the column in `edges` containing the ID of the first individual in a dyad. Default is "ID1".
 #' @param id2Col name of the column in `edges` containing the ID of the second individual in a dyad. Default is "ID2".
 #' @param vertices optional. Either NULL (default) or a data frame/vector with vertex names and optional metadata. If a vector is provided, it will be coerced to a data frame (see documentation for igraph::graph_from_data_frame).
 #' @return an igraph object. An undirected graph that is either weighted or unweighted, depending on whether `weighted` is T or F.
 #' @export
-makeGraph <- function(edges, weighted = FALSE, id1Col = "ID1", id2Col = "ID2", vertices = NULL){
+makeGraph <- function(mode = "edgelist", data, weighted = FALSE,
+                      id1Col = "ID1", id2Col = "ID2", vertices = NULL){
   # Some basic argument checks
+  checkmate::assertSubset(mode, choices = c("edgelist", "sri"), empty.ok = FALSE)
   checkmate::assertLogical(weighted, len = 1)
+  checkmate::assertSubset(id1Col, names(data))
+  checkmate::assertSubset(id2Col, names(data))
   checkmate::assertCharacter(id1Col, len = 1)
   checkmate::assertCharacter(id2Col, len = 1)
 
-  # Simplify the edgelist to just the columns needed
-  edgesSimple <- edges %>%
-    dplyr::select(.data[[id1Col]], .data[[id2Col]])
+  if(mode == "edgelist"){
+    ## EDGELIST MODE
+    # Simplify the edgelist to just the columns needed
+    edgesSimple <- data %>%
+      dplyr::select(.data[[id1Col]], .data[[id2Col]])
 
-  # Make graph differently depending on `weighted`
-  if(weighted == FALSE){
-    # Make an unweighted graph
-    edgesSimple <- edgesSimple %>%
-      dplyr::distinct()
-    g <- igraph::graph_from_data_frame(d = edgesSimple, directed = FALSE,
-                                       vertices = vertices)
+    # Make graph differently depending on `weighted`
+    if(weighted == FALSE){
+      # Make an unweighted graph
+      edgesSimple <- edgesSimple %>%
+        dplyr::distinct()
+      g <- igraph::graph_from_data_frame(d = edgesSimple, directed = FALSE,
+                                         vertices = vertices)
+    }else{
+      # Make a weighted graph
+      edgesWeighted <- edgesSimple %>%
+        dplyr::mutate(weight = 1) %>%
+        dplyr::group_by(.data[[id1Col]],
+                        .data[[id2Col]]) %>%
+        dplyr::summarize(weight = sum(.data$weight)) %>%
+        dplyr::ungroup()
+      g <- igraph::graph_from_data_frame(d = edgesWeighted, directed = FALSE,
+                                         vertices = vertices)
+    }
   }else{
-    # Make a weighted graph
-    edgesWeighted <- edgesSimple %>%
-      dplyr::mutate(weight = 1) %>%
-      dplyr::group_by(.data[[id1Col]],
-                      .data[[id2Col]]) %>%
-      dplyr::summarize(weight = sum(.data$weight)) %>%
-      dplyr::ungroup()
-    g <- igraph::graph_from_data_frame(d = edgesWeighted, directed = FALSE,
-                                       vertices = vertices)
+    checkmate::assertSubset("sri", names(data))
+    # Simplify the edgelist to just the columns needed
+    edgesSimple <- data %>%
+      dplyr::select(.data[[id1Col]], .data[[id2Col]], sri) %>%
+      dplyr::mutate("weight" = sri) %>% # calling the column "weight" will automatically add a weight attribute to the graph.
+      dplyr::mutate(weight = na_if(weight, 0)) # convert 0's to NA so the graph will lay out properly.
+
+    ## SRI MODE
+    verts <- unique(c(edgesSimple[[id1Col]], edgesSimple[[id2Col]])) # XXX this is hacky and I don't like how it's handled. Come back to this.
+    g <- igraph::graph_from_data_frame(d = edgesSimple, directed = FALSE,
+                                       vertices = verts)
   }
 
   return(g)

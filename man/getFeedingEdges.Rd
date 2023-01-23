@@ -15,7 +15,8 @@ getFeedingEdges(
   timeThreshold = "10 minutes",
   quiet = T,
   includeAllVertices = F,
-  daytimeOnly = T
+  daytimeOnly = T,
+  return = "edges"
 )
 }
 \arguments{
@@ -40,6 +41,8 @@ getFeedingEdges(
 \item{includeAllVertices}{logical. Whether to include another list item in the output that's a vector of all individuals in the dataset. For use in creating sparse graphs. Default is F.}
 
 \item{daytimeOnly}{T/F, whether to restrict interactions to daytime only. Default is T.}
+
+\item{return}{One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist. Also includes timegroup information, which SRI cannot do. One row in this data frame represents a single edge in a single timegroup.); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)}
 }
 \value{
 An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.

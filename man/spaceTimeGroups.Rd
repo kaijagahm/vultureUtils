@@ -15,7 +15,8 @@ spaceTimeGroups(
   latCol = "location_lat",
   longCol = "location_long",
   returnDist = TRUE,
-  fillNA = FALSE
+  fillNA = FALSE,
+  sri = T
 )
 }
 \arguments{
@@ -40,6 +41,8 @@ spaceTimeGroups(
 \item{returnDist}{Passed to spatsoc::edge_dist. Boolean indicating if the distance between individuals should be returned. If FALSE (default), only ID1, ID2 columns (and timegroup, splitBy columns if provided) are returned. If TRUE, another column "distance" is returned indicating the distance between ID1 and ID2. Default is TRUE.}
 
 \item{fillNA}{Passed to spatsoc::edge_dist. Boolean indicating if NAs should be returned for individuals that were not within the threshold distance of any other. If TRUE, NAs are returned. If FALSE, only edges between individuals within the threshold distance are returned. Default is FALSE.}
+
+\item{sri}{T/F (default is T). Whether or not to include SRI calculation.}
 }
 \value{
 an edge list (data frame)
