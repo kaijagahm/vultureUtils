@@ -1,5 +1,8 @@
 library(tidyverse)
 test <- data.frame(timegroup = c(1, 1, 2, 3, 3, 4, 4, 4, 5, 5), indiv = c("A", "B", "A", "B", "C", "B", "C", "D", "A", "D"))
+testWide <- test %>% mutate(val = TRUE) %>%
+  pivot_wider(id_cols = timegroup, names_from = "indiv",
+              values_from = "val", values_fill = FALSE)
 
 edges <- data.frame(timegroup = c(1, 3, 5), ID1 = c("A", "B", "A"), ID2 = c("B", "C", "D"))
 
