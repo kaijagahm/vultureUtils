@@ -640,41 +640,61 @@ sliceTemporal <- function(edges, n, unit = "days", from = "start",
 
 #' Make a single graph from an edge list.
 #'
-#' This is basically a wrapper of igraph::graph_from_data_frame. Takes into account the formatting returned from vultureUtils::get*Edges().
-#' @param edges a data frame containing edges and their associated `timegroup`s. Returned from vultureUtils::get*Edges().
+#' A wrapper of igraph::graph_from_data_frame. Takes into account the formatting returned from vultureUtils::get*Edges(). Has two modes--can either take an edgelist (optionally with a full list of vertices) or an SRI data frame.
+#' @param mode One of "edgelist" (default; creates a graph from an edgelist) or "sri" (creates a graph from a data frame containing each dyad once, with its SRI value).
+#' @param edges a data frame containing edges and their associated `timegroup`s. Returned from vultureUtils::get*Edges(). # XXX change this to "data"
 #' @param weighted whether or not the resulting graphs should have weights attached. Default is FALSE (unweighted graph).
 #' @param id1Col name of the column in `edges` containing the ID of the first individual in a dyad. Default is "ID1".
 #' @param id2Col name of the column in `edges` containing the ID of the second individual in a dyad. Default is "ID2".
 #' @param vertices optional. Either NULL (default) or a data frame/vector with vertex names and optional metadata. If a vector is provided, it will be coerced to a data frame (see documentation for igraph::graph_from_data_frame).
 #' @return an igraph object. An undirected graph that is either weighted or unweighted, depending on whether `weighted` is T or F.
 #' @export
-makeGraph <- function(edges, weighted = FALSE, id1Col = "ID1", id2Col = "ID2", vertices = NULL){
+makeGraph <- function(mode = "edgelist", edges, weighted = FALSE,
+                      id1Col = "ID1", id2Col = "ID2", vertices = NULL){
   # Some basic argument checks
+  checkmate::assertSubset(mode, choices = c("edgelist", "sri"), empty.ok = FALSE)
   checkmate::assertLogical(weighted, len = 1)
+  checkmate::assertSubset(id1Col, names(edges))
+  checkmate::assertSubset(id2Col, names(edges))
   checkmate::assertCharacter(id1Col, len = 1)
   checkmate::assertCharacter(id2Col, len = 1)
 
-  # Simplify the edgelist to just the columns needed
-  edgesSimple <- edges %>%
-    dplyr::select(.data[[id1Col]], .data[[id2Col]])
+  if(mode == "edgelist"){
+    ## EDGELIST MODE
+    # Simplify the edgelist to just the columns needed
+    edgesSimple <- edges %>%
+      dplyr::select(.data[[id1Col]], .data[[id2Col]])
 
-  # Make graph differently depending on `weighted`
-  if(weighted == FALSE){
-    # Make an unweighted graph
-    edgesSimple <- edgesSimple %>%
-      dplyr::distinct()
-    g <- igraph::graph_from_data_frame(d = edgesSimple, directed = FALSE,
-                                       vertices = vertices)
+    # Make graph differently depending on `weighted`
+    if(weighted == FALSE){
+      # Make an unweighted graph
+      edgesSimple <- edgesSimple %>%
+        dplyr::distinct()
+      g <- igraph::graph_from_data_frame(d = edgesSimple, directed = FALSE,
+                                         vertices = vertices)
+    }else{
+      # Make a weighted graph
+      edgesWeighted <- edgesSimple %>%
+        dplyr::mutate(weight = 1) %>%
+        dplyr::group_by(.data[[id1Col]],
+                        .data[[id2Col]]) %>%
+        dplyr::summarize(weight = sum(.data$weight)) %>%
+        dplyr::ungroup()
+      g <- igraph::graph_from_data_frame(d = edgesWeighted, directed = FALSE,
+                                         vertices = vertices)
+    }
   }else{
-    # Make a weighted graph
-    edgesWeighted <- edgesSimple %>%
-      dplyr::mutate(weight = 1) %>%
-      dplyr::group_by(.data[[id1Col]],
-                      .data[[id2Col]]) %>%
-      dplyr::summarize(weight = sum(.data$weight)) %>%
-      dplyr::ungroup()
-    g <- igraph::graph_from_data_frame(d = edgesWeighted, directed = FALSE,
-                                       vertices = vertices)
+    checkmate::assertSubset("sri", names(edges))
+    # Simplify the edgelist to just the columns needed
+    edgesSimple <- edges %>%
+      dplyr::select(.data[[id1Col]], .data[[id2Col]], sri) %>%
+      mutate("weight" = sri) %>% # calling the column "weight" will automatically add a weight attribute to the graph.
+      mutate(weight = na_if(weight, 0)) # convert 0's to NA so the graph will lay out properly.
+
+    ## SRI MODE
+    verts <- unique(c(edgesSimple[[id1Col]], edgesSimple[[id2Col]])) # XXX this is hacky and I don't like how it's handled. Come back to this.
+    g <- igraph::graph_from_data_frame(d = edgesSimple, directed = FALSE,
+                                       vertices = verts)
   }
 
   return(g)
