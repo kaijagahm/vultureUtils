@@ -226,16 +226,17 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
   if(daytimeOnly){
     times <- suncalc::getSunlightTimes(date = unique(lubridate::date(points$timestamp)), lat = 31.434306, lon = 34.991889,
                                        keep = c("sunrise", "sunset")) %>%
-      dplyr::select(date, sunrise, sunset) # XXX the coordinates I'm using here are from the centroid of Israel calculated here: https://rona.sh/centroid. This is just a placeholder until we decide on a more accurate way of doing this.
+      dplyr::select(.data[[date]], .data[[sunrise]], .data[[sunset]]) # XXX the coordinates I'm using here are from the centroid of Israel calculated here: https://rona.sh/centroid. This is just a placeholder until we decide on a more accurate way of doing this.
     points <- points %>%
-      left_join(times, by = c("dateOnly" = "date")) %>%
-      mutate(daytime = case_when(timestamp > sunrise & timestamp < sunset ~ T,
+      dplyr::left_join(times, by = c("dateOnly" = "date")) %>%
+      dplyr::mutate(daytime = dplyr::case_when(.data[[timestamp]] > .data[[sunrise]] &
+                                                 .data[[timestamp]] < data[[sunset]] ~ T,
                                  TRUE ~ F))
 
     # Filter out nighttimes
     nNightPoints <- nrow(points[points$daytime == F,])
     points <- points %>%
-      filter(daytime == T)
+      dplyr::filter(.data[[daytime]] == T)
     nDayPoints <- nrow(points)
     if(quiet == F){
       cat(paste0("Removed ", nNightPoints, " nighttime points, leaving ",
@@ -688,8 +689,8 @@ makeGraph <- function(mode = "edgelist", data, weighted = FALSE,
     # Simplify the edgelist to just the columns needed
     edgesSimple <- data %>%
       dplyr::select(.data[[id1Col]], .data[[id2Col]], sri) %>%
-      mutate("weight" = sri) %>% # calling the column "weight" will automatically add a weight attribute to the graph.
-      mutate(weight = na_if(weight, 0)) # convert 0's to NA so the graph will lay out properly.
+      dplyr::mutate("weight" = sri) %>% # calling the column "weight" will automatically add a weight attribute to the graph.
+      dplyr::mutate(weight = na_if(weight, 0)) # convert 0's to NA so the graph will lay out properly.
 
     ## SRI MODE
     verts <- unique(c(edgesSimple[[id1Col]], edgesSimple[[id2Col]])) # XXX this is hacky and I don't like how it's handled. Come back to this.
