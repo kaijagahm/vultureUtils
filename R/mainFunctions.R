@@ -357,7 +357,50 @@ getFlightEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThres
   getEdges(dataset, roostPolygons = roostPolygons, roostBuffer = roostBuffer, consecThreshold = consecThreshold, distThreshold = distThreshold, speedThreshUpper = speedThreshUpper, speedThreshLower = speedThreshLower, timeThreshold = timeThreshold, quiet = quiet, includeAllVertices = includeAllVertices, daytimeOnly = daytimeOnly, return = return)
 }
 
-# XXX Here is where the code will go for getRoostEdges(), when I write it.
+#' Create co-roosting edge list
+#'
+#' Function to create an edgelist based on roost locations. Two modes: either create a straightforward distance-based network based on a distance threshold (analogous to getFeedingEdges and getFlightEdges, except that there's only one point per individual per night); or create a shared-roost network based on roost polygon assignment.
+#' @param dataset A data frame. May have one of two formats, depending on `mode`: either ID/date/lat/long (works for `mode` = "distance", or `mode` = "polygon" if `roostPolygons` is also supplied); or ID/date/roostID (work only for `mode` = "polygon"). May have additional columns.
+#' @param mode One of "distance" (default) or "polygon". If "distance", creates a distance-based network with edges each night. If "polygon", creates a shared-polygon-based network.
+#' @param roostPolygons blah
+#' @param distThreshold blah
+#' @param latCol blah
+#' @param longCol
+#' @param idCol
+#' @param dateCol
+#' @param roostCol
+#' @param return One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)
+getRoostEdges <- function(dataset, mode, roostPolygons = NULL, distThreshold, latCol = "location_lat", longCol = "location_long", idCol = "trackId", dateCol = "date", roostCol = "roostID", return){
+  if(mode == "distance"){
+    ## DISTANCE MODE
+    # Use spatsoc to compute distance groups using the distance threshold
+    # Use this to create an edgelist
+
+  }else{
+    ## POLYGON MODE
+    # XXX use `convert` function to convert roost polygons
+    # Polygon assignment is triggered if the roostID column is missing and there are some polygons provided.
+    ## POLYGON ASSIGNMENT
+    if(!(roostCol %in% names(dataset)) & !is.null(roostPolygons)){
+      # XXX do some sf checks to make sure they're in the same coordinate system.
+      polys <- sf::st_join(dataset, roostPolygons) %>%
+        sf::st_drop_geometry() %>%
+        dplyr::select(.data[[idCol]], .data[[dateCol]], {{roostCol}} := Name)
+    }else{
+      polys <- dataset # we can use the dataset as is.
+    }
+
+    # Create an edgelist by shared polygon membership
+    polygonEdges <- polys %>%
+      dplyr::filter(!is.na(.data[[roostCol]])) %>% # remove NA roosts
+      dplyr::group_by(.data[[dateCol]], .data[[roostCol]]) %>%
+      dplyr::group_split(.keep = T) %>%
+      purrr::map_dfr(~{tidyr::expand_grid("ID1" = .x[[idCol]], .x)}) %>%
+      dplyr::rename("ID2" = tidyselect::all_of(idCol)) %>%
+      dplyr::filter(ID1 < ID2)
+
+  }
+}
 
 #' Get roosts (data frame version)
 #'
