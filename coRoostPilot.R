@@ -30,6 +30,15 @@ polygonEdges <- polygonData %>%
   dplyr::filter(ID1 < ID2)
 
 
+colName <- "mpg"
+dataset <- mtcars
+myFun <- function(dataset, colName){
+  out <- dataset %>%
+    dplyr::select(all_of(colName))
+}
+
+myFun(dataset, colName)
+
 
 
 
