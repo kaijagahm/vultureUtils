@@ -226,17 +226,17 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
   if(daytimeOnly){
     times <- suncalc::getSunlightTimes(date = unique(lubridate::date(points$timestamp)), lat = 31.434306, lon = 34.991889,
                                        keep = c("sunrise", "sunset")) %>%
-      dplyr::select(.data[[date]], .data[[sunrise]], .data[[sunset]]) # XXX the coordinates I'm using here are from the centroid of Israel calculated here: https://rona.sh/centroid. This is just a placeholder until we decide on a more accurate way of doing this.
+      dplyr::select(date, sunrise, sunset) # XXX the coordinates I'm using here are from the centroid of Israel calculated here: https://rona.sh/centroid. This is just a placeholder until we decide on a more accurate way of doing this.
     points <- points %>%
       dplyr::left_join(times, by = c("dateOnly" = "date")) %>%
-      dplyr::mutate(daytime = dplyr::case_when(.data[[timestamp]] > .data[[sunrise]] &
-                                                 .data[[timestamp]] < data[[sunset]] ~ T,
+      dplyr::mutate(daytime = dplyr::case_when(timestamp > sunrise &
+                                                 timestamp < sunset ~ T,
                                  TRUE ~ F))
 
     # Filter out nighttimes
     nNightPoints <- nrow(points[points$daytime == F,])
     points <- points %>%
-      dplyr::filter(.data[[daytime]] == T)
+      dplyr::filter(daytime == T)
     nDayPoints <- nrow(points)
     if(quiet == F){
       cat(paste0("Removed ", nNightPoints, " nighttime points, leaving ",
@@ -370,7 +370,7 @@ getFlightEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThres
 #' @param dateCol
 #' @param roostCol
 #' @param return One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)
-getRoostEdges <- function(dataset, mode, roostPolygons = NULL, distThreshold, latCol = "location_lat", longCol = "location_long", idCol = "trackId", dateCol = "date", roostCol = "roostID", return){
+getRoostEdges <- function(dataset, mode, roostPolygons = NULL, distThreshold, latCol = "location_lat", longCol = "location_long", idCol = "trackId", dateCol = "date", roostCol = "roostID", return = "edges"){
   if(mode == "distance"){
     ## DISTANCE MODE
     # Use spatsoc to compute distance groups using the distance threshold
@@ -393,11 +393,10 @@ getRoostEdges <- function(dataset, mode, roostPolygons = NULL, distThreshold, la
     # Create an edgelist by shared polygon membership
     polygonEdges <- polys %>%
       dplyr::filter(!is.na(.data[[roostCol]])) %>% # remove NA roosts
-      dplyr::group_by(.data[[dateCol]], .data[[roostCol]]) %>%
-      dplyr::group_split(.keep = T) %>%
-      purrr::map_dfr(~{tidyr::expand_grid("ID1" = .x[[idCol]], .x)}) %>%
+      dplyr::group_by(.data[[dateCol]], .data[[roostCol]]) %>% # each day/roost is treated separately
+      purrr::map_dfr(~{tidyr::expand_grid("ID1" = .x[[idCol]], .x)}) %>% # for each polygon/day, create all pairs of individuals, and then bind the results back together into a data frame.
       dplyr::rename("ID2" = tidyselect::all_of(idCol)) %>%
-      dplyr::filter(ID1 < ID2)
+      dplyr::filter(ID1 < ID2) # remove self and duplicate edges
 
   }
 }
