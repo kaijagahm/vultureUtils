@@ -415,11 +415,10 @@ getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, dist
     #                                      splitBy = dateCol, timegroup = NULL) # XXX I've submitted an issue to hopefully fix this so we don't need NULL (https://github.com/ropensci/spatsoc/issues/44)
 
     # Get edges
-    edges <- spatsoc::edge_dist(DT = spatialGrouped, threshold = distThreshold,
+    distanceEdges <- spatsoc::edge_dist(DT = spatialGrouped, threshold = distThreshold,
                                 id = idCol, coords = c("utmE", "utmN"),
                                 splitBy = dateCol, timegroup = NULL,
                                 fillNA = FALSE, returnDist = TRUE)
-    return(edges)
   }else{
     ## POLYGON MODE
     # Polygon assignment is triggered if the roostID column is missing and there are some polygons provided.
@@ -473,8 +472,18 @@ getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, dist
       purrr::map_dfr(~{tidyr::expand_grid("ID1" = .x[[idCol]], .x)}) %>% # for each polygon/day, create all pairs of individuals, and then bind the results back together into a data frame.
       dplyr::rename("ID2" = tidyselect::all_of(idCol)) %>%
       dplyr::filter(ID1 < ID2) # remove self and duplicate edges
+  }
 
-    return(polygonEdges)
+  # now we have either distanceEdges or polygonEdges. Now need to determine whether to calculate SRI or not.
+  if(return %in% c("both", "sri")){
+    # calculate SRI
+
+  }else{
+    if(mode == "distance"){
+      return(list("edges" = distanceEdges))
+    }else if(mode == "polygon"){
+      return(list("edges" = polygonEdges))
+    }
   }
 }
 
