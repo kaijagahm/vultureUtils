@@ -231,7 +231,7 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
       dplyr::left_join(times, by = c("dateOnly" = "date")) %>%
       dplyr::mutate(daytime = dplyr::case_when(timestamp > sunrise &
                                                  timestamp < sunset ~ T,
-                                 TRUE ~ F))
+                                               TRUE ~ F))
 
     # Filter out nighttimes
     nNightPoints <- nrow(points[points$daytime == F,])
@@ -263,10 +263,10 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
       if(quiet){
         ### EDGES ONLY, QUIET
         out <- suppressMessages(suppressWarnings(vultureUtils::spaceTimeGroups(dataset = points,
-                                                              distThreshold = distThreshold,
-                                                              consecThreshold = consecThreshold,
-                                                              timeThreshold = timeThreshold,
-                                                              sri = FALSE)))
+                                                                               distThreshold = distThreshold,
+                                                                               consecThreshold = consecThreshold,
+                                                                               timeThreshold = timeThreshold,
+                                                                               sri = FALSE)))
       }else{
         ### EDGES ONLY, WARNINGS
         # compute edges without suppressing warnings
@@ -282,10 +282,10 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
         ### EDGES AND SRI, QUIET
         # suppress warnings while computing edges and SRI, returning a list of edges+sri
         out <- suppressMessages(suppressWarnings(vultureUtils::spaceTimeGroups(dataset = points,
-                                                              distThreshold = distThreshold,
-                                                              consecThreshold = consecThreshold,
-                                                              timeThreshold = timeThreshold,
-                                                              sri = TRUE)))
+                                                                               distThreshold = distThreshold,
+                                                                               consecThreshold = consecThreshold,
+                                                                               timeThreshold = timeThreshold,
+                                                                               sri = TRUE)))
         if(return == "sri"){
           out <- out["sri"]
         }
@@ -369,13 +369,57 @@ getFlightEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThres
 #' @param idCol
 #' @param dateCol
 #' @param roostCol
+#' @param crsToSet Default WGS84.
 #' @param return One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)
-getRoostEdges <- function(dataset, mode, roostPolygons = NULL, distThreshold, latCol = "location_lat", longCol = "location_long", idCol = "trackId", dateCol = "date", roostCol = "roostID", return = "edges"){
+getRoostEdges <- function(dataset, mode, roostPolygons = NULL, distThreshold, latCol = "location_lat", longCol = "location_long", idCol = "trackId", dateCol = "date", roostCol = "roostID", crsToSet = "WGS84", return = "edges"){
   if(mode == "distance"){
     ## DISTANCE MODE
-    # Use spatsoc to compute distance groups using the distance threshold
-    # Use this to create an edgelist
+    # XXXXXXXXXX
+    # Set up an sf object for use.
+    if("sf" %in% class(dataset)){ # If dataset is an sf object...
+      if(is.na(sf::st_crs(dataset))){ # only fill in crs if it is missing
+        message(paste0("`dataset` is already an sf object but has no CRS. Setting CRS to ", crsToSet, "."))
+        dataset <- sf::st_set_crs(dataset, crsToSet)
+      }
+    }else if(is.data.frame(dataset)){ # otherwise, if dataset is a data frame...
+      # make sure it contains the lat and long cols
+      checkmate::assertChoice(latCol, names(dataset))
+      checkmate::assertChoice(longCol, names(dataset))
 
+      if(nrow(dataset) == 0){
+        stop("Dataset passed to vultureUtils::getRoostEdges has 0 rows. Cannot proceed with grouping.")
+      }
+
+      # convert to an sf object
+      dataset <- dataset %>%
+        sf::st_as_sf(coords = c(longCol, latCol), remove = FALSE) %>%
+        sf::st_set_crs(crsToSet) # assign the CRS
+
+    }else{ # otherwise, throw an error.
+      stop("`dataset` must be a data frame or an sf object.")
+    }
+
+    # Save lat and long coords, in case we need them later. Then, convert to UTM.
+    dataset <- dataset %>%
+      dplyr::mutate(lon = sf::st_coordinates(.)[,1],
+                    lat = sf::st_coordinates(.)[,2]) %>%
+      sf::st_transform(32636) %>% # convert to UTM: we'll need this for calculating distance later.
+      dplyr::mutate(utmE = sf::st_coordinates(.)[,1],
+                    utmN = sf::st_coordinates(.)[,2]) %>%
+      sf::st_drop_geometry() # spatsoc won't work if this is still an sf object.
+    # XXXXXXXXXX # should probably make the above into its own function, since it's repeated code.
+    # Use spatsoc to compute distance groups using the distance threshold
+    data.table::setDT(dataset)
+    # spatialGrouped <- spatsoc::group_pts(DT = dataset, threshold = distThreshold,
+    #                                      id = idCol, coords = c("utmE", "utmN"),
+    #                                      splitBy = dateCol, timegroup = NULL) # XXX I've submitted an issue to hopefully fix this so we don't need NULL (https://github.com/ropensci/spatsoc/issues/44)
+
+    # Get edges
+    edges <- spatsoc::edge_dist(DT = spatialGrouped, threshold = distThreshold,
+                                id = idCol, coords = c("utmE", "utmN"),
+                                splitBy = dateCol, timegroup = NULL,
+                                fillNA = FALSE, returnDist = TRUE)
+    return(edges)
   }else{
     ## POLYGON MODE
     # XXX use `convert` function to convert roost polygons
@@ -398,6 +442,7 @@ getRoostEdges <- function(dataset, mode, roostPolygons = NULL, distThreshold, la
       dplyr::rename("ID2" = tidyselect::all_of(idCol)) %>%
       dplyr::filter(ID1 < ID2) # remove self and duplicate edges
 
+    return(polygonEdges)
   }
 }
 
