@@ -278,10 +278,6 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
   timestamps <- dataset %>%
     dplyr::select(.data[[timestampCol]], .data[[idCol]], timegroup)
 
-  # Group into point groups (spatial)
-  dataset <- spatsoc::group_pts(dataset, threshold = distThreshold, id = idCol,
-                                coords = c("utmE", "utmN"), timegroup = "timegroup")
-
   # Generate edge lists by timegroup
   edges <- spatsoc::edge_dist(DT = dataset, threshold = distThreshold, id = idCol,
                               coords = c("utmE", "utmN"), timegroup = "timegroup",
