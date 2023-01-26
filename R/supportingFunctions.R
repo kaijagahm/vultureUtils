@@ -285,7 +285,7 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
   # Generate edge lists by timegroup
   edges <- spatsoc::edge_dist(DT = dataset, threshold = distThreshold, id = idCol,
                               coords = c("utmE", "utmN"), timegroup = "timegroup",
-                              returnDist = returnDist, fillNA = fillNA)
+                              returnDist = returnDist, fillNA = T)
 
   # Remove self and duplicate edges
   edges <- edges %>%
@@ -301,12 +301,7 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
 
   if(sri){
     # Calculate SRI
-    cat("\nComputing SRI... this may take a while if your dataset is large.\n")
-    start <- Sys.time()
     dfSRI <- calcSRI(dataset = dataset, edges = edgesFiltered)
-    end <- Sys.time()
-    duration <- end-start
-    cat(paste0("SRI computation completed in ", duration, " seconds."))
     outList <- list("edges" = edgesFiltered, "sri" = dfSRI)
   }else{
     outList <- list("edges" = edgesFiltered)
@@ -369,13 +364,21 @@ consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = 
 #' Calculate SRI
 #'
 #' Calculates SRI based on timegroup and individual occurrence information
-#' @param dataset the cleaned dataset
+#'
+#' @param dataset the cleaned dataset.
 #' @param edges edgelist created by spatsoc, with self edges and duplicate edges removed.
+#' @param idCol character. Name of the column containing ID values.
+#' @param timegroupCol character. Name of the column containing timegroup values.
 #' @return A data frame containing ID1, ID2, and SRI value.
 #' @export
-calcSRI <- function(dataset, edges){
-  checkmate::assertSubset("timegroup", names(dataset))
-  checkmate::assertSubset("trackId", names(dataset))
+calcSRI <- function(dataset, edges, idCol = "trackId", timegroupCol = "timegroup"){
+  # setup for time warning
+  cat("\nComputing SRI... this may take a while if your dataset is large.\n")
+  start <- Sys.time()
+
+  # arg checks
+  checkmate::assertSubset(timegroupCol, names(dataset))
+  checkmate::assertSubset(idCol, names(dataset))
   checkmate::assertDataFrame(dataset)
   checkmate::assertDataFrame(edges)
 
@@ -383,32 +386,34 @@ calcSRI <- function(dataset, edges){
 
   ## get individuals per timegroup as a list
   # Info about timegroups and individuals, for SRI calculation
-  timegroupsList <- dataset[,c("timegroup", "trackId")] %>%
-    dplyr::mutate(trackId = as.character(.data[[trackId]])) %>%
+  timegroupsList <- dataset %>%
+    dplyr::select(timegroupCol, idCol) %>%
+    dplyr::mutate({{idCol}} := as.character(.data[[idCol]])) %>%
     dplyr::distinct() %>%
-    dplyr::group_by(.data[[timegroup]]) %>%
+    dplyr::group_by(.data[[timegroupCol]]) %>%
     dplyr::group_split() %>%
-    purrr::map(~.x$trackId)
+    purrr::map(~.x[[idCol]])
 
   ## get unique set of timegroups
-  timegroups <- unique(dataset$timegroup)
+  timegroups <- unique(dataset[[timegroupCol]])
 
   ## get all unique pairs of individuals
-  inds <- as.character(unique(dataset$trackId))
+  inds <- as.character(unique(dataset[[idCol]]))
   allPairs <- expand.grid(inds, inds, stringsAsFactors = F) %>%
-    stats::setNames(., c("ID1", "ID2")) %>%
-    dplyr::filter(.data[[ID1]] < .data[[ID2]])
+    dplyr::rename("ID1" = Var1, "ID2" = Var2) %>%
+    dplyr::filter(ID1 < ID2)
   allPairsList <- allPairs %>%
-    dplyr::group_by(.data[[ID1]], .data[[ID2]]) %>%
+    dplyr::group_by(ID1, ID2) %>%
     dplyr::group_split() %>%
     purrr::map(., as.matrix)
 
   # wide data
   datasetWide <- dataset %>%
-    dplyr::select(timegroup, trackId) %>%
+    sf::st_drop_geometry() %>%
+    dplyr::select(all_of(c(timegroupCol, idCol))) %>%
     dplyr::distinct() %>%
     dplyr::mutate(val = TRUE) %>%
-    tidyr::pivot_wider(id_cols = timegroup, names_from = "trackId",
+    tidyr::pivot_wider(id_cols = timegroupCol, names_from = idCol,
                 values_from = "val", values_fill = FALSE)
 
   ## get SRI information
@@ -424,7 +429,7 @@ calcSRI <- function(dataset, edges){
     nBoth <- sum(colA & colB)
     x <- edges %>%
       dplyr::filter(ID1 %in% c(a, b) & ID2 %in% c(a, b)) %>%
-      dplyr::pull(timegroup) %>%
+      dplyr::pull(timegroupCol) %>%
       unique() %>%
       length()
     yab <- nBoth - x
@@ -433,5 +438,8 @@ calcSRI <- function(dataset, edges){
     return(dfRow)
   })
 
+  end <- Sys.time()
+  duration <- end-start
+  cat(paste0("SRI computation completed in ", duration, " seconds."))
   return(dfSRI)
 }

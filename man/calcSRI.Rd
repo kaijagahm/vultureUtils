@@ -4,12 +4,16 @@
 \alias{calcSRI}
 \title{Calculate SRI}
 \usage{
-calcSRI(dataset, edges)
+calcSRI(dataset, edges, idCol = "trackId", timegroupCol = "timegroup")
 }
 \arguments{
-\item{dataset}{the cleaned dataset}
+\item{dataset}{the cleaned dataset.}
 
 \item{edges}{edgelist created by spatsoc, with self edges and duplicate edges removed.}
+
+\item{idCol}{character. Name of the column containing ID values.}
+
+\item{timegroupCol}{character. Name of the column containing timegroup values.}
 }
 \value{
 A data frame containing ID1, ID2, and SRI value.

@@ -226,17 +226,17 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
   if(daytimeOnly){
     times <- suncalc::getSunlightTimes(date = unique(lubridate::date(points$timestamp)), lat = 31.434306, lon = 34.991889,
                                        keep = c("sunrise", "sunset")) %>%
-      dplyr::select(.data[[date]], .data[[sunrise]], .data[[sunset]]) # XXX the coordinates I'm using here are from the centroid of Israel calculated here: https://rona.sh/centroid. This is just a placeholder until we decide on a more accurate way of doing this.
+      dplyr::select(date, sunrise, sunset) # XXX the coordinates I'm using here are from the centroid of Israel calculated here: https://rona.sh/centroid. This is just a placeholder until we decide on a more accurate way of doing this.
     points <- points %>%
       dplyr::left_join(times, by = c("dateOnly" = "date")) %>%
-      dplyr::mutate(daytime = dplyr::case_when(.data[[timestamp]] > .data[[sunrise]] &
-                                                 .data[[timestamp]] < data[[sunset]] ~ T,
-                                 TRUE ~ F))
+      dplyr::mutate(daytime = dplyr::case_when(timestamp > sunrise &
+                                                 timestamp < sunset ~ T,
+                                               TRUE ~ F))
 
     # Filter out nighttimes
     nNightPoints <- nrow(points[points$daytime == F,])
     points <- points %>%
-      dplyr::filter(.data[[daytime]] == T)
+      dplyr::filter(daytime == T)
     nDayPoints <- nrow(points)
     if(quiet == F){
       cat(paste0("Removed ", nNightPoints, " nighttime points, leaving ",
@@ -263,10 +263,10 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
       if(quiet){
         ### EDGES ONLY, QUIET
         out <- suppressMessages(suppressWarnings(vultureUtils::spaceTimeGroups(dataset = points,
-                                                              distThreshold = distThreshold,
-                                                              consecThreshold = consecThreshold,
-                                                              timeThreshold = timeThreshold,
-                                                              sri = FALSE)))
+                                                                               distThreshold = distThreshold,
+                                                                               consecThreshold = consecThreshold,
+                                                                               timeThreshold = timeThreshold,
+                                                                               sri = FALSE)))
       }else{
         ### EDGES ONLY, WARNINGS
         # compute edges without suppressing warnings
@@ -282,10 +282,10 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
         ### EDGES AND SRI, QUIET
         # suppress warnings while computing edges and SRI, returning a list of edges+sri
         out <- suppressMessages(suppressWarnings(vultureUtils::spaceTimeGroups(dataset = points,
-                                                              distThreshold = distThreshold,
-                                                              consecThreshold = consecThreshold,
-                                                              timeThreshold = timeThreshold,
-                                                              sri = TRUE)))
+                                                                               distThreshold = distThreshold,
+                                                                               consecThreshold = consecThreshold,
+                                                                               timeThreshold = timeThreshold,
+                                                                               sri = TRUE)))
         if(return == "sri"){
           out <- out["sri"]
         }
@@ -357,7 +357,154 @@ getFlightEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThres
   getEdges(dataset, roostPolygons = roostPolygons, roostBuffer = roostBuffer, consecThreshold = consecThreshold, distThreshold = distThreshold, speedThreshUpper = speedThreshUpper, speedThreshLower = speedThreshLower, timeThreshold = timeThreshold, quiet = quiet, includeAllVertices = includeAllVertices, daytimeOnly = daytimeOnly, return = return)
 }
 
-# XXX Here is where the code will go for getRoostEdges(), when I write it.
+#' Create co-roosting edge list
+#'
+#' Function to create an edgelist based on roost locations. Two modes: either create a straightforward distance-based network based on a distance threshold (analogous to getFeedingEdges and getFlightEdges, except that there's only one point per individual per night); or create a shared-roost network based on roost polygon assignment.
+#' @param dataset A data frame. May have one of two formats, depending on `mode`: either ID/date/lat/long (works for `mode` = "distance", or `mode` = "polygon" if `roostPolygons` is also supplied); or ID/date/roostID (work only for `mode` = "polygon"). May have additional columns.
+#' @param mode One of "distance" (default) or "polygon". If "distance", creates a distance-based network with edges each night. If "polygon", creates a shared-polygon-based network.
+#' @param roostPolygons blah
+#' @param distThreshold blah
+#' @param latCol blah
+#' @param longCol blah
+#' @param idCol blah
+#' @param dateCol blah
+#' @param roostCol blah
+#' @param crsToSet Default WGS84.
+#' @param return One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)
+getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, distThreshold = 1000, latCol = "location_lat", longCol = "location_long", idCol = "trackId", dateCol = "date", roostCol = "roostID", crsToSet = "WGS84", return = "edges"){
+  # Arg checks
+  checkmate::assertDataFrame(dataset)
+  checkmate::assertSubset(mode, c("distance", "polygon"), empty.ok = F)
+  if(!missing(roostPolygons)){
+    checkmate::assertSubset("sf", class(roostPolygons))
+    if(is.na(sf::st_crs(roostPolygons))){
+      stop("roostPolygons object must have a valid crs.")
+    }
+  }
+  checkmate::assertNumeric(distThreshold, lower = 0, null.ok = FALSE)
+  checkmate::assertCharacter(latCol, len = 1)
+  checkmate::assertCharacter(longCol, len = 1)
+  checkmate::assertCharacter(idCol, len = 1)
+  checkmate::assertCharacter(dateCol, len = 1)
+  checkmate::assertCharacter(roostCol, null.ok = T, len = 1)
+  checkmate::assertSubset(c(latCol, longCol, idCol, dateCol), names(dataset))
+  checkmate::assertSubset(return, c("edges", "sri", "both"))
+
+  # Begin computation of edge list
+  if(mode == "distance"){
+    ## DISTANCE MODE
+    # XXXXXXXXXX
+    # Set up an sf object for use.
+    if("sf" %in% class(dataset)){ # If dataset is an sf object...
+      if(is.na(sf::st_crs(dataset))){ # only fill in crs if it is missing
+        message(paste0("`dataset` is already an sf object but has no CRS. Setting CRS to ", crsToSet, "."))
+        dataset <- sf::st_set_crs(dataset, crsToSet)
+      }
+    }else if(is.data.frame(dataset)){ # otherwise, if dataset is a data frame...
+      # make sure it contains the lat and long cols
+      if(nrow(dataset) == 0){
+        stop("Dataset passed to vultureUtils::getRoostEdges has 0 rows. Cannot proceed with grouping.")
+      }
+
+      # convert to an sf object
+      dataset <- dataset %>%
+        sf::st_as_sf(coords = c(longCol, latCol), remove = FALSE) %>%
+        sf::st_set_crs(crsToSet) # assign the CRS
+
+    }else{ # otherwise, throw an error.
+      stop("`dataset` must be a data frame or an sf object.")
+    }
+
+    # Save lat and long coords, in case we need them later. Then, convert to UTM.
+    dataset <- dataset %>%
+      dplyr::mutate(lon = sf::st_coordinates(.)[,1],
+                    lat = sf::st_coordinates(.)[,2]) %>%
+      sf::st_transform(32636) %>% # convert to UTM: we'll need this for calculating distance later.
+      dplyr::mutate(utmE = sf::st_coordinates(.)[,1],
+                    utmN = sf::st_coordinates(.)[,2]) %>%
+      sf::st_drop_geometry() # spatsoc won't work if this is still an sf object.
+    # XXXXXXXXXX # should probably make the above into its own function, since it's repeated code.
+    # Use spatsoc to compute distance groups using the distance threshold
+    data.table::setDT(dataset)
+    # spatialGrouped <- spatsoc::group_pts(DT = dataset, threshold = distThreshold,
+    #                                      id = idCol, coords = c("utmE", "utmN"),
+    #                                      splitBy = dateCol, timegroup = NULL) # XXX I've submitted an issue to hopefully fix this so we don't need NULL (https://github.com/ropensci/spatsoc/issues/44)
+
+    # Get edges
+    edges <- spatsoc::edge_dist(DT = spatialGrouped, threshold = distThreshold,
+                                id = idCol, coords = c("utmE", "utmN"),
+                                splitBy = dateCol, timegroup = NULL,
+                                fillNA = FALSE, returnDist = TRUE)
+  }else{
+    ## POLYGON MODE
+    # Polygon assignment is triggered if the roostID column is missing and there are some polygons provided.
+    ## POLYGON ASSIGNMENT
+    if(!(roostCol %in% names(dataset)) & !is.null(roostPolygons)){ # if no polygons are yet assigned AND a set of polygons is provided...
+      # XXXXXXXXXX
+      # Set up an sf object for use.
+      if("sf" %in% class(dataset)){ # If dataset is an sf object...
+        if(is.na(sf::st_crs(dataset))){ # only fill in crs if it is missing
+          message(paste0("`dataset` is already an sf object but has no CRS. Setting CRS to ", crsToSet, "."))
+          dataset <- sf::st_set_crs(dataset, crsToSet)
+        }
+      }else if(is.data.frame(dataset)){ # otherwise, if dataset is a data frame...
+        # make sure it contains the lat and long cols
+        checkmate::assertChoice(latCol, names(dataset))
+        checkmate::assertChoice(longCol, names(dataset))
+
+        if(nrow(dataset) == 0){
+          stop("Dataset passed to vultureUtils::getRoostEdges has 0 rows. Cannot proceed with grouping.")
+        }
+
+        # convert to an sf object
+        dataset <- dataset %>%
+          sf::st_as_sf(coords = c(longCol, latCol), remove = FALSE) %>%
+          sf::st_set_crs(crsToSet) # assign the CRS
+
+      }else{ # otherwise, throw an error.
+        stop("`dataset` must be a data frame or an sf object.")
+      }
+      # XXXXXXXXXX # should probably make the above into its own function, since it's repeated code.
+      # if needed, convert the points to the same coordinate system as the polygons
+      if(sf::st_crs(dataset) != sf::st_crs(roostPolygons)){
+        dataset <- sf::st_transform(dataset, crs = sf::st_crs(roostPolygons))
+      }
+
+      polys <- sf::st_join(dataset, roostPolygons) %>%
+        sf::st_drop_geometry() %>%
+        dplyr::select(.data[[idCol]], .data[[dateCol]], {{roostCol}} := Name)
+    }else if(roostCol %in% names(dataset)){
+      polys <- dataset # we can use the dataset as is.
+      # XXX need to make this more specific! And give an error message if it doesn't work!
+    }else if(!(roostCol %in% names(dataset) & is.null(roostPolygons))){
+      stop(paste0("Column `", roostCol, "` not found in dataset, and no roost polygons provided. Must provide either the name of a column containing roost assignments or a valid set of roost polygons."))
+    }
+
+    # Create an edgelist by shared polygon membership
+    edges <- polys %>%
+      dplyr::filter(!is.na(.data[[roostCol]])) %>% # remove NA roosts
+      dplyr::group_by(.data[[dateCol]], .data[[roostCol]]) %>% # each day/roost is treated separately
+      dplyr::group_split(.keep = T) %>%
+      purrr::map_dfr(~{tidyr::expand_grid("ID1" = .x[[idCol]], .x)}) %>% # for each polygon/day, create all pairs of individuals, and then bind the results back together into a data frame.
+      dplyr::rename("ID2" = tidyselect::all_of(idCol)) %>%
+      dplyr::filter(ID1 < ID2) # remove self and duplicate edges
+  }
+
+  # now we have either distanceEdges or polygonEdges. Now need to determine whether to calculate SRI or not.
+  if(return %in% c("both", "sri")){
+    # calculate SRI
+    dfSRI <- calcSRI(dataset = dataset, edges = edges, idCol = idCol, timegroupCol = dateCol)
+    if(return == "sri"){
+      return(list("sri" = dfSRI))
+    }else if(return == "both"){
+      return(list("edges" = edges,
+                  "sri" = dfSRI))
+    }
+
+  }else{
+    return(list("edges" = edges))
+  }
+}
 
 #' Get roosts (data frame version)
 #'
