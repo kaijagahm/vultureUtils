@@ -372,6 +372,25 @@ getFlightEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThres
 #' @param crsToSet Default WGS84.
 #' @param return One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)
 getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, distThreshold = 1000, latCol = "location_lat", longCol = "location_long", idCol = "trackId", dateCol = "date", roostCol = "roostID", crsToSet = "WGS84", return = "edges"){
+  # Arg checks
+  checkmate::assertDataFrame(dataset)
+  checkmate::assertSubset(mode, c("distance", "polygon"), empty.ok = F)
+  if(!missing(roostPolygons)){
+    checkmate::assertSubset("sf", class(roostPolygons))
+    if(is.na(sf::st_crs(roostPolygons))){
+      stop("roostPolygons object must have a valid crs.")
+    }
+  }
+  checkmate::assertNumeric(distThreshold, lower = 0, null.ok = FALSE)
+  checkmate::assertCharacter(latCol, len = 1)
+  checkmate::assertCharacter(longCol, len = 1)
+  checkmate::assertCharacter(idCol, len = 1)
+  checkmate::assertCharacter(dateCol, len = 1)
+  checkmate::assertCharacter(roostCol, null.ok = T, len = 1)
+  checkmate::assertSubset(c(latCol, longCol, idCol, dateCol), names(dataset))
+  checkmate::assertSubset(return, c("edges", "sri", "both"))
+
+  # Begin computation of edge list
   if(mode == "distance"){
     ## DISTANCE MODE
     # XXXXXXXXXX
@@ -383,9 +402,6 @@ getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, dist
       }
     }else if(is.data.frame(dataset)){ # otherwise, if dataset is a data frame...
       # make sure it contains the lat and long cols
-      checkmate::assertChoice(latCol, names(dataset))
-      checkmate::assertChoice(longCol, names(dataset))
-
       if(nrow(dataset) == 0){
         stop("Dataset passed to vultureUtils::getRoostEdges has 0 rows. Cannot proceed with grouping.")
       }
