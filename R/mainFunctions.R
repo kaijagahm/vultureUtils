@@ -365,13 +365,13 @@ getFlightEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThres
 #' @param roostPolygons blah
 #' @param distThreshold blah
 #' @param latCol blah
-#' @param longCol
-#' @param idCol
-#' @param dateCol
-#' @param roostCol
+#' @param longCol blah
+#' @param idCol blah
+#' @param dateCol blah
+#' @param roostCol blah
 #' @param crsToSet Default WGS84.
 #' @param return One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)
-getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, distThreshold, latCol = "location_lat", longCol = "location_long", idCol = "trackId", dateCol = "date", roostCol = "roostID", crsToSet = "WGS84", return = "edges"){
+getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, distThreshold = 1000, latCol = "location_lat", longCol = "location_long", idCol = "trackId", dateCol = "date", roostCol = "roostID", crsToSet = "WGS84", return = "edges"){
   if(mode == "distance"){
     ## DISTANCE MODE
     # XXXXXXXXXX
@@ -415,7 +415,7 @@ getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, dist
     #                                      splitBy = dateCol, timegroup = NULL) # XXX I've submitted an issue to hopefully fix this so we don't need NULL (https://github.com/ropensci/spatsoc/issues/44)
 
     # Get edges
-    distanceEdges <- spatsoc::edge_dist(DT = spatialGrouped, threshold = distThreshold,
+    edges <- spatsoc::edge_dist(DT = spatialGrouped, threshold = distThreshold,
                                 id = idCol, coords = c("utmE", "utmN"),
                                 splitBy = dateCol, timegroup = NULL,
                                 fillNA = FALSE, returnDist = TRUE)
@@ -465,7 +465,7 @@ getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, dist
     }
 
     # Create an edgelist by shared polygon membership
-    polygonEdges <- polys %>%
+    edges <- polys %>%
       dplyr::filter(!is.na(.data[[roostCol]])) %>% # remove NA roosts
       dplyr::group_by(.data[[dateCol]], .data[[roostCol]]) %>% # each day/roost is treated separately
       dplyr::group_split(.keep = T) %>%
@@ -477,13 +477,16 @@ getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, dist
   # now we have either distanceEdges or polygonEdges. Now need to determine whether to calculate SRI or not.
   if(return %in% c("both", "sri")){
     # calculate SRI
+    dfSRI <- calcSRI(dataset = dataset, edges = edges, idCol = idCol, timegroupCol = dateCol)
+    if(return == "sri"){
+      return(list("sri" = dfSRI))
+    }else if(return == "both"){
+      return(list("edges" = edges,
+                  "sri" = dfSRI))
+    }
 
   }else{
-    if(mode == "distance"){
-      return(list("edges" = distanceEdges))
-    }else if(mode == "polygon"){
-      return(list("edges" = polygonEdges))
-    }
+    return(list("edges" = edges))
   }
 }
 

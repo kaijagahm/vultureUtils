@@ -364,7 +364,8 @@ consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = 
 #' Calculate SRI
 #'
 #' Calculates SRI based on timegroup and individual occurrence information
-#' @param dataset the cleaned dataset
+#'
+#' @param dataset the cleaned dataset.
 #' @param edges edgelist created by spatsoc, with self edges and duplicate edges removed.
 #' @param idCol character. Name of the column containing ID values.
 #' @param timegroupCol character. Name of the column containing timegroup values.
@@ -374,7 +375,6 @@ calcSRI <- function(dataset, edges, idCol = "trackId", timegroupCol = "timegroup
   # setup for time warning
   cat("\nComputing SRI... this may take a while if your dataset is large.\n")
   start <- Sys.time()
-  duration <- end-start
 
   # arg checks
   checkmate::assertSubset(timegroupCol, names(dataset))
@@ -386,7 +386,8 @@ calcSRI <- function(dataset, edges, idCol = "trackId", timegroupCol = "timegroup
 
   ## get individuals per timegroup as a list
   # Info about timegroups and individuals, for SRI calculation
-  timegroupsList <- dataset[,c(timegroupCol, idCol)] %>%
+  timegroupsList <- dataset %>%
+    dplyr::select(timegroupCol, idCol) %>%
     dplyr::mutate({{idCol}} := as.character(.data[[idCol]])) %>%
     dplyr::distinct() %>%
     dplyr::group_by(.data[[timegroupCol]]) %>%
@@ -438,6 +439,7 @@ calcSRI <- function(dataset, edges, idCol = "trackId", timegroupCol = "timegroup
   })
 
   end <- Sys.time()
+  duration <- end-start
   cat(paste0("SRI computation completed in ", duration, " seconds."))
   return(dfSRI)
 }
