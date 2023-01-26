@@ -371,7 +371,7 @@ getFlightEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThres
 #' @param roostCol
 #' @param crsToSet Default WGS84.
 #' @param return One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)
-getRoostEdges <- function(dataset, mode, roostPolygons = NULL, distThreshold, latCol = "location_lat", longCol = "location_long", idCol = "trackId", dateCol = "date", roostCol = "roostID", crsToSet = "WGS84", return = "edges"){
+getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, distThreshold, latCol = "location_lat", longCol = "location_long", idCol = "trackId", dateCol = "date", roostCol = "roostID", crsToSet = "WGS84", return = "edges"){
   if(mode == "distance"){
     ## DISTANCE MODE
     # XXXXXXXXXX
@@ -422,22 +422,54 @@ getRoostEdges <- function(dataset, mode, roostPolygons = NULL, distThreshold, la
     return(edges)
   }else{
     ## POLYGON MODE
-    # XXX use `convert` function to convert roost polygons
     # Polygon assignment is triggered if the roostID column is missing and there are some polygons provided.
     ## POLYGON ASSIGNMENT
-    if(!(roostCol %in% names(dataset)) & !is.null(roostPolygons)){
-      # XXX do some sf checks to make sure they're in the same coordinate system.
+    if(!(roostCol %in% names(dataset)) & !is.null(roostPolygons)){ # if no polygons are yet assigned AND a set of polygons is provided...
+      # XXXXXXXXXX
+      # Set up an sf object for use.
+      if("sf" %in% class(dataset)){ # If dataset is an sf object...
+        if(is.na(sf::st_crs(dataset))){ # only fill in crs if it is missing
+          message(paste0("`dataset` is already an sf object but has no CRS. Setting CRS to ", crsToSet, "."))
+          dataset <- sf::st_set_crs(dataset, crsToSet)
+        }
+      }else if(is.data.frame(dataset)){ # otherwise, if dataset is a data frame...
+        # make sure it contains the lat and long cols
+        checkmate::assertChoice(latCol, names(dataset))
+        checkmate::assertChoice(longCol, names(dataset))
+
+        if(nrow(dataset) == 0){
+          stop("Dataset passed to vultureUtils::getRoostEdges has 0 rows. Cannot proceed with grouping.")
+        }
+
+        # convert to an sf object
+        dataset <- dataset %>%
+          sf::st_as_sf(coords = c(longCol, latCol), remove = FALSE) %>%
+          sf::st_set_crs(crsToSet) # assign the CRS
+
+      }else{ # otherwise, throw an error.
+        stop("`dataset` must be a data frame or an sf object.")
+      }
+      # XXXXXXXXXX # should probably make the above into its own function, since it's repeated code.
+      # if needed, convert the points to the same coordinate system as the polygons
+      if(sf::st_crs(dataset) != sf::st_crs(roostPolygons)){
+        dataset <- sf::st_transform(dataset, crs = sf::st_crs(roostPolygons))
+      }
+
       polys <- sf::st_join(dataset, roostPolygons) %>%
         sf::st_drop_geometry() %>%
         dplyr::select(.data[[idCol]], .data[[dateCol]], {{roostCol}} := Name)
-    }else{
+    }else if(roostCol %in% names(dataset)){
       polys <- dataset # we can use the dataset as is.
+      # XXX need to make this more specific! And give an error message if it doesn't work!
+    }else if(!(roostCol %in% names(dataset) & is.null(roostPolygons))){
+      stop(paste0("Column `", roostCol, "` not found in dataset, and no roost polygons provided. Must provide either the name of a column containing roost assignments or a valid set of roost polygons."))
     }
 
     # Create an edgelist by shared polygon membership
     polygonEdges <- polys %>%
       dplyr::filter(!is.na(.data[[roostCol]])) %>% # remove NA roosts
       dplyr::group_by(.data[[dateCol]], .data[[roostCol]]) %>% # each day/roost is treated separately
+      dplyr::group_split(.keep = T) %>%
       purrr::map_dfr(~{tidyr::expand_grid("ID1" = .x[[idCol]], .x)}) %>% # for each polygon/day, create all pairs of individuals, and then bind the results back together into a data frame.
       dplyr::rename("ID2" = tidyselect::all_of(idCol)) %>%
       dplyr::filter(ID1 < ID2) # remove self and duplicate edges
