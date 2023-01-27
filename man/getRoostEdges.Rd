@@ -8,7 +8,7 @@ getRoostEdges(
   dataset,
   mode = "distance",
   roostPolygons = NULL,
-  distThreshold,
+  distThreshold = 500,
   latCol = "location_lat",
   longCol = "location_long",
   idCol = "trackId",
@@ -23,21 +23,21 @@ getRoostEdges(
 
 \item{mode}{One of "distance" (default) or "polygon". If "distance", creates a distance-based network with edges each night. If "polygon", creates a shared-polygon-based network.}
 
-\item{roostPolygons}{blah}
+\item{roostPolygons}{An sf object: polygons to use to classify points by roost sites. Required if `mode` = "polygon" AND there is not already a `roostID` column in `dataset`. Otherwise NULL is fine.}
 
-\item{distThreshold}{blah}
+\item{distThreshold}{A distance threshold, in meters, below which points are considered to be "interacting"--applies only to `mode` = "distance". Default is 500m.}
 
-\item{latCol}{blah}
+\item{latCol}{Name of the column in `dataset` containing latitude information. Default is "location_lat".}
 
-\item{longCol}{blah}
+\item{longCol}{Name of the column in `dataset` containing longitude information. Default is "location_long".}
 
-\item{idCol}{blah}
+\item{idCol}{Name of the column in `dataset` containing the ID's of the vultures. Default is "trackId".}
 
-\item{dateCol}{blah}
+\item{dateCol}{Name of the column in `dataset` containing roost dates. Default is "date".}
 
-\item{roostCol}{blah}
+\item{roostCol}{Name of the column in `dataset` containing roost site assignments. Required only if `mode` = "polygon" AND `roostPolygons` is NULL.}
 
-\item{crsToSet}{Default WGS84.}
+\item{crsToSet}{CRS to assign to `dataset` if it is not already an sf object. Default is "WGS84".}
 
 \item{return}{One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)}
 }
