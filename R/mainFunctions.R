@@ -306,9 +306,14 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
 
   ## APPEND VERTICES
   if(includeAllVertices){
-    toReturn <- append(out, "allVertices" = uniqueIndivs)
+    toReturn <- append(out, list(as.character(uniqueIndivs)))
   }else{
     toReturn <- out
+  }
+
+  # If the list only has one object, unlist it one level down.
+  if(length(toReturn) == 1){
+    toReturn <- toReturn[[1]]
   }
 
   ## RETURN LIST
