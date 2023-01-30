@@ -300,7 +300,7 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
     dfSRI <- calcSRI(dataset = dataset, edges = edgesFiltered)
     outList <- list("edges" = edgesFiltered, "sri" = dfSRI)
   }else{
-    outList <- list("edges" = edgesFiltered)
+    outList <- edgesFiltered
   }
   # XXX need a step here where I join `timestamps` to `edgesFiltered`, in order to address #43. But for this to work, I have to decide what to do about the problem with some individuals showing up twice within the same 10-minute window.
   # Should I average their position during the window? Or should I pick just the first fix? Or should I compute the distance twice and if either of them is close enough to another individual, we consider it an edge? Very important to figure this out.

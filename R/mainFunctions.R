@@ -306,7 +306,7 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
 
   ## APPEND VERTICES
   if(includeAllVertices){
-    toReturn <- purrr::append(out, "allVertices" = uniqueIndivs)
+    toReturn <- append(out, "allVertices" = uniqueIndivs)
   }else{
     toReturn <- out
   }
@@ -495,14 +495,14 @@ getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, dist
     # calculate SRI
     dfSRI <- calcSRI(dataset = dataset, edges = edges, idCol = idCol, timegroupCol = dateCol)
     if(return == "sri"){
-      return(list("sri" = dfSRI))
+      return(dfSRI)
     }else if(return == "both"){
       return(list("edges" = edges,
                   "sri" = dfSRI))
     }
 
   }else{
-    return(list("edges" = edges))
+    return(edges)
   }
 }
 
