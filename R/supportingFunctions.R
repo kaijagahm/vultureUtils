@@ -69,8 +69,8 @@ mostlyInMask <- function(dataset, maskedDataset, thresh = 0.333, dateCol = "date
   # Look at date durations in the full dataset
   dates <- dataset %>%
     dplyr::group_by(.data$trackId) %>%
-    dplyr::summarize(duration = as.numeric(max(dateCol,
-                                               na.rm = T) - min(dateCol,
+    dplyr::summarize(duration = as.numeric(max(.data[[dateCol]],
+                                               na.rm = T) - min(.data[[dateCol]],
                                                                 na.rm = T)))
 
 
@@ -79,8 +79,8 @@ mostlyInMask <- function(dataset, maskedDataset, thresh = 0.333, dateCol = "date
     as.data.frame() %>%
     dplyr::group_by(.data$trackId) %>%
     dplyr::summarize(duration =
-                       as.numeric(max(dateCol, na.rm = T) -
-                                    min(dateCol, na.rm = T)))
+                       as.numeric(max(.data[[dateCol]], na.rm = T) -
+                                    min(.data[[dateCol]], na.rm = T)))
 
   # Compare the two dates and calculate proportion
   datesCompare <- dplyr::left_join(dates, datesInMask %>%
