@@ -229,14 +229,14 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
       dplyr::select(date, sunrise, sunset) # XXX the coordinates I'm using here are from the centroid of Israel calculated here: https://rona.sh/centroid. This is just a placeholder until we decide on a more accurate way of doing this.
     points <- points %>%
       dplyr::left_join(times, by = c("dateOnly" = "date")) %>%
-      dplyr::mutate(daytime = dplyr::case_when(timestamp > sunrise &
-                                                 timestamp < sunset ~ T,
+      dplyr::mutate(daytime = dplyr::case_when(timestamp > .data[[sunrise]] &
+                                                 timestamp < .data[[sunset]] ~ T,
                                                TRUE ~ F))
 
     # Filter out nighttimes
     nNightPoints <- nrow(points[points$daytime == F,])
     points <- points %>%
-      dplyr::filter(daytime == T)
+      dplyr::filter(.data[[daytime]] == T)
     nDayPoints <- nrow(points)
     if(quiet == F){
       cat(paste0("Removed ", nNightPoints, " nighttime points, leaving ",
@@ -306,9 +306,14 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
 
   ## APPEND VERTICES
   if(includeAllVertices){
-    toReturn <- purrr::append(out, "allVertices" = uniqueIndivs)
+    toReturn <- append(out, list(as.character(uniqueIndivs)))
   }else{
     toReturn <- out
+  }
+
+  # If the list only has one object, unlist it one level down.
+  if(length(toReturn) == 1){
+    toReturn <- toReturn[[1]]
   }
 
   ## RETURN LIST
@@ -362,16 +367,16 @@ getFlightEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThres
 #' Function to create an edgelist based on roost locations. Two modes: either create a straightforward distance-based network based on a distance threshold (analogous to getFeedingEdges and getFlightEdges, except that there's only one point per individual per night); or create a shared-roost network based on roost polygon assignment.
 #' @param dataset A data frame. May have one of two formats, depending on `mode`: either ID/date/lat/long (works for `mode` = "distance", or `mode` = "polygon" if `roostPolygons` is also supplied); or ID/date/roostID (work only for `mode` = "polygon"). May have additional columns.
 #' @param mode One of "distance" (default) or "polygon". If "distance", creates a distance-based network with edges each night. If "polygon", creates a shared-polygon-based network.
-#' @param roostPolygons blah
-#' @param distThreshold blah
-#' @param latCol blah
-#' @param longCol blah
-#' @param idCol blah
-#' @param dateCol blah
-#' @param roostCol blah
-#' @param crsToSet Default WGS84.
+#' @param roostPolygons An sf object: polygons to use to classify points by roost sites. Required if `mode` = "polygon" AND there is not already a `roostID` column in `dataset`. Otherwise NULL is fine.
+#' @param distThreshold A distance threshold, in meters, below which points are considered to be "interacting"--applies only to `mode` = "distance". Default is 500m.
+#' @param latCol Name of the column in `dataset` containing latitude information. Default is "location_lat".
+#' @param longCol Name of the column in `dataset` containing longitude information. Default is "location_long".
+#' @param idCol Name of the column in `dataset` containing the ID's of the vultures. Default is "trackId".
+#' @param dateCol Name of the column in `dataset` containing roost dates. Default is "date".
+#' @param roostCol Name of the column in `dataset` containing roost site assignments. Required only if `mode` = "polygon" AND `roostPolygons` is NULL.
+#' @param crsToSet CRS to assign to `dataset` if it is not already an sf object. Default is "WGS84".
 #' @param return One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)
-getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, distThreshold = 1000, latCol = "location_lat", longCol = "location_long", idCol = "trackId", dateCol = "date", roostCol = "roostID", crsToSet = "WGS84", return = "edges"){
+getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, distThreshold = 500, latCol = "location_lat", longCol = "location_long", idCol = "trackId", dateCol = "date", roostCol = "roostID", crsToSet = "WGS84", return = "edges"){
   # Arg checks
   checkmate::assertDataFrame(dataset)
   checkmate::assertSubset(mode, c("distance", "polygon"), empty.ok = F)
@@ -495,14 +500,14 @@ getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, dist
     # calculate SRI
     dfSRI <- calcSRI(dataset = dataset, edges = edges, idCol = idCol, timegroupCol = dateCol)
     if(return == "sri"){
-      return(list("sri" = dfSRI))
+      return(dfSRI)
     }else if(return == "both"){
       return(list("edges" = edges,
                   "sri" = dfSRI))
     }
 
   }else{
-    return(list("edges" = edges))
+    return(edges)
   }
 }
 
@@ -837,7 +842,7 @@ makeGraph <- function(mode = "edgelist", data, weighted = FALSE,
     edgesSimple <- data %>%
       dplyr::select(.data[[id1Col]], .data[[id2Col]], sri) %>%
       dplyr::mutate("weight" = sri) %>% # calling the column "weight" will automatically add a weight attribute to the graph.
-      dplyr::mutate(weight = na_if(weight, 0)) # convert 0's to NA so the graph will lay out properly.
+      dplyr::mutate(weight = dplyr::na_if(weight, 0)) # convert 0's to NA so the graph will lay out properly.
 
     ## SRI MODE
     verts <- unique(c(edgesSimple[[id1Col]], edgesSimple[[id2Col]])) # XXX this is hacky and I don't like how it's handled. Come back to this.

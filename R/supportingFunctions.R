@@ -396,17 +396,17 @@ calcSRI <- function(dataset, edges, idCol = "trackId", timegroupCol = "timegroup
   ## get all unique pairs of individuals
   inds <- as.character(unique(dataset[[idCol]]))
   allPairs <- expand.grid(inds, inds, stringsAsFactors = F) %>%
-    dplyr::rename("ID1" = Var1, "ID2" = Var2) %>%
-    dplyr::filter(ID1 < ID2)
+    dplyr::rename("ID1" = .data[[Var1]], "ID2" = .data[[Var2]]) %>%
+    dplyr::filter(.data[[ID1]] < .data[[ID2]])
   allPairsList <- allPairs %>%
-    dplyr::group_by(ID1, ID2) %>%
+    dplyr::group_by(.data[[ID1]], .data[[ID2]]) %>%
     dplyr::group_split() %>%
     purrr::map(., as.matrix)
 
   # wide data
   datasetWide <- dataset %>%
     sf::st_drop_geometry() %>%
-    dplyr::select(all_of(c(timegroupCol, idCol))) %>%
+    dplyr::select(tidyselect::all_of(c(timegroupCol, idCol))) %>%
     dplyr::distinct() %>%
     dplyr::mutate(val = TRUE) %>%
     tidyr::pivot_wider(id_cols = timegroupCol, names_from = idCol,
@@ -424,13 +424,13 @@ calcSRI <- function(dataset, edges, idCol = "trackId", timegroupCol = "timegroup
     yb <- sum(colB & !colA)
     nBoth <- sum(colA & colB)
     x <- edges %>%
-      dplyr::filter(ID1 %in% c(a, b) & ID2 %in% c(a, b)) %>%
+      dplyr::filter(.data[[ID1]] %in% c(a, b) & .data[[ID2]] %in% c(a, b)) %>%
       dplyr::pull(timegroupCol) %>%
       unique() %>%
       length()
     yab <- nBoth - x
     sri <- x/(x+ya+yb+yab)
-    dfRow <- data.frame(ID1 = a, ID2 = b, sri = sri)
+    dfRow <- data.frame("ID1" = a, "ID2" = b, "sri" = sri)
     return(dfRow)
   })
 
