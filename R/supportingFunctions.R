@@ -69,8 +69,8 @@ mostlyInMask <- function(dataset, maskedDataset, thresh = 0.333, dateCol = "date
   # Look at date durations in the full dataset
   dates <- dataset %>%
     dplyr::group_by(.data$trackId) %>%
-    dplyr::summarize(duration = as.numeric(max(.data[[dateCol]],
-                                               na.rm = T) - min(.data[[dateCol]],
+    dplyr::summarize(duration = as.numeric(max(dateCol,
+                                               na.rm = T) - min(dateCol,
                                                                 na.rm = T)))
 
 
@@ -79,8 +79,8 @@ mostlyInMask <- function(dataset, maskedDataset, thresh = 0.333, dateCol = "date
     as.data.frame() %>%
     dplyr::group_by(.data$trackId) %>%
     dplyr::summarize(duration =
-                       as.numeric(max(.data[[dateCol]], na.rm = T) -
-                                    min(.data[[dateCol]], na.rm = T)))
+                       as.numeric(max(dateCol, na.rm = T) -
+                                    min(dateCol, na.rm = T)))
 
   # Compare the two dates and calculate proportion
   datesCompare <- dplyr::left_join(dates, datesInMask %>%
@@ -243,7 +243,7 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
 
     # convert to an sf object
     dataset <- dataset %>%
-      sf::st_as_sf(coords = c(longCol, latCol), remove = FALSE) %>%
+      sf::st_as_sf(coords = c(.data[[longCol]], .data[[latCol]]), remove = FALSE) %>%
       sf::st_set_crs(crsToSet) # assign the CRS
 
   }else{ # otherwise, throw an error.
@@ -261,7 +261,7 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
 
   # Convert the timestamp column to POSIXct.
   dataset <- dataset %>%
-    dplyr::mutate({{timestampCol}} := as.POSIXct(.data[[timestampCol]], tz = "UTC"))
+    dplyr::mutate({{timestampCol}} := as.POSIXct(.data[[timestampCol]], format = "%Y-%m-%d %H:%M:%OS", tz = "UTC"))
 
   # Convert to a data table for spatsoc.
   data.table::setDT(dataset)
@@ -269,14 +269,14 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
   # Group the points into timegroups using spatsoc::group_times.
   dataset <- spatsoc::group_times(dataset, datetime = timestampCol, threshold = timeThreshold)
   timegroupData <- dataset %>% # save information about when each timegroup starts and ends.
-    dplyr::select(.data[[timestampCol]], timegroup) %>% # XXX this is deprecated, fix.
+    dplyr::select(all_of(timestampCol), timegroup) %>% # XXX this is deprecated, fix.
     dplyr::group_by(.data$timegroup) %>%
-    dplyr::summarize(minTimestamp = min(.data[[timestampCol]]),
-                     maxTimestamp = max(.data[[timestampCol]]))
+    dplyr::summarize(minTimestamp = min(.data[[timestampCol]], na.rm = T),
+                     maxTimestamp = max(.data[[timestampCol]], na.rm = T))
 
   # Retain timestamps for each point, with timegroup information appending. This will be joined back at the end, to fix #43 and make individual points traceable.
   timestamps <- dataset %>%
-    dplyr::select(.data[[timestampCol]], .data[[idCol]], timegroup)
+    dplyr::select(all_of(timestampCol), all_of(idCol), timegroup)
 
   # Generate edge lists by timegroup
   edges <- spatsoc::edge_dist(DT = dataset, threshold = distThreshold, id = idCol,
@@ -296,8 +296,11 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
     dplyr::left_join(timegroupData, by = "timegroup")
 
   if(sri){
-    # Calculate SRI
-    dfSRI <- calcSRI(dataset = dataset, edges = edgesFiltered)
+    if(nrow(edgesFiltered) > 1){
+      dfSRI <- calcSRI(dataset = dataset, edges = edgesFiltered)
+    }else{
+      dfSRI <- setNames(data.frame(matrix(ncol = 3, nrow = 0)), c("ID1", "ID2", "sri"))
+    }
     outList <- list("edges" = edgesFiltered, "sri" = dfSRI)
   }else{
     outList <- list("edges" = edgesFiltered)
@@ -338,7 +341,7 @@ consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = 
     dplyr::arrange(.data[[timegroupCol]], .by_group = TRUE) %>%
 
     # create a new index grp that groups rows into consecutive runs
-    dplyr::mutate("grp" = cumsum(c(1, diff(.data[[timegroupCol]]) != 1))) %>%
+    dplyr::mutate("grp" = cumsum(c(1, diff(timegroupCol) != 1))) %>%
     dplyr::ungroup() %>%
 
     # group by the new `grp` column and remove any `grp`s that have less than `consecThreshold` rows (i.e. less than `consecThreshold` consecutive time groups for that edge)
@@ -383,8 +386,8 @@ calcSRI <- function(dataset, edges, idCol = "trackId", timegroupCol = "timegroup
   ## get individuals per timegroup as a list
   # Info about timegroups and individuals, for SRI calculation
   timegroupsList <- dataset %>%
-    dplyr::select(timegroupCol, idCol) %>%
-    dplyr::mutate({{idCol}} := as.character(.data[[idCol]])) %>%
+    dplyr::select(all_of(timegroupCol), all_of(idCol)) %>%
+    dplyr::mutate({{idCol}} := as.character(idCol)) %>%
     dplyr::distinct() %>%
     dplyr::group_by(.data[[timegroupCol]]) %>%
     dplyr::group_split() %>%
@@ -396,10 +399,10 @@ calcSRI <- function(dataset, edges, idCol = "trackId", timegroupCol = "timegroup
   ## get all unique pairs of individuals
   inds <- as.character(unique(dataset[[idCol]]))
   allPairs <- expand.grid(inds, inds, stringsAsFactors = F) %>%
-    dplyr::rename("ID1" = .data[[Var1]], "ID2" = .data[[Var2]]) %>%
-    dplyr::filter(.data[[ID1]] < .data[[ID2]])
+    dplyr::rename("ID1" = Var1, "ID2" = Var2) %>%
+    dplyr::filter(ID1 < ID2)
   allPairsList <- allPairs %>%
-    dplyr::group_by(.data[[ID1]], .data[[ID2]]) %>%
+    dplyr::group_by(ID1, ID2) %>%
     dplyr::group_split() %>%
     purrr::map(., as.matrix)
 
@@ -424,7 +427,7 @@ calcSRI <- function(dataset, edges, idCol = "trackId", timegroupCol = "timegroup
     yb <- sum(colB & !colA)
     nBoth <- sum(colA & colB)
     x <- edges %>%
-      dplyr::filter(.data[[ID1]] %in% c(a, b) & .data[[ID2]] %in% c(a, b)) %>%
+      dplyr::filter(ID1 %in% c(a, b) & ID2 %in% c(a, b)) %>%
       dplyr::pull(timegroupCol) %>%
       unique() %>%
       length()

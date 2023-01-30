@@ -229,14 +229,14 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
       dplyr::select(date, sunrise, sunset) # XXX the coordinates I'm using here are from the centroid of Israel calculated here: https://rona.sh/centroid. This is just a placeholder until we decide on a more accurate way of doing this.
     points <- points %>%
       dplyr::left_join(times, by = c("dateOnly" = "date")) %>%
-      dplyr::mutate(daytime = dplyr::case_when(timestamp > .data[[sunrise]] &
-                                                 timestamp < .data[[sunset]] ~ T,
+      dplyr::mutate(daytime = dplyr::case_when(timestamp > sunrise &
+                                                 timestamp < sunset ~ T,
                                                TRUE ~ F))
 
     # Filter out nighttimes
     nNightPoints <- nrow(points[points$daytime == F,])
     points <- points %>%
-      dplyr::filter(.data[[daytime]] == T)
+      dplyr::filter(daytime == T)
     nDayPoints <- nrow(points)
     if(quiet == F){
       cat(paste0("Removed ", nNightPoints, " nighttime points, leaving ",
