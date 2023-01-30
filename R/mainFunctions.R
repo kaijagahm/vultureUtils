@@ -362,16 +362,16 @@ getFlightEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThres
 #' Function to create an edgelist based on roost locations. Two modes: either create a straightforward distance-based network based on a distance threshold (analogous to getFeedingEdges and getFlightEdges, except that there's only one point per individual per night); or create a shared-roost network based on roost polygon assignment.
 #' @param dataset A data frame. May have one of two formats, depending on `mode`: either ID/date/lat/long (works for `mode` = "distance", or `mode` = "polygon" if `roostPolygons` is also supplied); or ID/date/roostID (work only for `mode` = "polygon"). May have additional columns.
 #' @param mode One of "distance" (default) or "polygon". If "distance", creates a distance-based network with edges each night. If "polygon", creates a shared-polygon-based network.
-#' @param roostPolygons blah
-#' @param distThreshold blah
-#' @param latCol blah
-#' @param longCol blah
-#' @param idCol blah
-#' @param dateCol blah
-#' @param roostCol blah
-#' @param crsToSet Default WGS84.
+#' @param roostPolygons An sf object: polygons to use to classify points by roost sites. Required if `mode` = "polygon" AND there is not already a `roostID` column in `dataset`. Otherwise NULL is fine.
+#' @param distThreshold A distance threshold, in meters, below which points are considered to be "interacting"--applies only to `mode` = "distance". Default is 500m.
+#' @param latCol Name of the column in `dataset` containing latitude information. Default is "location_lat".
+#' @param longCol Name of the column in `dataset` containing longitude information. Default is "location_long".
+#' @param idCol Name of the column in `dataset` containing the ID's of the vultures. Default is "trackId".
+#' @param dateCol Name of the column in `dataset` containing roost dates. Default is "date".
+#' @param roostCol Name of the column in `dataset` containing roost site assignments. Required only if `mode` = "polygon" AND `roostPolygons` is NULL.
+#' @param crsToSet CRS to assign to `dataset` if it is not already an sf object. Default is "WGS84".
 #' @param return One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)
-getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, distThreshold = 1000, latCol = "location_lat", longCol = "location_long", idCol = "trackId", dateCol = "date", roostCol = "roostID", crsToSet = "WGS84", return = "edges"){
+getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, distThreshold = 500, latCol = "location_lat", longCol = "location_long", idCol = "trackId", dateCol = "date", roostCol = "roostID", crsToSet = "WGS84", return = "edges"){
   # Arg checks
   checkmate::assertDataFrame(dataset)
   checkmate::assertSubset(mode, c("distance", "polygon"), empty.ok = F)
