@@ -484,12 +484,12 @@ getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, dist
       polys <- sf::st_join(dataset, roostPolygons) %>%
         sf::st_drop_geometry()
 
-      if(!("Name" %in% names(roostPolygons)) | all(is.na(roostPolygons$Name)) | unique(roostPolygons$Name) == ""){
+      if("Name" %in% names(roostPolygons)){
         polys <- polys %>%
-          dplyr::select(.data[[idCol]], .data[[dateCol]], {{roostCol}} := id)
+          rename({{roostCol}} := Name)
       }else{
         polys <- polys %>%
-          dplyr::select(.data[[idCol]], .data[[dateCol]], {{roostCol}} := Name)
+          rename({{roostCol}} := id)
       }
     }else if(roostCol %in% names(dataset)){
       polys <- dataset # we can use the dataset as is.
