@@ -20,7 +20,7 @@ getEdges(
 )
 }
 \arguments{
-\item{dataset}{The cleaned GPS dataset to be used to create the edge list. This should be the output from `vultureUtils::cleanData()`.}
+\item{dataset}{The cleaned GPS dataset to be used to create the edge list. This should be the output from `vultureUtils::cleanData()`. Must include the columns "ground_speed", "dateOnly", and "timestamp", as well as "location_lat" and "location_long" (which will be passed to `spaceTimeGroups`). XXX edit this: GH#58}
 
 \item{roostPolygons}{Roost polygons. Must be an sf object with a CRS that matches the dataset CRS.}
 

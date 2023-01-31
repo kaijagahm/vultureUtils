@@ -19,7 +19,7 @@ cleanData(
 )
 }
 \arguments{
-\item{dataset}{The GPS dataset to be used to create the edge list.}
+\item{dataset}{The GPS dataset to be used to create the edge list. Must contain columns specified by `longCol`, `latCol`, and `dateCol` args. Must also contain columns "gps_time_to_fix", "heading", "gps_satellite_count", and "ground_speed" because data cleaning is based on this info.}
 
 \item{mask}{The object to use to mask the data. Passed to `vultureUtils::maskData()`. Must be an sf object.}
 

@@ -144,10 +144,6 @@ removeUnnecessaryVars <- function(dataset, addlVars = NULL, keepVars = NULL){
 filterLocs <- function(df, speedThreshLower = NULL, speedThreshUpper = NULL){
   # argument checks
   checkmate::assertDataFrame(df)
-  checkmate::assertChoice("gps_time_to_fix", names(df))
-  checkmate::assertChoice("heading", names(df))
-  checkmate::assertChoice("gps_satellite_count", names(df))
-  checkmate::assertChoice("ground_speed", names(df))
   checkmate::assertNumeric(speedThreshLower, null.ok = TRUE, len = 1)
   checkmate::assertNumeric(speedThreshUpper, null.ok = TRUE, len = 1)
 
@@ -437,8 +433,9 @@ calcSRI <- function(dataset, edges, idCol = "trackId", timegroupCol = "timegroup
     return(dfRow)
   })
 
+  # complete the time message
   end <- Sys.time()
-  duration <- end-start
+  duration <- difftime(end, start, units = "seconds")
   cat(paste0("SRI computation completed in ", duration, " seconds."))
   return(dfSRI)
 }
