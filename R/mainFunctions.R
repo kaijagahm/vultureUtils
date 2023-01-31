@@ -546,6 +546,7 @@ getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, dist
 #' @param twilight optional, numerical value indicating number of minutes to consider the twilight for calculating the day and night positions. If set to 0, the night period starts at sunset and the day period starts at sunrise. The pre-defined value is 61, so the night period starts 61 minutes before sunset and the day period starts 61 minutes after sunrise
 #' @param morning_hours optional, vector indicating the range of hours (in UTC) that are considered the morning period. The pre-defined vector is `c(0:12)`
 #' @param night_hours optional, vector indicating the range of hours (in UTC) that are considered the night period. The pre-defined vector is `c(13:23)`
+#' @param quiet If F (default), prints time warning/progress message. If T, silences this message.
 #' @return a data frame of the calculated roosts for every animal.
 #' @export
 get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", x = "location_long", y = "location_lat", ground_speed = "ground_speed", speed_units = "m/s", buffer = 1, twilight = 61, morning_hours = c(0:12), night_hours = c(13:23), quiet = F){
@@ -692,7 +693,7 @@ get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", 
   # complete the time message
   if(!quiet){
     end <- Sys.time()
-    duration <- end-start
+    duration <- difftime(end, start, units = "seconds")
     cat(paste0("Roost computation completed in ", duration, " seconds."))
   }
 

@@ -439,7 +439,7 @@ calcSRI <- function(dataset, edges, idCol = "trackId", timegroupCol = "timegroup
 
   # complete the time message
   end <- Sys.time()
-  duration <- end-start
+  duration <- difftime(end, start, units = "seconds")
   cat(paste0("SRI computation completed in ", duration, " seconds."))
   return(dfSRI)
 }
