@@ -548,7 +548,12 @@ getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, dist
 #' @param night_hours optional, vector indicating the range of hours (in UTC) that are considered the night period. The pre-defined vector is `c(13:23)`
 #' @return a data frame of the calculated roosts for every animal.
 #' @export
-get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", x = "location_long", y = "location_lat", ground_speed = "ground_speed", speed_units = "m/s", buffer = 1, twilight = 61, morning_hours = c(0:12), night_hours = c(13:23)){
+get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", x = "location_long", y = "location_lat", ground_speed = "ground_speed", speed_units = "m/s", buffer = 1, twilight = 61, morning_hours = c(0:12), night_hours = c(13:23), quiet = F){
+  # setup for time warning
+  if(!quiet){
+    cat("\nFinding roosts... this may take a while if your dataset is large.\n")
+    start <- Sys.time()
+  }
 
   # Argument checks
   checkmate::assertDataFrame(df)
@@ -684,6 +689,14 @@ get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", 
     return(temp.id.roosts)
   })
 
+  # complete the time message
+  if(!quiet){
+    end <- Sys.time()
+    duration <- end-start
+    cat(paste0("Roost computation completed in ", duration, " seconds."))
+  }
+
+  # return
   return(roosts)
 
 }
