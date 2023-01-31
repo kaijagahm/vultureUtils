@@ -77,7 +77,7 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
 #' Clean data
 #'
 #' This function takes in a raw dataset downloaded from movebank, masks it, and performs basic data cleaning. The output from this function feeds directly into `vultureUtils::spaceTimeGroups()`. Steps: 1. Using the `mask` object, get a list of the individuals in `dataset` that spend at least `inMaskThreshold` proportion of their time inside the mask area. 2. Restrict `dataset` to only these individuals. 3. Re-apply the mask to restrict the remaining points to those that fall within `mask`.
-#' @param dataset The GPS dataset to be used to create the edge list.
+#' @param dataset The GPS dataset to be used to create the edge list. Must contain columns specified by `longCol`, `latCol`, and `dateCol` args. Must also contain columns "gps_time_to_fix", "heading", "gps_satellite_count", and "ground_speed" because data cleaning is based on this info.
 #' @param removeVars Whether or not to remove unnecessary variables from movebank download. Default is T.
 #' @param mask The object to use to mask the data. Passed to `vultureUtils::maskData()`. Must be an sf object.
 #' @param inMaskThreshold Proportion of an individual's days tracked that must fall within the mask. Default is 0.33 (one third of days tracked). Passed to `vultureUtils::mostlyInMask()`. Must be numeric.
@@ -99,6 +99,10 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
   checkmate::assertCharacter(longCol, len = 1)
   checkmate::assertCharacter(latCol, len = 1)
   checkmate::assertCharacter(dateCol, len = 1)
+  checkmate::assertChoice("gps_time_to_fix", names(dataset))
+  checkmate::assertChoice("heading", names(dataset))
+  checkmate::assertChoice("gps_satellite_count", names(dataset))
+  checkmate::assertChoice("ground_speed", names(dataset))
   checkmate::assertSubset(x = c(longCol, latCol, dateCol), choices = names(dataset))
 
   # Basic data quality filters ----------------------------------------------
