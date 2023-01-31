@@ -437,7 +437,7 @@ getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, dist
     #                                      splitBy = dateCol, timegroup = NULL) # XXX I've submitted an issue to hopefully fix this so we don't need NULL (https://github.com/ropensci/spatsoc/issues/44)
 
     # Get edges
-    edges <- spatsoc::edge_dist(DT = spatialGrouped, threshold = distThreshold,
+    edges <- spatsoc::edge_dist(DT = dataset, threshold = distThreshold,
                                 id = idCol, coords = c("utmE", "utmN"),
                                 splitBy = dateCol, timegroup = NULL,
                                 fillNA = FALSE, returnDist = TRUE)
