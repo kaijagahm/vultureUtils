@@ -28,6 +28,7 @@ Imports:
     sf,
     sp,
     spatsoc,
+    stats,
     suncalc,
     tibble,
     tidyr,
