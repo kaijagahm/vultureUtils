@@ -476,13 +476,24 @@ getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, dist
         dataset <- sf::st_transform(dataset, crs = sf::st_crs(roostPolygons))
       }
 
+      # Add an ID number for each roost.
+      roostPolygons <- roostPolygons %>%
+        mutate(id = 1:nrow(.))
+
+      # Join the dataset to the roost polygons.
       polys <- sf::st_join(dataset, roostPolygons) %>%
-        sf::st_drop_geometry() %>%
-        dplyr::select(.data[[idCol]], .data[[dateCol]], {{roostCol}} := Name)
+        sf::st_drop_geometry()
+
+      if("Name" %in% names(roostPolygons)){
+        polys <- polys %>%
+          rename({{roostCol}} := Name)
+      }else{
+        polys <- polys %>%
+          rename({{roostCol}} := id)
+      }
     }else if(roostCol %in% names(dataset)){
       polys <- dataset # we can use the dataset as is.
-      # XXX need to make this more specific! And give an error message if it doesn't work!
-    }else if(!(roostCol %in% names(dataset) & is.null(roostPolygons))){
+    }else if(!(roostCol %in% names(dataset)) & is.null(roostPolygons)){
       stop(paste0("Column `", roostCol, "` not found in dataset, and no roost polygons provided. Must provide either the name of a column containing roost assignments or a valid set of roost polygons."))
     }
 
