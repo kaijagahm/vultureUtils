@@ -15,7 +15,8 @@ get_roosts_df(
   buffer = 1,
   twilight = 61,
   morning_hours = c(0:12),
-  night_hours = c(13:23)
+  night_hours = c(13:23),
+  quiet = F
 )
 }
 \arguments{
@@ -40,6 +41,8 @@ get_roosts_df(
 \item{morning_hours}{optional, vector indicating the range of hours (in UTC) that are considered the morning period. The pre-defined vector is `c(0:12)`}
 
 \item{night_hours}{optional, vector indicating the range of hours (in UTC) that are considered the night period. The pre-defined vector is `c(13:23)`}
+
+\item{quiet}{If F (default), prints time warning/progress message. If T, silences this message.}
 }
 \value{
 a data frame of the calculated roosts for every animal.

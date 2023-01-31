@@ -181,7 +181,7 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
 #' Create an edge list (flexible; must insert parameters.)
 #'
 #' Given a dataset of GPS points, a geographic mask, and some roost polygons, create an edge list.
-#' @param dataset The cleaned GPS dataset to be used to create the edge list. This should be the output from `vultureUtils::cleanData()`.
+#' @param dataset The cleaned GPS dataset to be used to create the edge list. This should be the output from `vultureUtils::cleanData()`. Must include the columns "ground_speed", "dateOnly", and "timestamp", as well as "location_lat" and "location_long" (which will be passed to `spaceTimeGroups`). XXX edit this: GH#58
 #' @param roostPolygons Roost polygons. Must be an sf object with a CRS that matches the dataset CRS.
 #' @param roostBuffer Number of meters to buffer the roost polygons by before intersecting them.
 #' @param consecThreshold Minimal number of co-occurrences for considering a viable pair of interacting vultures. Passed to `vultureUtils::spaceTimeGroups()`. Must be numeric.
@@ -208,6 +208,11 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
   checkmate::assertLogical(daytimeOnly, len = 1)
   checkmate::assertSubset(return, choices = c("edges", "sri", "both"),
                           empty.ok = FALSE)
+  checkmate::assertSubset("ground_speed", names(dataset)) # necessary for filterLocs.
+  checkkmate::assertSubset("timestamp", names(dataset)) # for sunrise/sunset calculations.
+  checkmate::assertSubset("dateOnly", names(dataset)) # for sunrise/sunset calculations
+  checkmate::assertSubset("location_lat", names(dataset)) # passed to spaceTimeGroups. XXX fix with GH#58
+  checkmate::assertSubset("location_long", names(dataset)) # passed to spaceTimeGroups. XXX fix with GH#58
 
   # Get all unique individuals before applying any filtering
   if(includeAllVertices){
@@ -734,6 +739,8 @@ sliceTemporal <- function(edges, n, unit = "days", from = "start",
   checkmate::assertCharacter(maxTimestampCol, len = 1)
   checkmate::assertClass(edges[[minTimestampCol]], "POSIXct")
   checkmate::assertClass(edges[[maxTimestampCol]], "POSIXct")
+  checkmate::assertChoice(maxTimestampCol, names(edges))
+  checkmate::assertChoice(minTimestampCol, names(edges))
   checkmate::assertNumeric(n, len = 1)
   checkmate::assertCharacter(from)
   checkmate::assertSubset(from, choices = c("start", "end"), empty.ok = FALSE)
