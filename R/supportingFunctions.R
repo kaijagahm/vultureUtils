@@ -198,6 +198,7 @@ convertAndBuffer <- function(obj, dist = 50, crsMeters = 32636){
 #' @param distThreshold distance threshold at which to consider that two individuals are interacting (m).
 #' @param consecThreshold Passed to vultureUtils::consecEdges. In how many consecutive time groups must the two individuals interact in order to be included? Default is 2.
 #' @param crsToSet if `feedingSites` is a data frame, what CRS to pass to sf::st_set_crs() (NOT transform!). If `feedingSites` is already an sf object, `crsToSet` will be overridden by whatever the object's CRS is, unless it is NA.
+#' @param crsToTransform CRS to transform the `dataset` to. Default is "32636" for ITM.
 #' @param timestampCol Passed to spatsoc::group_times. Name of date time column(s). either 1 POSIXct or 2 IDate and ITime. e.g.: 'datetime' or c('idate', 'itime')
 #' @param timeThreshold Passed to spatsoc::group_times. Threshold for grouping times. e.g.: '2 hours', '10 minutes', etc. if not provided, times will be matched exactly. Note that provided threshold must be in the expected format: '## unit'.
 #' @param idCol Name of the column containing individual ID's of the vultures.
@@ -209,7 +210,7 @@ convertAndBuffer <- function(obj, dist = 50, crsMeters = 32636){
 #' @return an edge list (data frame)
 #' @export
 # Convert to UTM
-spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSet = "WGS84", timestampCol = "timestamp", timeThreshold = "10 minutes", idCol = "trackId", latCol = "location_lat", longCol = "location_long", returnDist = TRUE, fillNA = FALSE, sri = T){
+spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSet = "WGS84", crsToTransform = 32636, timestampCol = "timestamp", timeThreshold = "10 minutes", idCol = "trackId", latCol = "location_lat", longCol = "location_long", returnDist = TRUE, fillNA = FALSE, sri = T){
   # argument checks
   checkmate::assertDataFrame(dataset)
   checkmate::assertNumeric(distThreshold, len = 1, lower = 0, finite = TRUE)
@@ -250,7 +251,7 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
   dataset <- dataset %>%
     dplyr::mutate(lon = sf::st_coordinates(.)[,1],
                   lat = sf::st_coordinates(.)[,2]) %>%
-    sf::st_transform(32636) %>% # convert to UTM: we'll need this for calculating distance later.
+    sf::st_transform(crsToTransform) %>% # convert to UTM: we'll need this for calculating distance later.
     dplyr::mutate(utmE = sf::st_coordinates(.)[,1],
                   utmN = sf::st_coordinates(.)[,2]) %>%
     sf::st_drop_geometry() # spatsoc won't work if this is still an sf object.
@@ -435,7 +436,7 @@ calcSRI <- function(dataset, edges, idCol = "trackId", timegroupCol = "timegroup
 
   # complete the time message
   end <- Sys.time()
-  duration <- difftime(end, start, units = "seconds")
+  duration <- difftime(end, start, units = "secs")
   cat(paste0("SRI computation completed in ", duration, " seconds."))
   return(dfSRI)
 }

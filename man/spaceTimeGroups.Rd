@@ -9,6 +9,7 @@ spaceTimeGroups(
   distThreshold,
   consecThreshold = 2,
   crsToSet = "WGS84",
+  crsToTransform = 32636,
   timestampCol = "timestamp",
   timeThreshold = "10 minutes",
   idCol = "trackId",
@@ -27,6 +28,8 @@ spaceTimeGroups(
 \item{consecThreshold}{Passed to vultureUtils::consecEdges. In how many consecutive time groups must the two individuals interact in order to be included? Default is 2.}
 
 \item{crsToSet}{if `feedingSites` is a data frame, what CRS to pass to sf::st_set_crs() (NOT transform!). If `feedingSites` is already an sf object, `crsToSet` will be overridden by whatever the object's CRS is, unless it is NA.}
+
+\item{crsToTransform}{CRS to transform the `dataset` to. Default is "32636" for ITM.}
 
 \item{timestampCol}{Passed to spatsoc::group_times. Name of date time column(s). either 1 POSIXct or 2 IDate and ITime. e.g.: 'datetime' or c('idate', 'itime')}
 
