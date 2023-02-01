@@ -15,6 +15,7 @@ getRoostEdges(
   dateCol = "date",
   roostCol = "roostID",
   crsToSet = "WGS84",
+  crsToTransform = 32636,
   return = "edges"
 )
 }
@@ -38,6 +39,8 @@ getRoostEdges(
 \item{roostCol}{Name of the column in `dataset` containing roost site assignments. Required only if `mode` = "polygon" AND `roostPolygons` is NULL.}
 
 \item{crsToSet}{CRS to assign to `dataset` if it is not already an sf object. Default is "WGS84".}
+
+\item{crsToTransform}{CRS to transform the `dataset` to. Default is "32636" for ITM.}
 
 \item{return}{One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)}
 }

@@ -384,9 +384,10 @@ getFlightEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThres
 #' @param dateCol Name of the column in `dataset` containing roost dates. Default is "date".
 #' @param roostCol Name of the column in `dataset` containing roost site assignments. Required only if `mode` = "polygon" AND `roostPolygons` is NULL.
 #' @param crsToSet CRS to assign to `dataset` if it is not already an sf object. Default is "WGS84".
+#' @param crsToTransform CRS to transform the `dataset` to. Default is "32636" for ITM.
 #' @param return One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)
 #' @export
-getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, distThreshold = 500, latCol = "location_lat", longCol = "location_long", idCol = "trackId", dateCol = "date", roostCol = "roostID", crsToSet = "WGS84", return = "edges"){
+getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, distThreshold = 500, latCol = "location_lat", longCol = "location_long", idCol = "trackId", dateCol = "date", roostCol = "roostID", crsToSet = "WGS84", crsToTransform = 32636, return = "edges"){
   # Arg checks
   checkmate::assertDataFrame(dataset)
   checkmate::assertSubset(mode, c("distance", "polygon"), empty.ok = F)
@@ -434,7 +435,7 @@ getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, dist
     dataset <- dataset %>%
       dplyr::mutate(lon = sf::st_coordinates(.)[,1],
                     lat = sf::st_coordinates(.)[,2]) %>%
-      sf::st_transform(32636) %>% # convert to UTM: we'll need this for calculating distance later.
+      sf::st_transform(crsToTransform) %>% # convert to UTM: we'll need this for calculating distance later.
       dplyr::mutate(utmE = sf::st_coordinates(.)[,1],
                     utmN = sf::st_coordinates(.)[,2]) %>%
       sf::st_drop_geometry() # spatsoc won't work if this is still an sf object.
@@ -702,7 +703,7 @@ get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", 
   # complete the time message
   if(!quiet){
     end <- Sys.time()
-    duration <- difftime(end, start, units = "seconds")
+    duration <- difftime(end, start, units = "secs")
     cat(paste0("Roost computation completed in ", duration, " seconds."))
   }
 
