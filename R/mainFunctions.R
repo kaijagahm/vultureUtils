@@ -209,7 +209,7 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
   checkmate::assertSubset(return, choices = c("edges", "sri", "both"),
                           empty.ok = FALSE)
   checkmate::assertSubset("ground_speed", names(dataset)) # necessary for filterLocs.
-  checkkmate::assertSubset("timestamp", names(dataset)) # for sunrise/sunset calculations.
+  checkmate::assertSubset("timestamp", names(dataset)) # for sunrise/sunset calculations.
   checkmate::assertSubset("dateOnly", names(dataset)) # for sunrise/sunset calculations
   checkmate::assertSubset("location_lat", names(dataset)) # passed to spaceTimeGroups. XXX fix with GH#58
   checkmate::assertSubset("location_long", names(dataset)) # passed to spaceTimeGroups. XXX fix with GH#58
