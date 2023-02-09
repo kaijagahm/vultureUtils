@@ -382,16 +382,16 @@ calcSRI <- function(dataset, edges, idCol = "trackId", timegroupCol = "timegroup
 
   ## get individuals per timegroup as a list
   # Info about timegroups and individuals, for SRI calculation
-  timegroupsList <- dataset %>%
-    dplyr::select(all_of(timegroupCol), all_of(idCol)) %>%
-    dplyr::mutate({{idCol}} := as.character(idCol)) %>%
-    dplyr::distinct() %>%
-    dplyr::group_by(.data[[timegroupCol]]) %>%
-    dplyr::group_split() %>%
-    purrr::map(~.x[[idCol]])
-
-  ## get unique set of timegroups
-  timegroups <- unique(dataset[[timegroupCol]])
+  # timegroupsList <- dataset %>%
+  #   dplyr::select(all_of(timegroupCol), all_of(idCol)) %>%
+  #   dplyr::mutate({{idCol}} := as.character(.data[[idCol]])) %>%
+  #   dplyr::distinct() %>%
+  #   dplyr::group_by(.data[[timegroupCol]]) %>%
+  #   dplyr::group_split() %>%
+  #   purrr::map(~.x[[idCol]])
+  #
+  # ## get unique set of timegroups
+  # timegroups <- unique(dataset[[timegroupCol]])
 
   ## get all unique pairs of individuals
   inds <- as.character(unique(dataset[[idCol]]))
