@@ -418,7 +418,7 @@ calcSRI <- function(dataset, edges, idCol = "trackId", timegroupCol = "timegroup
     yab <- nBoth - x
     sri <- x/(x+yab)
     if(is.infinite(sri)){
-      sri <- NA
+      sri <- 0
     }
     dfRow <- data.frame("ID1" = a, "ID2" = b, "sri" = sri)
     return(dfRow)
