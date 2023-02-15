@@ -414,13 +414,7 @@ calcSRI <- function(dataset, edges, idCol = "trackId", timegroupCol = "timegroup
     colA <- datasetWide[, a]
     colB <- datasetWide[, b]
     nBoth <- sum(colA & colB)
-    x <- edges %>%
-      dplyr::filter(ID1 %in% c(a, b) & ID2 %in% c(a, b)) %>%
-      dplyr::pull(timegroupCol) %>%
-      unique() %>%
-      length()
-    # x <- length(unique(edges[edges$ID1 %in% c(a, b) & edges$ID2 %in%
-    #                            c(a, b), timegroupCol]))
+    x <- nrow(unique(edges[edges$ID1 %in% c(a, b) & edges$ID2 %in% c(a, b), timegroupCol]))
     yab <- nBoth - x
     sri <- x/(x + yab)
     if (is.infinite(sri)) {
