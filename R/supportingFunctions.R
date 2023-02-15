@@ -417,6 +417,9 @@ calcSRI <- function(dataset, edges, idCol = "trackId", timegroupCol = "timegroup
     x <- length(unique(edges[edges$ID1 %in% c(a, b) & edges$ID2 %in% c(a, b), timegroupCol]))
     yab <- nBoth - x
     sri <- x/(x+yab)
+    if(is.infinite(sri)){
+      sri <- NA
+    }
     dfRow <- data.frame("ID1" = a, "ID2" = b, "sri" = sri)
     return(dfRow)
   })
