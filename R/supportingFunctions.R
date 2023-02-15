@@ -412,6 +412,11 @@ calcSRI <- function(dataset, edges, idCol = "trackId", timegroupCol = "timegroup
     tidyr::pivot_wider(id_cols = timegroupCol, names_from = idCol,
                 values_from = "val", values_fill = FALSE)
 
+  inds <- names(datasetWide)[-1]
+  allPairs <- expand.grid(inds, inds, stringsAsFactors = F) %>%
+    filter(Var1 > Var2)
+  allPairsList <- split(allPairs, seq(nrow(allPairs)))
+
   ## get SRI information
   dfSRI <- purrr::map_dfr(allPairsList, ~{
     # define the two individuals
@@ -420,8 +425,6 @@ calcSRI <- function(dataset, edges, idCol = "trackId", timegroupCol = "timegroup
     colA <- datasetWide[,a]
     colB <- datasetWide[,b]
 
-    ya <- sum(colA & !colB)
-    yb <- sum(colB & !colA)
     nBoth <- sum(colA & colB)
     x <- edges %>%
       dplyr::filter(ID1 %in% c(a, b) & ID2 %in% c(a, b)) %>%
@@ -429,7 +432,7 @@ calcSRI <- function(dataset, edges, idCol = "trackId", timegroupCol = "timegroup
       unique() %>%
       length()
     yab <- nBoth - x
-    sri <- x/(x+ya+yb+yab)
+    sri <- x/(x+yab)
     dfRow <- data.frame("ID1" = a, "ID2" = b, "sri" = sri)
     return(dfRow)
   })
