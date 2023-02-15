@@ -380,15 +380,23 @@ calcSRI <- function(dataset, edges, idCol = "trackId", timegroupCol = "timegroup
 
   edges <- dplyr::as_tibble(edges)
 
+  ## get individuals per timegroup as a list
+  # Info about timegroups and individuals, for SRI calculation
+  timegroupsList <- dataset %>%
+    dplyr::select(all_of(timegroupCol), all_of(idCol)) %>%
+    dplyr::mutate({{idCol}} := as.character(.data[[idCol]])) %>%
+    dplyr::distinct() %>%
+    dplyr::group_by(.data[[timegroupCol]]) %>%
+    dplyr::group_split() %>%
+    purrr::map(~.x[[idCol]])
+
+  ## get unique set of timegroups
+  timegroups <- unique(dataset[[timegroupCol]])
+
   ## get all unique pairs of individuals
   inds <- as.character(unique(dataset[[idCol]]))
-  allPairs <- expand.grid(inds, inds, stringsAsFactors = F) %>%
-    dplyr::rename("ID1" = Var1, "ID2" = Var2) %>%
-    dplyr::filter(ID1 < ID2)
-  allPairsList <- allPairs %>%
-    dplyr::group_by(ID1, ID2) %>%
-    dplyr::group_split() %>%
-    purrr::map(., as.matrix)
+  allPairs <- expand.grid(ID1 = inds, ID2 = inds, stringsAsFactors = F) %>%
+    filter(ID1 < ID2)
 
   # wide data
   datasetWide <- dataset %>%
@@ -397,27 +405,16 @@ calcSRI <- function(dataset, edges, idCol = "trackId", timegroupCol = "timegroup
     dplyr::distinct() %>%
     dplyr::mutate(val = TRUE) %>%
     tidyr::pivot_wider(id_cols = timegroupCol, names_from = idCol,
-                values_from = "val", values_fill = FALSE)
-
-  inds <- names(datasetWide)[-1]
-  allPairs <- expand.grid(inds, inds, stringsAsFactors = F) %>%
-    filter(Var1 > Var2)
-  allPairsList <- split(allPairs, seq(nrow(allPairs)))
+                       values_from = "val", values_fill = FALSE)
 
   ## get SRI information
-  dfSRI <- purrr::map_dfr(allPairsList, ~{
-    # define the two individuals
-    a <- .x[1]
-    b <- .x[2]
+  dfSRI <- purrr::pmap_dfr(allPairs, ~{
+    a <- .x
+    b <- .y
     colA <- datasetWide[,a]
     colB <- datasetWide[,b]
-
     nBoth <- sum(colA & colB)
-    x <- edges %>%
-      dplyr::filter(ID1 %in% c(a, b) & ID2 %in% c(a, b)) %>%
-      dplyr::pull(timegroupCol) %>%
-      unique() %>%
-      length()
+    x <- length(unique(edges[edges$ID1 %in% c(a, b) & edges$ID2 %in% c(a, b), timegroupCol]))
     yab <- nBoth - x
     sri <- x/(x+yab)
     dfRow <- data.frame("ID1" = a, "ID2" = b, "sri" = sri)
