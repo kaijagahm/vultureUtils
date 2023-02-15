@@ -411,16 +411,22 @@ calcSRI <- function(dataset, edges, idCol = "trackId", timegroupCol = "timegroup
   dfSRI <- purrr::pmap_dfr(allPairs, ~{
     a <- .x
     b <- .y
-    colA <- datasetWide[,a]
-    colB <- datasetWide[,b]
+    colA <- datasetWide[, a]
+    colB <- datasetWide[, b]
     nBoth <- sum(colA & colB)
-    x <- length(unique(edges[edges$ID1 %in% c(a, b) & edges$ID2 %in% c(a, b), timegroupCol]))
+    x <- edges %>%
+      dplyr::filter(ID1 %in% c(a, b) & ID2 %in% c(a, b)) %>%
+      dplyr::pull(timegroupCol) %>%
+      unique() %>%
+      length()
+    # x <- length(unique(edges[edges$ID1 %in% c(a, b) & edges$ID2 %in%
+    #                            c(a, b), timegroupCol]))
     yab <- nBoth - x
-    sri <- x/(x+yab)
-    if(is.infinite(sri)){
+    sri <- x/(x + yab)
+    if (is.infinite(sri)) {
       sri <- 0
     }
-    dfRow <- data.frame("ID1" = a, "ID2" = b, "sri" = sri)
+    dfRow <- data.frame(ID1 = a, ID2 = b, sri = sri)
     return(dfRow)
   })
 
