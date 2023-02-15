@@ -384,7 +384,7 @@ calcSRI <- function(dataset, edges, idCol = "trackId", timegroupCol = "timegroup
   # Info about timegroups and individuals, for SRI calculation
   timegroupsList <- dataset %>%
     dplyr::select(all_of(timegroupCol), all_of(idCol)) %>%
-    dplyr::mutate({{idCol}} := as.character(idCol)) %>%
+    dplyr::mutate({{idCol}} := as.character(.data[[idCol]])) %>%
     dplyr::distinct() %>%
     dplyr::group_by(.data[[timegroupCol]]) %>%
     dplyr::group_split() %>%
@@ -395,13 +395,8 @@ calcSRI <- function(dataset, edges, idCol = "trackId", timegroupCol = "timegroup
 
   ## get all unique pairs of individuals
   inds <- as.character(unique(dataset[[idCol]]))
-  allPairs <- expand.grid(inds, inds, stringsAsFactors = F) %>%
-    dplyr::rename("ID1" = Var1, "ID2" = Var2) %>%
-    dplyr::filter(ID1 < ID2)
-  allPairsList <- allPairs %>%
-    dplyr::group_by(ID1, ID2) %>%
-    dplyr::group_split() %>%
-    purrr::map(., as.matrix)
+  allPairs <- expand.grid(ID1 = inds, ID2 = inds, stringsAsFactors = F) %>%
+    filter(ID1 < ID2)
 
   # wide data
   datasetWide <- dataset %>%
@@ -410,26 +405,18 @@ calcSRI <- function(dataset, edges, idCol = "trackId", timegroupCol = "timegroup
     dplyr::distinct() %>%
     dplyr::mutate(val = TRUE) %>%
     tidyr::pivot_wider(id_cols = timegroupCol, names_from = idCol,
-                values_from = "val", values_fill = FALSE)
+                       values_from = "val", values_fill = FALSE)
 
   ## get SRI information
-  dfSRI <- purrr::map_dfr(allPairsList, ~{
-    # define the two individuals
-    a <- .x[1]
-    b <- .x[2]
+  dfSRI <- purrr::pmap_dfr(allPairs, ~{
+    a <- .x
+    b <- .y
     colA <- datasetWide[,a]
     colB <- datasetWide[,b]
-
-    ya <- sum(colA & !colB)
-    yb <- sum(colB & !colA)
     nBoth <- sum(colA & colB)
-    x <- edges %>%
-      dplyr::filter(ID1 %in% c(a, b) & ID2 %in% c(a, b)) %>%
-      dplyr::pull(timegroupCol) %>%
-      unique() %>%
-      length()
+    x <- length(unique(edges[edges$ID1 %in% c(a, b) & edges$ID2 %in% c(a, b), timegroupCol]))
     yab <- nBoth - x
-    sri <- x/(x+ya+yb+yab)
+    sri <- x/(x+yab)
     dfRow <- data.frame("ID1" = a, "ID2" = b, "sri" = sri)
     return(dfRow)
   })
