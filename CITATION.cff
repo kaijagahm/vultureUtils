@@ -3,7 +3,8 @@ message: "If you use this software, please cite it as below."
 authors:
   - family-names: Kaija
     given-names: Gahm
-    orcid: https://orcid.org/0000-0002-4612-4426
+    orcid: "https://orcid.org/0000-0002-4612-4426"
 title: kaijagahm/vultureUtils: Initial Release
 version: v0.1.0-alpha
 date-released: 2023-03-03
+url: "https://github.com/kaijagahm/vultureUtils"
