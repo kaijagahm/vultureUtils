@@ -103,6 +103,8 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
   checkmate::assertChoice("heading", names(dataset))
   checkmate::assertChoice("gps_satellite_count", names(dataset))
   checkmate::assertChoice("ground_speed", names(dataset))
+  checkmate::assertChoice("external_temperature", names(dataset))
+  checkmate::assertChoice("barometric_height", names(dataset))
   checkmate::assertSubset(x = c(longCol, latCol, dateCol), choices = names(dataset))
 
   # Basic data quality filters ----------------------------------------------
@@ -488,7 +490,7 @@ getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, dist
 
       # Add an ID number for each roost.
       roostPolygons <- roostPolygons %>%
-        mutate(id = 1:nrow(.))
+        dplyr::mutate(id = 1:nrow(.))
 
       # Join the dataset to the roost polygons.
       polys <- sf::st_join(dataset, roostPolygons) %>%
