@@ -395,8 +395,8 @@ calcSRI <- function(dataset, edges, idCol = "trackId", timegroupCol = "timegroup
 
   ## get all unique pairs of individuals
   inds <- as.character(unique(dataset[[idCol]]))
-  allPairs <- expand.grid(ID1 = inds, ID2 = inds, stringsAsFactors = F) %>%
-    filter(ID1 < ID2)
+  allPairs <- expand.grid(ID1 = as.character(inds), ID2 = as.character(inds), stringsAsFactors = F) %>%
+    dplyr::filter(ID1 < ID2)
 
   # wide data
   datasetWide <- dataset %>%
