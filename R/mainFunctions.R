@@ -699,6 +699,9 @@ get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", 
       dplyr::ungroup() %>%
       dplyr::select(-c("row_id", "hour"))
 
+    temp.id.roosts <- temp.id.roosts %>%
+      dplyr::select({{id}}, date, roost_date, sunrise, sunset, sunrise_twilight, sunset_twilight, daylight, is_roost, location_lat, location_long)
+
     return(temp.id.roosts)
   })
 
@@ -708,6 +711,9 @@ get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", 
     duration <- difftime(end, start, units = "secs")
     cat(paste0("Roost computation completed in ", duration, " seconds."))
   }
+
+  roosts <- roosts %>%
+    dplyr::select({{id}}, date, roost_date, sunrise, sunset, sunrise_twilight, sunset_twilight, daylight, is_roost, location_lat, location_long)
 
   # return
   return(roosts)
