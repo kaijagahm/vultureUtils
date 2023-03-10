@@ -890,6 +890,12 @@ makeGraph <- function(mode = "edgelist", data, weighted = FALSE,
                                        vertices = verts)
   }
 
+  # Remove edges that are 0 or NA
+  if(weighted){
+    g <- delete.edges(g, E(g)[E(g)$weight <= 0|is.na(E(g)$weight)])
+  }
+
+  # return the graph
   return(g)
 }
 
