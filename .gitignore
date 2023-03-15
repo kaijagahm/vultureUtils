@@ -8,3 +8,5 @@ vultureUtils.Rmd
 marta/
 data/.DS_Store
 data/
+movebankCredentials/
+R/sysdata.rda

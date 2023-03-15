@@ -103,6 +103,8 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
   checkmate::assertChoice("heading", names(dataset))
   checkmate::assertChoice("gps_satellite_count", names(dataset))
   checkmate::assertChoice("ground_speed", names(dataset))
+  checkmate::assertChoice("external_temperature", names(dataset))
+  checkmate::assertChoice("barometric_height", names(dataset))
   checkmate::assertSubset(x = c(longCol, latCol, dateCol), choices = names(dataset))
 
   # Basic data quality filters ----------------------------------------------
@@ -488,7 +490,7 @@ getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, dist
 
       # Add an ID number for each roost.
       roostPolygons <- roostPolygons %>%
-        mutate(id = 1:nrow(.))
+        dplyr::mutate(id = 1:nrow(.))
 
       # Join the dataset to the roost polygons.
       polys <- sf::st_join(dataset, roostPolygons) %>%
@@ -496,10 +498,10 @@ getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, dist
 
       if("Name" %in% names(roostPolygons)){
         polys <- polys %>%
-          rename({{roostCol}} := Name)
+          dplyr::rename({{roostCol}} := Name)
       }else{
         polys <- polys %>%
-          rename({{roostCol}} := id)
+          dplyr::rename({{roostCol}} := id)
       }
     }else if(roostCol %in% names(dataset)){
       polys <- dataset # we can use the dataset as is.
@@ -697,6 +699,9 @@ get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", 
       dplyr::ungroup() %>%
       dplyr::select(-c("row_id", "hour"))
 
+    temp.id.roosts <- temp.id.roosts %>%
+      dplyr::select({{id}}, date, roost_date, sunrise, sunset, sunrise_twilight, sunset_twilight, daylight, is_roost, location_lat, location_long)
+
     return(temp.id.roosts)
   })
 
@@ -706,6 +711,9 @@ get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", 
     duration <- difftime(end, start, units = "secs")
     cat(paste0("Roost computation completed in ", duration, " seconds."))
   }
+
+  roosts <- roosts %>%
+    dplyr::select({{id}}, date, roost_date, sunrise, sunset, sunrise_twilight, sunset_twilight, daylight, is_roost, location_lat, location_long)
 
   # return
   return(roosts)
@@ -888,6 +896,12 @@ makeGraph <- function(mode = "edgelist", data, weighted = FALSE,
                                        vertices = verts)
   }
 
+  # Remove edges that are 0 or NA
+  if(weighted){
+    g <- igraph::delete.edges(g, igraph::E(g)[igraph::E(g)$weight <= 0|is.na(igraph::E(g)$weight)])
+  }
+
+  # return the graph
   return(g)
 }
 
