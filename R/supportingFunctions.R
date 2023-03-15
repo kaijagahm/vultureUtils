@@ -266,14 +266,14 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
   # Group the points into timegroups using spatsoc::group_times.
   dataset <- spatsoc::group_times(dataset, datetime = timestampCol, threshold = timeThreshold)
   timegroupData <- dataset %>% # save information about when each timegroup starts and ends.
-    dplyr::select(all_of(timestampCol), timegroup) %>% # XXX this is deprecated, fix.
+    dplyr::select(tidyselect::all_of(timestampCol), timegroup) %>% # XXX this is deprecated, fix.
     dplyr::group_by(.data$timegroup) %>%
     dplyr::summarize(minTimestamp = min(.data[[timestampCol]], na.rm = T),
                      maxTimestamp = max(.data[[timestampCol]], na.rm = T))
 
   # Retain timestamps for each point, with timegroup information appending. This will be joined back at the end, to fix #43 and make individual points traceable.
   timestamps <- dataset %>%
-    dplyr::select(all_of(timestampCol), all_of(idCol), timegroup)
+    dplyr::select(tidyselect::all_of(timestampCol), tidyselect::all_of(idCol), timegroup)
 
   # Generate edge lists by timegroup
   edges <- spatsoc::edge_dist(DT = dataset, threshold = distThreshold, id = idCol,
@@ -383,7 +383,7 @@ calcSRI <- function(dataset, edges, idCol = "trackId", timegroupCol = "timegroup
   ## get individuals per timegroup as a list
   # Info about timegroups and individuals, for SRI calculation
   timegroupsList <- dataset %>%
-    dplyr::select(all_of(timegroupCol), all_of(idCol)) %>%
+    dplyr::select(tidyselect::all_of(timegroupCol), tidyselect::all_of(idCol)) %>%
     dplyr::mutate({{idCol}} := as.character(.data[[idCol]])) %>%
     dplyr::distinct() %>%
     dplyr::group_by(.data[[timegroupCol]]) %>%

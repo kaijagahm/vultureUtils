@@ -498,10 +498,10 @@ getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, dist
 
       if("Name" %in% names(roostPolygons)){
         polys <- polys %>%
-          rename({{roostCol}} := Name)
+          dplyr::rename({{roostCol}} := Name)
       }else{
         polys <- polys %>%
-          rename({{roostCol}} := id)
+          dplyr::rename({{roostCol}} := id)
       }
     }else if(roostCol %in% names(dataset)){
       polys <- dataset # we can use the dataset as is.
@@ -898,7 +898,7 @@ makeGraph <- function(mode = "edgelist", data, weighted = FALSE,
 
   # Remove edges that are 0 or NA
   if(weighted){
-    g <- delete.edges(g, E(g)[E(g)$weight <= 0|is.na(E(g)$weight)])
+    g <- igraph::delete.edges(g, igraph::E(g)[igraph::E(g)$weight <= 0|is.na(igraph::E(g)$weight)])
   }
 
   # return the graph
