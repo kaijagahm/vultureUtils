@@ -4,8 +4,8 @@
 \name{vultureUtils-package}
 \alias{vultureUtils}
 \alias{vultureUtils-package}
-\title{vultureUtils: What the Package Does (Title Case)}
+\title{vultureUtils: A Package for Network Analysis of TAU/UCLA Griffon Vulture Data}
 \description{
-More about what it does (maybe more than one line) Use four spaces when indenting paragraphs within the Description.
+This package is designed to work with the TAU/UCLA joint NSF/BSF-supported dataset of GPS-tracked griffon vultures (_Gyps fulvus_). It automates data cleaning and the creation of social networks.
 }
 \keyword{internal}
