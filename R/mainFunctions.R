@@ -89,7 +89,7 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
 #' @param reMask Whether or not to re-mask after removing individuals that spend less than `inMaskThreshold` in the mask area. Default is T.
 #' @param quiet Whether to silence the message that happens when doing spatial joins. Default is T.
 #' @param ... additional arguments to be passed to any of several functions: `vultureUtils::removeUnnecessaryVars()` (`addlVars`, `keepVars`);
-#' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.
+#' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackId of the first individual in this edge, and `ID2` is the trackId of the second individual in this edge.
 #' @export
 cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", longCol = "location_long.1", latCol = "location_lat.1", dateCol = "dateOnly", removeVars = T, reMask = T, quiet = T, ...){
   # Argument checks
