@@ -4,7 +4,13 @@
 \alias{mostlyInMask}
 \title{Which individuals spent time mostly in the masked area?}
 \usage{
-mostlyInMask(dataset, maskedDataset, thresh = 0.333, dateCol = "dateOnly")
+mostlyInMask(
+  dataset,
+  maskedDataset,
+  thresh = 0.333,
+  dateCol = "dateOnly",
+  idCol = "Nili_id"
+)
 }
 \arguments{
 \item{dataset}{the full dataset, before masking.}
@@ -14,9 +20,11 @@ mostlyInMask(dataset, maskedDataset, thresh = 0.333, dateCol = "dateOnly")
 \item{thresh}{proportion (between 0 and 1) of a vulture's total tracked days that it spent in Israel}
 
 \item{dateCol}{the name of the column containing dates (must be the same in `dataset` and `maskedDataset`). Defaults to "dateOnly".}
+
+\item{idCol}{the name of the column containing vulture ID's.}
 }
 \value{
-A vector of trackIds for vultures
+A vector of id's for vultures
 }
 \description{
 Compare masked and unmasked data. Return IDs of individual birds that spent at least `thresh` proportion of days in the masked area (vs. outside of the masked area). This function should be used after creating a masked dataset with vultureUtils::maskData(). Note: this function does its calculations based on numbers of *days*. Later modifications might allow for other units of time, but for now everything is in days.

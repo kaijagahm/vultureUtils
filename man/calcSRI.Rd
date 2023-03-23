@@ -4,7 +4,7 @@
 \alias{calcSRI}
 \title{Calculate SRI}
 \usage{
-calcSRI(dataset, edges, idCol = "trackId", timegroupCol = "timegroup")
+calcSRI(dataset, edges, idCol = "Nili_id", timegroupCol = "timegroup")
 }
 \arguments{
 \item{dataset}{the cleaned dataset.}

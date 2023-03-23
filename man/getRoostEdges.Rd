@@ -11,7 +11,7 @@ getRoostEdges(
   distThreshold = 500,
   latCol = "location_lat",
   longCol = "location_long",
-  idCol = "trackId",
+  idCol = "Nili_id",
   dateCol = "date",
   roostCol = "roostID",
   crsToSet = "WGS84",
@@ -32,7 +32,7 @@ getRoostEdges(
 
 \item{longCol}{Name of the column in `dataset` containing longitude information. Default is "location_long".}
 
-\item{idCol}{Name of the column in `dataset` containing the ID's of the vultures. Default is "trackId".}
+\item{idCol}{Name of the column in `dataset` containing the ID's of the vultures. Default is "Nili_id".}
 
 \item{dateCol}{Name of the column in `dataset` containing roost dates. Default is "date".}
 
