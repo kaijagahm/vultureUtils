@@ -50,16 +50,17 @@ maskData <- function(dataset, mask, longCol = "location_long", latCol = "locatio
 #' @param maskedDataset the dataset after being masked to Israel (output of maskIsrael function)
 #' @param thresh proportion (between 0 and 1) of a vulture's total tracked days that it spent in Israel
 #' @param dateCol the name of the column containing dates (must be the same in `dataset` and `maskedDataset`). Defaults to "dateOnly".
-#' @return A vector of trackIds for vultures
+#' @param idCol the name of the column containing vulture ID's.
+#' @return A vector of id's for vultures
 #' @export
-mostlyInMask <- function(dataset, maskedDataset, thresh = 0.333, dateCol = "dateOnly"){
+mostlyInMask <- function(dataset, maskedDataset, thresh = 0.333, dateCol = "dateOnly", idCol = "Nili_id"){
   # argument checks
   checkmate::assertDataFrame(dataset)
   checkmate::assertDataFrame(maskedDataset)
   checkmate::assertNumeric(thresh, len = 1, lower = 0, upper = 1)
   checkmate::assertCharacter(dateCol, len = 1)
-  checkmate::assertSubset("trackId", names(dataset))
-  checkmate::assertSubset("trackId", names(maskedDataset))
+  checkmate::assertSubset(idCol, names(dataset))
+  checkmate::assertSubset(idCol, names(maskedDataset))
   checkmate::assertSubset(dateCol, names(dataset))
   checkmate::assertSubset(dateCol, names(maskedDataset))
   # check that the `dateCol` columns actually are dates.
@@ -68,7 +69,7 @@ mostlyInMask <- function(dataset, maskedDataset, thresh = 0.333, dateCol = "date
 
   # Look at date durations in the full dataset
   dates <- dataset %>%
-    dplyr::group_by(.data$trackId) %>%
+    dplyr::group_by(.data[[idCol]]) %>%
     dplyr::summarize(duration = as.numeric(max(.data[[dateCol]],
                                                na.rm = T) - min(.data[[dateCol]],
                                                                 na.rm = T)))
@@ -77,20 +78,20 @@ mostlyInMask <- function(dataset, maskedDataset, thresh = 0.333, dateCol = "date
   # Look at date durations in the masked Israel dataset
   datesInMask <- maskedDataset %>%
     as.data.frame() %>%
-    dplyr::group_by(.data$trackId) %>%
+    dplyr::group_by(.data[[idCol]]) %>%
     dplyr::summarize(duration =
                        as.numeric(max(.data[[dateCol]], na.rm = T) -
                                     min(.data[[dateCol]], na.rm = T)))
 
   # Compare the two dates and calculate proportion
   datesCompare <- dplyr::left_join(dates, datesInMask %>%
-                                     dplyr::select(.data$trackId,
+                                     dplyr::select(.data[[idCol]],
                                                    "durationInMask" = .data$duration)) %>%
     dplyr::mutate(propInMask = .data$durationInMask/.data$duration) # compute proportion of days spent in the mask area
 
   whichInMaskLongEnough <- datesCompare %>%
     dplyr::filter(.data$propInMask > thresh) %>%
-    dplyr::pull(.data$trackId) %>%
+    dplyr::pull(.data[[idCol]]) %>%
     unique()
 
   return(whichInMaskLongEnough)
@@ -367,7 +368,7 @@ consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = 
 #' @param timegroupCol character. Name of the column containing timegroup values.
 #' @return A data frame containing ID1, ID2, and SRI value.
 #' @export
-calcSRI <- function(dataset, edges, idCol = "trackId", timegroupCol = "timegroup"){
+calcSRI <- function(dataset, edges, idCol = "Nili_id", timegroupCol = "timegroup"){
   # setup for time warning
   cat("\nComputing SRI... this may take a while if your dataset is large.\n")
   start <- Sys.time()
