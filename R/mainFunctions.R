@@ -85,13 +85,14 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
 #' @param longCol The name of the column in the dataset containing longitude values. Defaults to "location_long.1". Passed to `vultureUtils::maskData()`.
 #' @param latCol The name of the column in the dataset containing latitude values. Defaults to "location_lat.1". Passed to `vultureUtils::maskData()`.
 #' @param dateCol The name of the column in the dataset containing dates. Defaults to "dateOnly". Passed to `vultureUtils::mostlyInMask()`.
+#' @param idCol The name of the column in the dataset containing vulture ID's. Defaults to "Nili_id" (assuming you have joined the Nili_ids from the who's who table).
 #' @param removeVars Whether or not to remove unnecessary variables. Default is T.
 #' @param reMask Whether or not to re-mask after removing individuals that spend less than `inMaskThreshold` in the mask area. Default is T.
 #' @param quiet Whether to silence the message that happens when doing spatial joins. Default is T.
 #' @param ... additional arguments to be passed to any of several functions: `vultureUtils::removeUnnecessaryVars()` (`addlVars`, `keepVars`);
-#' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackId of the first individual in this edge, and `ID2` is the trackId of the second individual in this edge.
+#' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the id of the first individual in this edge, and `ID2` is the id of the second individual in this edge.
 #' @export
-cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", longCol = "location_long.1", latCol = "location_lat.1", dateCol = "dateOnly", removeVars = T, reMask = T, quiet = T, ...){
+cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", longCol = "location_long.1", latCol = "location_lat.1", dateCol = "dateOnly", idCol = "Nili_id", removeVars = T, reMask = T, quiet = T, ...){
   # Argument checks
   checkmate::assertClass(mask, "sf")
   checkmate::assertDataFrame(dataset)
@@ -157,7 +158,7 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
     }
 
     dataset <- dataset %>% # using datDF because we don't want to actually restrict it to the mask yet
-      dplyr::filter(.data$trackId %in% longEnoughIndivs)
+      dplyr::filter(.data[[idCol]] %in% longEnoughIndivs)
   }
 
   # Mask again to remove out-of-mask points, if desired
@@ -195,7 +196,7 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
 #' @param includeAllVertices logical. Whether to include another list item in the output that's a vector of all individuals in the dataset. For use in creating sparse graphs. Default is F.
 #' @param daytimeOnly T/F, whether to restrict interactions to daytime only. Default is T.
 #' @param return One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist. Also includes timegroup information, which SRI cannot do. One row in this data frame represents a single edge in a single timegroup.); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)
-#' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.
+#' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the id of the first individual in this edge, and `ID2` is the id of the second individual in this edge.
 #' @export
 getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distThreshold, speedThreshUpper, speedThreshLower, timeThreshold = "10 minutes", quiet = T, includeAllVertices = F, daytimeOnly = T, return = "edges"){
   # Argument checks
@@ -218,7 +219,7 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
 
   # Get all unique individuals before applying any filtering
   if(includeAllVertices){
-    uniqueIndivs <- unique(dataset$trackId)
+    uniqueIndivs <- unique(dataset[[idCol]])
   }
 
   ## FILTER THE POINTS
@@ -285,7 +286,8 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
                                              distThreshold = distThreshold,
                                              consecThreshold = consecThreshold,
                                              timeThreshold = timeThreshold,
-                                             sri = FALSE)
+                                             sri = FALSE,
+                                             idCol = idCol)
       }
 
     }else if(return %in% c("sri", "both")){ # otherwise we need to compute SRI.
@@ -296,7 +298,8 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
                                                                                distThreshold = distThreshold,
                                                                                consecThreshold = consecThreshold,
                                                                                timeThreshold = timeThreshold,
-                                                                               sri = TRUE)))
+                                                                               sri = TRUE,
+                                                                               idCol = idCol)))
         if(return == "sri"){
           out <- out["sri"]
         }
@@ -307,7 +310,8 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
                                              distThreshold = distThreshold,
                                              consecThreshold = consecThreshold,
                                              timeThreshold = timeThreshold,
-                                             sri = TRUE)
+                                             sri = TRUE,
+                                             idCol = idCol)
         if(return == "sri"){
           out <- out["sri"]
         }
@@ -346,7 +350,7 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
 #' @param includeAllVertices logical. Whether to include another list item in the output that's a vector of all individuals in the dataset. For use in creating sparse graphs. Default is F.
 #' @param daytimeOnly T/F, whether to restrict interactions to daytime only. Default is T.
 #' @param return One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist. Also includes timegroup information, which SRI cannot do. One row in this data frame represents a single edge in a single timegroup.); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)
-#' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.
+#' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the id of the first individual in this edge, and `ID2` is the id of the second individual in this edge.
 #' @export
 getFeedingEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThreshold = 2, distThreshold = 50, speedThreshUpper = 5, speedThreshLower = NULL, timeThreshold = "10 minutes", quiet = T, includeAllVertices = F, daytimeOnly = T, return = "edges"){
   getEdges(dataset, roostPolygons = roostPolygons, roostBuffer = roostBuffer, consecThreshold = consecThreshold, distThreshold = distThreshold, speedThreshUpper = speedThreshUpper, speedThreshLower = speedThreshLower, timeThreshold = timeThreshold, quiet = quiet, includeAllVertices = includeAllVertices, daytimeOnly = daytimeOnly, return = return)
@@ -367,7 +371,7 @@ getFeedingEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThre
 #' @param includeAllVertices logical. Whether to include another list item in the output that's a vector of all individuals in the dataset. For use in creating sparse graphs. Default is F.
 #' @param daytimeOnly T/F, whether to restrict interactions to daytime only. Default is T.
 #' @param return One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist. Also includes timegroup information, which SRI cannot do. One row in this data frame represents a single edge in a single timegroup.); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)
-#' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the trackID of the first individual in this edge, and `ID2` is the trackID of the second individual in this edge.
+#' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the id of the first individual in this edge, and `ID2` is the id of the second individual in this edge.
 #' @export
 getFlightEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThreshold = 2, distThreshold = 1000, speedThreshUpper = NULL, speedThreshLower = 5, timeThreshold = "10 minutes", quiet = T, includeAllVertices = F, daytimeOnly = T, return = "edges"){
   getEdges(dataset, roostPolygons = roostPolygons, roostBuffer = roostBuffer, consecThreshold = consecThreshold, distThreshold = distThreshold, speedThreshUpper = speedThreshUpper, speedThreshLower = speedThreshLower, timeThreshold = timeThreshold, quiet = quiet, includeAllVertices = includeAllVertices, daytimeOnly = daytimeOnly, return = return)
@@ -382,14 +386,14 @@ getFlightEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThres
 #' @param distThreshold A distance threshold, in meters, below which points are considered to be "interacting"--applies only to `mode` = "distance". Default is 500m.
 #' @param latCol Name of the column in `dataset` containing latitude information. Default is "location_lat".
 #' @param longCol Name of the column in `dataset` containing longitude information. Default is "location_long".
-#' @param idCol Name of the column in `dataset` containing the ID's of the vultures. Default is "trackId".
+#' @param idCol Name of the column in `dataset` containing the ID's of the vultures. Default is "Nili_id".
 #' @param dateCol Name of the column in `dataset` containing roost dates. Default is "date".
 #' @param roostCol Name of the column in `dataset` containing roost site assignments. Required only if `mode` = "polygon" AND `roostPolygons` is NULL.
 #' @param crsToSet CRS to assign to `dataset` if it is not already an sf object. Default is "WGS84".
 #' @param crsToTransform CRS to transform the `dataset` to. Default is "32636" for ITM.
 #' @param return One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)
 #' @export
-getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, distThreshold = 500, latCol = "location_lat", longCol = "location_long", idCol = "trackId", dateCol = "date", roostCol = "roostID", crsToSet = "WGS84", crsToTransform = 32636, return = "edges"){
+getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, distThreshold = 500, latCol = "location_lat", longCol = "location_long", idCol = "Nili_id", dateCol = "date", roostCol = "roostID", crsToSet = "WGS84", crsToTransform = 32636, return = "edges"){
   # Arg checks
   checkmate::assertDataFrame(dataset)
   checkmate::assertSubset(mode, c("distance", "polygon"), empty.ok = F)
