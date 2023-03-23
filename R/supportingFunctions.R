@@ -211,7 +211,7 @@ convertAndBuffer <- function(obj, dist = 50, crsMeters = 32636){
 #' @return an edge list (data frame)
 #' @export
 # Convert to UTM
-spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSet = "WGS84", crsToTransform = 32636, timestampCol = "timestamp", timeThreshold = "10 minutes", idCol = "trackId", latCol = "location_lat", longCol = "location_long", returnDist = TRUE, fillNA = FALSE, sri = T){
+spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSet = "WGS84", crsToTransform = 32636, timestampCol = "timestamp", timeThreshold = "10 minutes", idCol = "Nili_id", latCol = "location_lat", longCol = "location_long", returnDist = TRUE, fillNA = FALSE, sri = T){
   # argument checks
   checkmate::assertDataFrame(dataset)
   checkmate::assertNumeric(distThreshold, len = 1, lower = 0, finite = TRUE)
