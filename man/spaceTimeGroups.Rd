@@ -12,7 +12,7 @@ spaceTimeGroups(
   crsToTransform = 32636,
   timestampCol = "timestamp",
   timeThreshold = "10 minutes",
-  idCol = "trackId",
+  idCol = "Nili_id",
   latCol = "location_lat",
   longCol = "location_long",
   returnDist = TRUE,
