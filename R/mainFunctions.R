@@ -228,12 +228,14 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
       longEnoughIndivs <- suppressMessages(vultureUtils::mostlyInMask(dataset = dataset,
                                                                       maskedDataset = inMask,
                                                                       thresh = inMaskThreshold,
-                                                                      dateCol = dateCol))
+                                                                      dateCol = dateCol,
+                                                                      idCol = idCol))
     }else{
       longEnoughIndivs <- vultureUtils::mostlyInMask(dataset = dataset,
                                                      maskedDataset = inMask,
                                                      thresh = inMaskThreshold,
-                                                     dateCol = dateCol)
+                                                     dateCol = dateCol,
+                                                     idCol = idCol)
     }
 
     dataset <- dataset %>% # using datDF because we don't want to actually restrict it to the mask yet
