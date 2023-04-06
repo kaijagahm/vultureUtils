@@ -112,7 +112,7 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
   # Remove outlier points based on zeroes (Marta's code)
   dataset <- dataset %>%
     dplyr::mutate(outlier = ifelse(.data$external_temperature == 0 & .data$barometric_height == 0 & .data$ground_speed == 0, 1, 0)) %>%
-    dplyr::filter(is.na(.data$outlier) | .data$outlier == 0) %>%
+    dplyr::filter(is.na(outlier) | outlier == 0) %>%
     dplyr::select(-.data$outlier)
 
   # filter out bad gps data
@@ -126,6 +126,85 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
   # only take locs that have at least 3 satellites
   dataset <- dataset %>%
     dplyr::filter(.data$gps_satellite_count >= 3) # must have at least 3 satellites in order to triangulate.
+
+  # SPIKY SPEEDS START (XXX eventually should put this in its own function, maybe)
+  # remove unrealistic "spiky" speeds (based on Marta's code)
+  df <- vultureUtils::calcSpeeds(dataset, grpCol = idCol, longCol = longCol, latCol = latCol)
+
+  ## Remove those that are for sure outliers: lead + lag > 180km/h
+  df2 <- df %>%
+    dplyr::filter(lead_speed_m_s <= 50 & abs(lag_speed_m_s) <= 50) %>%
+    dplyr::select(-c("lead_hour_diff_sec", "lead_dist_m", "lead_speed_m_s",
+                     "lag_hour_diff_sec", "lag_dist_m", "lag_speed_m_s"))
+
+  ## Re-calculate speeds (because we removed some observations before)
+  df2 <- vultureUtils::calcSpeeds(df2, grpCol = idCol, longCol = longCol, latCol = latCol)
+
+  ## unfortunately the previous step did not get rid of all the outliers. So we'll use only the lead to remove some more outliers.
+  df3 <- df2 %>%
+    dplyr::filter(lead_speed_m_s <= 50)
+  # This also does not get rid of all the outliers... But most of them are at night, which because of the reduced schedule, does not seem like such a large speed (many hours divided by a few kms)
+
+  # So now we have to calculate if the fix is during the day or the night.
+  crds <- matrix(c(df3[[longCol]], df3[[latCol]]),
+                 nrow = nrow(df3),
+                 ncol = 2)
+  df3$sunrise <- maptools::sunriset(crds, df3$timestamp, proj4string = CRS("+proj=longlat +datum=WGS84"),
+                                    direction = "sunrise", POSIXct.out = TRUE)$time
+  df3$sunset <- maptools::sunriset(crds, df3$timestamp, proj4string = CRS("+proj=longlat +datum=WGS84"),
+                                   direction = "sunset", POSIXct.out = TRUE)$time
+  df3 <- df3 %>%
+    mutate(daylight = ifelse(timestamp >= sunrise & timestamp <= sunset, "day", "night"))
+
+  # re-calculate speeds again
+  df3 <- vultureUtils::calcSpeeds(df3, grpCol = idCol, longCol = longCol, latCol = latCol)
+
+  # Exclude if during the night the distance between two locations are more than 10km apart
+  df4 <- df3 %>%
+    dplyr::mutate(day_diff = as.numeric(difftime(lead(lubridate::date(timestamp)),
+                                                 lubridate::date(timestamp), units = "days")),
+                  night_outlier = ifelse(daylight == "night" &
+                                           day_diff %in% c(0, 1) &
+                                           dplyr::lead(daylight) == "night" &
+                                           lead_dist_m > 10000, T, F)) %>%
+    dplyr::filter(!night_outlier) %>%
+    dplyr::select(-c("lead_hour_diff_sec", "lag_hour_diff_sec", "lead_dist_m",
+                     "lag_dist_m", "lead_speed_m_s", "lag_speed_m_s"))
+  dataset <- df4
+
+  # SPIKY SPEEDS END (XXX eventually should put this in its own function, maybe)
+
+  # remove unrealistic "spiky" altitude values (XXX TO DO)
+  ## calculate altitude "speeds"
+  dfAlt <- vultureUtils::calcSpeedsVert(df = dataset, grpCol = "trackId", altCol = "height_above_msl")
+
+  # XXX plots to justify cutoff values. Seems like if we cut both off around 2, we should be ok.
+  # dfAlt %>%
+  #   filter(ground_speed >= 5) %>%
+  #   ggplot(aes(x = abs(lead_speed_m_s)))+
+  #   geom_histogram()+
+  #   theme_classic()
+  # dfAlt %>%
+  #   filter(ground_speed >= 5) %>%
+  #   ggplot(aes(x = abs(lag_speed_m_s)))+
+  #   geom_histogram()+
+  #   theme_classic()
+  #
+  # dfAlt %>%
+  #   mutate(col = ifelse(abs(lead_speed_m_s) > 2 & abs(lag_speed_m_s) > 2, "a", "b")) %>%
+  #   filter(ground_speed >= 5) %>%
+  #   ggplot(aes(x = abs(lead_speed_m_s), y = abs(lag_speed_m_s)))+
+  #   geom_point(aes(col = col))+
+  #   scale_color_manual(values = c("red", "black"))+
+  #   theme_classic()
+
+  # rough filtering
+  dfAlt$height_above_msl[abs(dfAlt$lead_speed_m_s) > 2 |
+                           abs(dfAlt$lag_speed_m_s) > 2] <- NA
+  dfAlt <- dfAlt %>%
+    dplyr::select(-c("lead_hour_diff_sec", "lag_hour_diff_sec", "lead_dist_mV",
+                     "lag_dist_mV", "lead_speed_m_s", "lag_speed_m_s"))
+  dataset <- dfAlt
 
   # Remove unnecessary variables, if desired. ---------------------------
   if(removeVars == T){
@@ -160,6 +239,24 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
     dataset <- dataset %>% # using datDF because we don't want to actually restrict it to the mask yet
       dplyr::filter(.data[[idCol]] %in% longEnoughIndivs)
   }
+
+  # Downsample so it's all at the same interval
+  # "aggregating before filtering gross location errors and unrealistic movement leads to the persistence of large-scale errors (such as prolonged spikes). (c) Thinning before data cleaning can lead to significant mis-estimations of essential movement metrics such as speed at lower intervals" (Gupte et al. 2021), hence why I'm doing this thinning after removing the spikes and doing the data cleaning.
+  # an attempt by ChatGPT:
+  dft <- dataset %>%
+    dplyr::group_by(.data[[idCol]]) %>%
+    dplyr::mutate(minute = lubridate::minute(timestamp) %/% 10 * 10, # round to nearest 10 minutes
+           timestampFloor = lubridate::floor_date(timestamp, "hour") + lubridate::minutes(minute)) %>%
+    dplyr::group_by(.data[[idCol]], timestampFloor) %>%
+    arrange(timestamp, .by_group = T) %>%
+    slice(1) %>%
+    dplyr::ungroup() %>%
+    dplyr::group_by(.data[[idCol]]) %>%
+    mutate(diff = as.numeric(difftime(timestamp, dplyr::lag(timestamp), units = "secs"))) %>%
+    filter(diff >= 400) %>% # I don't really like this, because it loses entire minute-groups, but oh well.
+    dplyr::select(-c("diff", "timestampFloor"))
+
+  dataset <- dft
 
   # Mask again to remove out-of-mask points, if desired
   if(reMask == T){

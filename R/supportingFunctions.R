@@ -431,3 +431,63 @@ calcSRI <- function(dataset, edges, idCol = "Nili_id", timegroupCol = "timegroup
   cat(paste0("SRI computation completed in ", duration, " seconds."))
   return(dfSRI)
 }
+
+#' Calculate speeds
+#'
+#' Calculates speeds, an operation that needs to happen several times in Marta's data cleaning code
+#'
+#' @param df a data frame
+#' @param grpCol column to group by
+#' @param longCol column containing longitudes
+#' @param latCol column containing latitudes
+#' @return A data frame with speeds added
+#' @export
+calcSpeeds <- function(df, grpCol, longCol, latCol){
+  out <- df %>%
+    dplyr::group_by(.data[[grpCol]]) %>%
+    dplyr::arrange(timestamp) %>%
+    dplyr::mutate(lead_hour_diff_sec = round(as.numeric(difftime(dplyr::lead(timestamp),
+                                                          timestamp, units = "secs")), 3),
+           lead_hour_diff_sec = ifelse(lead_hour_diff_sec == 0, 0.01, lead_hour_diff_sec),
+           lag_hour_diff_sec = round(as.numeric(difftime(dplyr::lag(timestamp),
+                                                        timestamp, units = "secs")), 3),
+           lag_hour_diff_sec = ifelse(lag_hour_diff_sec == 0, 0.01, lag_hour_diff_sec),
+           lead_dist_m = round(geosphere::distGeo(p1 = cbind(dplyr::lead(.data[[longCol]]),
+                                                             dplyr::lead(.data[[latCol]])),
+                                        p2 = cbind(.data[[longCol]], .data[[latCol]])), 3),
+           lag_dist_m = round(geosphere::distGeo(p1 = cbind(dplyr::lag(.data[[longCol]]),
+                                                            dplyr::lag(.data[[latCol]])),
+                                       p2 = cbind(.data[[longCol]], .data[[latCol]])), 3),
+           lead_speed_m_s = round(lead_dist_m / lead_hour_diff_sec, 2),
+           lag_speed_m_s = round(lag_dist_m / lag_hour_diff_sec, 2),) %>%
+    dplyr::ungroup()
+  return(out)
+}
+
+#' Calculate vertical speeds (altitude)
+#'
+#' Calculates vertical "speeds", an operation that needs to happen several times in order to clean the altitude values
+#'
+#' @param df a data frame
+#' @param grpCol column to group by
+#' @param altCol column containing altitude values
+#' @param speedCol column giving ground speed, so we can restrict this to flight only
+#' @return A data frame with speeds added
+#' @export
+calcSpeedsVert <- function(df, grpCol, altCol, speedCol){
+  out <- df %>%
+    dplyr::group_by(.data[[grpCol]]) %>%
+    dplyr::arrange(timestamp) %>%
+    dplyr::mutate(lead_hour_diff_sec = round(as.numeric(difftime(dplyr::lead(timestamp),
+                                                          timestamp, units = "secs")), 3),
+           lead_hour_diff_sec = ifelse(lead_hour_diff_sec == 0, 0.01, lead_hour_diff_sec),
+           lag_hour_diff_sec = round(as.numeric(difftime(dplyr::lag(timestamp),
+                                                        timestamp, units = "secs")), 3),
+           lag_hour_diff_sec = ifelse(lag_hour_diff_sec == 0, 0.01, lag_hour_diff_sec),
+           lead_dist_mV = round(dplyr::lead(.data[[altCol]]) - .data[[altCol]], 3),
+           lag_dist_mV = round(dplyr::lag(.data[[altCol]]) - .data[[altCol]], 3),
+           lead_speed_m_s = round(lead_dist_mV / lead_hour_diff_sec, 2),
+           lag_speed_m_s = round(lag_dist_mV / lag_hour_diff_sec, 2),) %>%
+    dplyr::ungroup() %>%
+  return(out)
+}
