@@ -2,6 +2,8 @@
 
 export("%>%")
 export(calcSRI)
+export(calcSpeeds)
+export(calcSpeedsVert)
 export(calculateSpeeds)
 export(cleanData)
 export(computeProbs)
