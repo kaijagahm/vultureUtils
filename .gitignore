@@ -11,3 +11,4 @@ data/
 movebankCredentials/
 R/sysdata.rda
 chatGPT.R
+setup.R
