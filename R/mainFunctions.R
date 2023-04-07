@@ -177,7 +177,7 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
 
   # remove unrealistic "spiky" altitude values (XXX TO DO)
   ## calculate altitude "speeds"
-  dfAlt <- vultureUtils::calcSpeedsVert(df = dataset, grpCol = "trackId", altCol = "height_above_msl")
+  dfAlt <- vultureUtils::calcSpeedsVert(df = dataset, grpCol = idCol, altCol = "height_above_msl")
 
   # XXX plots to justify cutoff values. Seems like if we cut both off around 2, we should be ok.
   # dfAlt %>%
