@@ -89,10 +89,11 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
 #' @param removeVars Whether or not to remove unnecessary variables. Default is T.
 #' @param reMask Whether or not to re-mask after removing individuals that spend less than `inMaskThreshold` in the mask area. Default is T.
 #' @param quiet Whether to silence the message that happens when doing spatial joins. Default is T.
+#' @param downsample T/F. Whether to downsample the data to a 10 min interval. #XXX expand functionality here, or consider making it a separate function. This is quick and dirty. Also fix the actual downsampling, because I don't think it's quite right.
 #' @param ... additional arguments to be passed to any of several functions: `vultureUtils::removeUnnecessaryVars()` (`addlVars`, `keepVars`);
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the id of the first individual in this edge, and `ID2` is the id of the second individual in this edge.
 #' @export
-cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", longCol = "location_long.1", latCol = "location_lat.1", dateCol = "dateOnly", idCol = "Nili_id", removeVars = T, reMask = T, quiet = T, ...){
+cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", longCol = "location_long.1", latCol = "location_lat.1", dateCol = "dateOnly", idCol = "Nili_id", removeVars = T, reMask = T, quiet = T, downsample = T, ...){
   # Argument checks
   checkmate::assertClass(mask, "sf")
   checkmate::assertDataFrame(dataset)
@@ -243,22 +244,24 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
   }
 
   # Downsample so it's all at the same interval
-  # "aggregating before filtering gross location errors and unrealistic movement leads to the persistence of large-scale errors (such as prolonged spikes). (c) Thinning before data cleaning can lead to significant mis-estimations of essential movement metrics such as speed at lower intervals" (Gupte et al. 2021), hence why I'm doing this thinning after removing the spikes and doing the data cleaning.
-  # an attempt by ChatGPT:
-  dft <- dataset %>%
-    dplyr::group_by(.data[[idCol]]) %>%
-    dplyr::mutate(minute = lubridate::minute(timestamp) %/% 10 * 10, # round to nearest 10 minutes
-           timestampFloor = lubridate::floor_date(timestamp, "hour") + lubridate::minutes(minute)) %>%
-    dplyr::group_by(.data[[idCol]], timestampFloor) %>%
-    arrange(timestamp, .by_group = T) %>%
-    slice(1) %>%
-    dplyr::ungroup() %>%
-    dplyr::group_by(.data[[idCol]]) %>%
-    mutate(diff = as.numeric(difftime(timestamp, dplyr::lag(timestamp), units = "secs"))) %>%
-    filter(diff >= 400) %>% # I don't really like this, because it loses entire minute-groups, but oh well.
-    dplyr::select(-c("diff", "timestampFloor"))
+  if(downsample){
+    # "aggregating before filtering gross location errors and unrealistic movement leads to the persistence of large-scale errors (such as prolonged spikes). (c) Thinning before data cleaning can lead to significant mis-estimations of essential movement metrics such as speed at lower intervals" (Gupte et al. 2021), hence why I'm doing this thinning after removing the spikes and doing the data cleaning.
+    # an attempt by ChatGPT:
+    dft <- dataset %>%
+      dplyr::group_by(.data[[idCol]]) %>%
+      dplyr::mutate(minute = lubridate::minute(timestamp) %/% 10 * 10, # round to nearest 10 minutes
+                    timestampFloor = lubridate::floor_date(timestamp, "hour") + lubridate::minutes(minute)) %>%
+      dplyr::group_by(.data[[idCol]], timestampFloor) %>%
+      arrange(timestamp, .by_group = T) %>%
+      slice(1) %>%
+      dplyr::ungroup() %>%
+      dplyr::group_by(.data[[idCol]]) %>%
+      mutate(diff = as.numeric(difftime(timestamp, dplyr::lag(timestamp), units = "secs"))) %>%
+      filter(diff >= 400) %>% # I don't really like this, because it loses entire minute-groups, but oh well.
+      dplyr::select(-c("diff", "timestampFloor"))
 
-  dataset <- dft
+    dataset <- dft
+  }
 
   # Mask again to remove out-of-mask points, if desired
   if(reMask == T){
