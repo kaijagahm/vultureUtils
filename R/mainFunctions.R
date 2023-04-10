@@ -155,7 +155,8 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
   df3$sunset <- maptools::sunriset(crds, df3$timestamp, proj4string = CRS("+proj=longlat +datum=WGS84"),
                                    direction = "sunset", POSIXct.out = TRUE)$time
   df3 <- df3 %>%
-    mutate(daylight = ifelse(timestamp >= .data[[sunrise]] & timestamp <= .data[[sunset]], "day", "night"))
+    dplyr::mutate(daylight = ifelse(timestamp >= .data[[sunrise]] & timestamp <= .data[[sunset]], "day", "night")) %>%
+    dplyr::select(-c("sunrise", "sunset"))
 
   # re-calculate speeds again
   df3 <- vultureUtils::calcSpeeds(df3, grpCol = idCol, longCol = longCol, latCol = latCol)
@@ -342,6 +343,7 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
                                        keep = c("sunrise", "sunset")) %>%
       dplyr::select(date, sunrise, sunset) # XXX the coordinates I'm using here are from the centroid of Israel calculated here: https://rona.sh/centroid. This is just a placeholder until we decide on a more accurate way of doing this.
     points <- points %>%
+      dplyr::select(-c("sunrise", "sunset")) %>% # remove leftover sunrise/sunset columns just in case
       dplyr::left_join(times, by = c("dateOnly" = "date")) %>%
       dplyr::mutate(daytime = dplyr::case_when(timestamp > .data[[sunrise]] &
                                                  timestamp < .data[[sunset]] ~ T,
