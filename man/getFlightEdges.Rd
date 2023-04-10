@@ -13,6 +13,7 @@ getFlightEdges(
   speedThreshUpper = NULL,
   speedThreshLower = 5,
   timeThreshold = "10 minutes",
+  idCol = "Nili_id",
   quiet = T,
   includeAllVertices = F,
   daytimeOnly = T,
@@ -35,6 +36,8 @@ getFlightEdges(
 \item{speedThreshLower}{Lower speed threshold, in m/s. For co-flight, default is 5 m/s. Passed to `vultureUtils::filterLocs()`. Must be numeric.}
 
 \item{timeThreshold}{timeThreshold Passed to spatsoc::group_times. Threshold for grouping times. e.g.: '2 hours', '10 minutes', etc. if not provided, times will be matched exactly. Note that provided threshold must be in the expected format: '## unit'. Default is "10 minutes"}
+
+\item{idCol}{Passed to spaceTimeGroups: the name of the column containing individual vulture ID's. Default is Nili_id.}
 
 \item{quiet}{Whether to silence the warning messages about grouping individuals with themselves inside the time threshold. Default is T. This occurs because if we set our time threshold to e.g. 10 minutes (the default), there are some GPS points that occur closer together than 10 minutes apart (e.g. if we experimentally set the tags to take points every 5 minutes). As a result, we will "group" together the same individual with itself, resulting in some self edges. I currently have a step in the code that simply removes these self edges, so there should be no problem here. But if you set `quiet = F`, you will at least be warned with the message `"Warning: found duplicate id in a timegroup and/or splitBy - does your group_times threshold match the fix rate?"` when this is occurring.}
 
