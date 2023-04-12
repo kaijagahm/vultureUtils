@@ -303,6 +303,11 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the id of the first individual in this edge, and `ID2` is the id of the second individual in this edge.
 #' @export
 getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distThreshold, speedThreshUpper, speedThreshLower, timeThreshold = "10 minutes", idCol = "Nili_id", quiet = T, includeAllVertices = F, daytimeOnly = T, return = "edges"){
+  # test for Elvira
+  if(1 == 0){
+    print("this makes no sense")
+  }
+
   # Argument checks
   checkmate::assertDataFrame(dataset)
   checkmate::assertClass(roostPolygons, "sf")
