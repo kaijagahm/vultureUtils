@@ -4,3 +4,6 @@
 ^\.Rproj\.user$
 ^LICENSE\.md$
 ^data-raw$
+setup.R
+chatGPT.R
+marta/

@@ -108,13 +108,14 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
   checkmate::assertChoice("external_temperature", names(dataset))
   checkmate::assertChoice("barometric_height", names(dataset))
   checkmate::assertSubset(x = c(longCol, latCol, dateCol), choices = names(dataset))
+  checkmate::assertClass(dataset$timestamp, "POSIXct")
 
   # Basic data quality filters ----------------------------------------------
   # Remove outlier points based on zeroes (Marta's code)
   dataset <- dataset %>%
     dplyr::mutate(outlier = ifelse(.data$external_temperature == 0 & .data$barometric_height == 0 & .data$ground_speed == 0, 1, 0)) %>%
     dplyr::filter(is.na(outlier) | outlier == 0) %>%
-    dplyr::select(-.data$outlier)
+    dplyr::select(-"outlier")
 
   # filter out bad gps data
   dataset <- dataset %>%
@@ -147,15 +148,15 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
   # This also does not get rid of all the outliers... But most of them are at night, which because of the reduced schedule, does not seem like such a large speed (many hours divided by a few kms)
 
   # So now we have to calculate if the fix is during the day or the night.
-  crds <- matrix(c(df3[[longCol]], df3[[latCol]]),
-                 nrow = nrow(df3),
-                 ncol = 2)
-  df3$sunrise <- maptools::sunriset(crds, df3$timestamp, proj4string = CRS("+proj=longlat +datum=WGS84"),
-                                    direction = "sunrise", POSIXct.out = TRUE)$time
-  df3$sunset <- maptools::sunriset(crds, df3$timestamp, proj4string = CRS("+proj=longlat +datum=WGS84"),
-                                   direction = "sunset", POSIXct.out = TRUE)$time
+  times <- suncalc::getSunlightTimes(date = unique(lubridate::date(df3$timestamp)),
+                                     lat = 31.434306, lon = 34.991889,
+                                     keep = c("sunrise", "sunset")) %>%
+    dplyr::select("dateOnly" = date, sunrise, sunset)
+
   df3 <- df3 %>%
-    dplyr::mutate(daylight = ifelse(timestamp >= .data[[sunrise]] & timestamp <= .data[[sunset]], "day", "night")) %>%
+    dplyr::mutate(dateOnly = lubridate::ymd(dateOnly)) %>%
+    dplyr::left_join(times, by = "dateOnly") %>%
+    dplyr::mutate(daylight = ifelse(timestamp >= sunrise & timestamp <= sunset, "day", "night")) %>%
     dplyr::select(-c("sunrise", "sunset"))
 
   # re-calculate speeds again
