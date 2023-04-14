@@ -64,7 +64,6 @@ test_that("getRoostEdges works", {
   r <- get_roosts_df(df = a, id = "id")
   dist_e <- getRoostEdges(r, mode = "distance", idCol = "id", return = "edges")
   poly_e <- getRoostEdges(r, mode = "polygon", roostPolygons = rp, idCol = "id", return = "edges")
-  d
   dist_s <- getRoostEdges(r, mode = "distance", idCol = "id", return = "sri")
   poly_s <- getRoostEdges(r, mode = "polygon", roostPolygons = rp, idCol = "id", return = "sri")
 
