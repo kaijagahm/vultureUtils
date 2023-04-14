@@ -714,7 +714,7 @@ get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", 
   # If the speed is in km/h transform into m/s
   if(speed_units == "km/h"){
     df <- df %>%
-      dplyr::mutate("{{ground_speed}}" := round({{ground_speed}} / 3.6, 3))
+      dplyr::mutate({{ground_speed}} := round(.data[[ground_speed]] / 3.6, 3))
   }
 
   df[[timestamp]] <- as.POSIXct(df[[timestamp]],
