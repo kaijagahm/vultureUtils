@@ -140,13 +140,15 @@ removeUnnecessaryVars <- function(dataset, addlVars = NULL, keepVars = NULL){
 #' @param df a data frame to filter
 #' @param speedThreshLower a single numeric value, the lower limit for ground speed to be included (m/s)
 #' @param speedThreshUpper a single numeric value, the upper limit for ground speed to be included (m/s)
+#' @param speedCol Name of the column containing ground speed values. Default is "ground_speed".
 #' @return A list of filtered data frames.
 #' @export
-filterLocs <- function(df, speedThreshLower = NULL, speedThreshUpper = NULL){
+filterLocs <- function(df, speedThreshLower = NULL, speedThreshUpper = NULL, speedCol = "ground_speed"){
   # argument checks
   checkmate::assertDataFrame(df)
   checkmate::assertNumeric(speedThreshLower, null.ok = TRUE, len = 1)
   checkmate::assertNumeric(speedThreshUpper, null.ok = TRUE, len = 1)
+  checkmate::assertChoice(speedCol, choices = names(df))
 
   # Apply speed filters
   # if no speed thresholds are set, warn that we're not applying filtering.
@@ -157,11 +159,11 @@ filterLocs <- function(df, speedThreshLower = NULL, speedThreshUpper = NULL){
   # if at least one threshold is set, apply filtering
   if(!is.null(speedThreshLower)){
     df <- df %>%
-      dplyr::filter(.data$ground_speed > speedThreshLower)
+      dplyr::filter(.data[[speedCol]] > speedThreshLower)
   }
   if(!is.null(speedThreshUpper)){
     df <- df %>%
-      dplyr::filter(.data$ground_speed < speedThreshUpper)
+      dplyr::filter(.data[[speedCol]] < speedThreshUpper)
   }
 
   return(df)
@@ -175,6 +177,8 @@ filterLocs <- function(df, speedThreshLower = NULL, speedThreshUpper = NULL){
 #' @export
 convertAndBuffer <- function(obj, dist = 50, crsMeters = 32636){
   checkmate::assertClass(obj, "sf")
+  checkmate::assertNumeric(dist, len = 1, lower = 0)
+
   originalCRS <- sf::st_crs(obj)
   if(is.null(originalCRS)){
     stop("Object does not have a valid CRS.")
