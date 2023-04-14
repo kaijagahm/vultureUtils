@@ -2,8 +2,8 @@ test_that("convertAndBuffer works", {
   # Set up sample data
   nc <- sf::st_read(system.file("shape/nc.shp", package = "sf"))
   ncBuff <- convertAndBuffer(nc)
-  ncNoCRS <- nc
-  sf::st_crs(ncNoCRS) <- NA
+  ncNACRS <- nc
+  sf::st_crs(ncNACRS) <- NA
   basicPoint <- sf::st_point(c(1,2))
 
   # some vulture data
@@ -21,12 +21,31 @@ test_that("convertAndBuffer works", {
   # Error
   expect_error(convertAndBuffer(nc, dist = -10)) # negative distances shouldn't work
   expect_error(convertAndBuffer(basicPoint)) # can't buffer something that's not an sf object
-  expect_error(convertAndBuffer(ncNoCRS)) # can't buffer if there's no CRS
+  expect_error(convertAndBuffer(ncNACRS)) # can't buffer if CRS is NA (or NULL, but I don't have an explicit test yet for NULL bc I can't figure out how to set the CRS to NULL)
 })
 
 test_that("filterLocs works", {
+  # set up data
   base::load(test_path("testdata", "a.Rda"))
+  h <- 14
+  l <- 2
+  filtHigh <- filterLocs(df = a, speedThreshLower = NULL, speedThreshUpper = h)
+  filtLow <- filterLocs(df = a, speedThreshLower = l, speedThreshUpper = NULL)
+  filtBoth <- filterLocs(df = a, speedThreshLower = l, speedThreshUpper = h)
 
+  # rows are getting removed
+  expect_equal(nrow(filtHigh) < nrow(a), TRUE)
+  expect_equal(nrow(filtLow) < nrow(a), TRUE)
+  expect_equal(nrow(filtBoth) < nrow(a), TRUE)
+  expect_equal(nrow(filtBoth) < nrow(filtHigh) & nrow(filtBoth) < nrow(filtLow), TRUE)
+
+  # data structure doesn't change
+  expect_equal(class(filtBoth), class(a))
+  expect_equal(ncol(filtBoth), ncol(a))
+
+  # errors and warnings
+  expect_warning(filterLocs(df = a, speedThreshLower = NULL, speedThreshUpper = NULL))
+  expect_error(filterLocs(df = a, speedCol = "fakeCol"))
 })
 
 
