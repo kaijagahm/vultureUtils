@@ -180,7 +180,7 @@ convertAndBuffer <- function(obj, dist = 50, crsMeters = 32636){
   checkmate::assertNumeric(dist, len = 1, lower = 0)
 
   originalCRS <- sf::st_crs(obj)
-  if(is.null(originalCRS)){
+  if(is.null(originalCRS)|is.na(originalCRS)){
     stop("Object does not have a valid CRS.")
   }
 
