@@ -46,6 +46,9 @@ test_that("get_roosts_df works", {
 
   ## create the output
   roostsOut <- get_roosts_df(a, id = "id", quiet = T)
+  a_kmh <- a
+  a_kmh$ground_speed <- a_kmh$ground_speed*3.6
+  roostsOut_diffSpeed <- get_roosts_df(a_kmh, id = "id", quiet = T, speed_units = "km/h")
 
   ## test the output
   expect_equal(class(roostsOut), c("tbl_df", "tbl", "data.frame")) # output is a tibble/data frame
@@ -73,3 +76,31 @@ test_that("getRoostEdges works", {
   expect_equal(class(dist_s), "data.frame")
   expect_equal(class(poly_s), "data.frame")
 })
+
+# cleanData
+test_that("cleanData works", {
+  base::load(test_path("testdata", "rawDataSample.Rda"))
+  a <- rawDataSample
+  mask <- sf::st_read(test_path("testdata", "CutOffRegion.kml"))
+  c <- cleanData(a, mask = mask, idCol = "trackId", removeVars = T) # normal use case, re-masked
+  b <- cleanData(a, mask = mask, idCol = "trackId", removeVars = T, reMask = F) # not re-masked
+  c_notRemoved <- cleanData(a, mask = mask, idCol = "trackId", removeVars = F)
+
+  # not downsampled
+  nd <- cleanData(a, mask = mask, idCol = "trackId", removeVars = T, downsample = F)
+
+  # not quiet
+  nq <- cleanData(a, mask = mask, idCol = "trackId", removeVars = T, quiet = F)
+
+  # expectations
+  expect_equal(ncol(c_notRemoved) > ncol(c), TRUE) # more vars if not removed (duh)
+  expect_equal(class(c), c("sf", "tbl_df", "tbl", "data.frame")) # expected classes
+  expect_equal(class(nd), class(c)) # class shouldn't change if you don't downsample the data
+  expect_equal(class(b), c("tbl_df", "tbl", "data.frame")) # if we don't re-mask, the resulting object doesn't have class sf. #XXX should look into fixing this to make it consistent.
+  expect_equal(nrow(nd) > nrow(c), TRUE) # there should be more data if we don't downsample
+  expect_equal(nq, c) # setting quiet = F should not change the output
+  o <- capture_messages(cleanData(a, mask = mask, idCol = "trackId", removeVars = T, quiet = F))
+  expect_match(o, "dropping Z and/or M coordinate", all = FALSE)
+  expect_match(o, "Joining, by =", all = FALSE)
+})
+
