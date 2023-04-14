@@ -254,12 +254,10 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
 
   # Save lat and long coords, in case we need them later. Then, convert to UTM.
   dataset <- dataset %>%
-    dplyr::mutate(lon = sf::st_coordinates(.)[,1],
-                  lat = sf::st_coordinates(.)[,2]) %>%
-    sf::st_transform(crsToTransform) %>% # convert to UTM: we'll need this for calculating distance later.
-    dplyr::mutate(utmE = sf::st_coordinates(.)[,1],
-                  utmN = sf::st_coordinates(.)[,2]) %>%
-    sf::st_drop_geometry() # spatsoc won't work if this is still an sf object.
+    sf::st_transform(crsToTransform)
+  dataset$utmE <- unlist(map(dataset$geometry, 1))
+  dataset$utmN <- unlist(map(dataset$geometry, 2))
+  datset <- st_drop_geometry(dataset) # spatsoc won't work if this is still an sf object.
 
   # Convert the timestamp column to POSIXct.
   dataset <- dataset %>%
