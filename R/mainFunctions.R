@@ -157,7 +157,7 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
     dplyr::mutate(dateOnly = lubridate::ymd(dateOnly)) %>%
     dplyr::left_join(times, by = "dateOnly") %>%
     dplyr::mutate(daylight = ifelse(timestamp >= sunrise & timestamp <= sunset, "day", "night")) %>%
-    dplyr::select(-c("sunrise", "sunset"))
+    dplyr::select(-c(sunrise, sunset))
 
   # re-calculate speeds again
   df3 <- vultureUtils::calcSpeeds(df3, grpCol = idCol, longCol = longCol, latCol = latCol)
@@ -311,6 +311,7 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
 
   # Argument checks
   checkmate::assertDataFrame(dataset)
+  checkmate::assertSubset("sf", class(dataset))
   checkmate::assertClass(roostPolygons, "sf")
   checkmate::assertNumeric(roostBuffer, len = 1)
   checkmate::assertNumeric(consecThreshold, len = 1)
@@ -351,7 +352,9 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
                                        keep = c("sunrise", "sunset")) %>%
       dplyr::select(date, sunrise, sunset) # XXX the coordinates I'm using here are from the centroid of Israel calculated here: https://rona.sh/centroid. This is just a placeholder until we decide on a more accurate way of doing this.
     points <- points %>%
-      dplyr::select(-c("sunrise", "sunset")) %>% # remove leftover sunrise/sunset columns just in case
+      # remove leftover sunrise/sunset cols just in case
+      {if("sunrise" %in% names(.)) dplyr::select(., -sunrise) else .}%>%
+      {if("sunset" %in% names(.)) dplyr::select(., -sunset) else .}%>%
       dplyr::left_join(times, by = c("dateOnly" = "date")) %>%
       dplyr::mutate(daytime = dplyr::case_when(timestamp > .data[["sunrise"]] &
                                                  timestamp < .data[["sunset"]] ~ T,
@@ -488,6 +491,7 @@ getFeedingEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThre
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the id of the first individual in this edge, and `ID2` is the id of the second individual in this edge.
 #' @export
 getFlightEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThreshold = 2, distThreshold = 1000, speedThreshUpper = NULL, speedThreshLower = 5, timeThreshold = "10 minutes", idCol = "Nili_id", quiet = T, includeAllVertices = F, daytimeOnly = T, return = "edges"){
+  checkmate::assertSubset(class(dataset), "sf") # XXX SHOULD SWITCH ALL OF THESE AROUND SO THEY MAKE MORE SENSE!
   getEdges(dataset, roostPolygons = roostPolygons, roostBuffer = roostBuffer, consecThreshold = consecThreshold, distThreshold = distThreshold, speedThreshUpper = speedThreshUpper, speedThreshLower = speedThreshLower, timeThreshold = timeThreshold, idCol = idCol, quiet = quiet, includeAllVertices = includeAllVertices, daytimeOnly = daytimeOnly, return = return)
 }
 
