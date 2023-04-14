@@ -85,7 +85,7 @@ mostlyInMask <- function(dataset, maskedDataset, thresh = 0.333, dateCol = "date
 
   # Compare the two dates and calculate proportion
   datesCompare <- dplyr::left_join(dates, datesInMask %>%
-                                     dplyr::select(.data[[idCol]],
+                                     dplyr::select(tidyselect::all_of(idCol),
                                                    "durationInMask" = .data$duration)) %>%
     dplyr::mutate(propInMask = .data$durationInMask/.data$duration) # compute proportion of days spent in the mask area
 
@@ -130,7 +130,7 @@ removeUnnecessaryVars <- function(dataset, addlVars = NULL, keepVars = NULL){
 
   # actually do the removal
   newDataset <- dataset %>%
-    dplyr::select(-dplyr::any_of(toRemove))
+    dplyr::select(-tidyselect::any_of(toRemove))
   return(newDataset)
 }
 
@@ -255,9 +255,9 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
   # Save lat and long coords, in case we need them later. Then, convert to UTM.
   dataset <- dataset %>%
     sf::st_transform(crsToTransform)
-  dataset$utmE <- unlist(map(dataset$geometry, 1))
-  dataset$utmN <- unlist(map(dataset$geometry, 2))
-  datset <- st_drop_geometry(dataset) # spatsoc won't work if this is still an sf object.
+  dataset$utmE <- unlist(purrr::map(dataset$geometry, 1))
+  dataset$utmN <- unlist(purrr::map(dataset$geometry, 2))
+  datset <- sf::st_drop_geometry(dataset) # spatsoc won't work if this is still an sf object.
 
   # Convert the timestamp column to POSIXct.
   dataset <- dataset %>%
@@ -268,9 +268,9 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
 
   # Group the points into timegroups using spatsoc::group_times.
   dataset <- spatsoc::group_times(dataset, datetime = timestampCol, threshold = timeThreshold)
-  timegroupData <- dataset %>% # save information about when each timegroup starts and ends.
-    dplyr::select(tidyselect::all_of(timestampCol), timegroup) %>% # XXX this is deprecated, fix.
-    dplyr::group_by(.data$timegroup) %>%
+  timegroupData <- dataset %>%
+    dplyr::select(all_of(timestampCol), timegroup) %>% # save information about when each timegroup starts and ends.
+    dplyr::group_by(timegroup) %>%
     dplyr::summarize(minTimestamp = min(.data[[timestampCol]], na.rm = T),
                      maxTimestamp = max(.data[[timestampCol]], na.rm = T))
 
@@ -317,10 +317,9 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
 #' @param id1Col Character. Name of the column containing the ID of the first individual
 #' @param id2Col Character. Name of the column containing the ID of the second individual
 #' @param timegroupCol Character. Name of the column containing time groups (integer values), returned by spatsoc functions
-#' @param returnGroups whether to return the indices used to group runs of consecutive time slices for each dyad. Default is FALSE.
 #' @return An edge list (data frame) containing only edges that occurred in at least `consecThreshold` consecutive time groups.
 #' @export
-consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = "ID2", timegroupCol = "timegroup", returnGroups = FALSE){
+consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = "ID2", timegroupCol = "timegroup"){
   # argument checks
   checkmate::assertDataFrame(edgeList)
   checkmate::assertNumeric(consecThreshold, len = 1)
@@ -348,15 +347,10 @@ consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = 
     dplyr::filter(dplyr::n() >= consecThreshold) %>%
     dplyr::ungroup()
 
-  # only return the group column if it's asked for.
-  if(returnGroups == FALSE){
-    consec <- consec %>%
-      dplyr::ungroup() %>%
-      dplyr::select(-grp)
-    return(consec)
-  }else{
-    return(consec)
-  }
+  consec <- consec %>%
+    dplyr::ungroup() %>%
+    dplyr::select(-grp)
+  return(consec)
 }
 
 #' Calculate SRI
@@ -385,7 +379,7 @@ calcSRI <- function(dataset, edges, idCol = "Nili_id", timegroupCol = "timegroup
   ## get individuals per timegroup as a list
   # Info about timegroups and individuals, for SRI calculation
   timegroupsList <- dataset %>%
-    dplyr::select(tidyselect::all_of(timegroupCol), tidyselect::all_of(idCol)) %>%
+    dplyr::select(tidyselect::all_of(c(timegroupCol, idCol))) %>%
     dplyr::mutate({{idCol}} := as.character(.data[[idCol]])) %>%
     dplyr::distinct() %>%
     dplyr::group_by(.data[[timegroupCol]]) %>%
@@ -406,7 +400,7 @@ calcSRI <- function(dataset, edges, idCol = "Nili_id", timegroupCol = "timegroup
     dplyr::select(tidyselect::all_of(c(timegroupCol, idCol))) %>%
     dplyr::distinct() %>%
     dplyr::mutate(val = TRUE) %>%
-    tidyr::pivot_wider(id_cols = timegroupCol, names_from = idCol,
+    tidyr::pivot_wider(id_cols = tidyselect::all_of(timegroupCol), names_from = tidyselect::all_of(idCol),
                        values_from = "val", values_fill = FALSE)
 
   ## get SRI information
@@ -448,19 +442,19 @@ calcSpeeds <- function(df, grpCol, longCol, latCol){
     dplyr::group_by(.data[[grpCol]]) %>%
     dplyr::arrange(timestamp) %>%
     dplyr::mutate(lead_hour_diff_sec = round(as.numeric(difftime(dplyr::lead(timestamp),
-                                                          timestamp, units = "secs")), 3),
-           lead_hour_diff_sec = ifelse(lead_hour_diff_sec == 0, 0.01, lead_hour_diff_sec),
-           lag_hour_diff_sec = round(as.numeric(difftime(dplyr::lag(timestamp),
-                                                        timestamp, units = "secs")), 3),
-           lag_hour_diff_sec = ifelse(lag_hour_diff_sec == 0, 0.01, lag_hour_diff_sec),
-           lead_dist_m = round(geosphere::distGeo(p1 = cbind(dplyr::lead(.data[[longCol]]),
-                                                             dplyr::lead(.data[[latCol]])),
-                                        p2 = cbind(.data[[longCol]], .data[[latCol]])), 3),
-           lag_dist_m = round(geosphere::distGeo(p1 = cbind(dplyr::lag(.data[[longCol]]),
-                                                            dplyr::lag(.data[[latCol]])),
-                                       p2 = cbind(.data[[longCol]], .data[[latCol]])), 3),
-           lead_speed_m_s = round(lead_dist_m / lead_hour_diff_sec, 2),
-           lag_speed_m_s = round(lag_dist_m / lag_hour_diff_sec, 2),) %>%
+                                                                 timestamp, units = "secs")), 3),
+                  lead_hour_diff_sec = ifelse(lead_hour_diff_sec == 0, 0.01, lead_hour_diff_sec),
+                  lag_hour_diff_sec = round(as.numeric(difftime(dplyr::lag(timestamp),
+                                                                timestamp, units = "secs")), 3),
+                  lag_hour_diff_sec = ifelse(lag_hour_diff_sec == 0, 0.01, lag_hour_diff_sec),
+                  lead_dist_m = round(geosphere::distGeo(p1 = cbind(dplyr::lead(.data[[longCol]]),
+                                                                    dplyr::lead(.data[[latCol]])),
+                                                         p2 = cbind(.data[[longCol]], .data[[latCol]])), 3),
+                  lag_dist_m = round(geosphere::distGeo(p1 = cbind(dplyr::lag(.data[[longCol]]),
+                                                                   dplyr::lag(.data[[latCol]])),
+                                                        p2 = cbind(.data[[longCol]], .data[[latCol]])), 3),
+                  lead_speed_m_s = round(lead_dist_m / lead_hour_diff_sec, 2),
+                  lag_speed_m_s = round(lag_dist_m / lag_hour_diff_sec, 2),) %>%
     dplyr::ungroup()
   return(out)
 }
@@ -480,15 +474,15 @@ calcSpeedsVert <- function(df, grpCol, altCol, speedCol){
     dplyr::group_by(.data[[grpCol]]) %>%
     dplyr::arrange(timestamp) %>%
     dplyr::mutate(lead_hour_diff_sec = round(as.numeric(difftime(dplyr::lead(timestamp),
-                                                          timestamp, units = "secs")), 3),
-           lead_hour_diff_sec = ifelse(lead_hour_diff_sec == 0, 0.01, lead_hour_diff_sec),
-           lag_hour_diff_sec = round(as.numeric(difftime(dplyr::lag(timestamp),
-                                                        timestamp, units = "secs")), 3),
-           lag_hour_diff_sec = ifelse(lag_hour_diff_sec == 0, 0.01, lag_hour_diff_sec),
-           lead_dist_mV = round(dplyr::lead(.data[[altCol]]) - .data[[altCol]], 3),
-           lag_dist_mV = round(dplyr::lag(.data[[altCol]]) - .data[[altCol]], 3),
-           lead_speed_m_s = round(lead_dist_mV / lead_hour_diff_sec, 2),
-           lag_speed_m_s = round(lag_dist_mV / lag_hour_diff_sec, 2),) %>%
+                                                                 timestamp, units = "secs")), 3),
+                  lead_hour_diff_sec = ifelse(lead_hour_diff_sec == 0, 0.01, lead_hour_diff_sec),
+                  lag_hour_diff_sec = round(as.numeric(difftime(dplyr::lag(timestamp),
+                                                                timestamp, units = "secs")), 3),
+                  lag_hour_diff_sec = ifelse(lag_hour_diff_sec == 0, 0.01, lag_hour_diff_sec),
+                  lead_dist_mV = round(dplyr::lead(.data[[altCol]]) - .data[[altCol]], 3),
+                  lag_dist_mV = round(dplyr::lag(.data[[altCol]]) - .data[[altCol]], 3),
+                  lead_speed_m_s = round(lead_dist_mV / lead_hour_diff_sec, 2),
+                  lag_speed_m_s = round(lag_dist_mV / lag_hour_diff_sec, 2),) %>%
     dplyr::ungroup() %>%
-  return(out)
+    return(out)
 }
