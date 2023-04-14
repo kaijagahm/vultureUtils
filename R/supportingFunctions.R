@@ -140,13 +140,15 @@ removeUnnecessaryVars <- function(dataset, addlVars = NULL, keepVars = NULL){
 #' @param df a data frame to filter
 #' @param speedThreshLower a single numeric value, the lower limit for ground speed to be included (m/s)
 #' @param speedThreshUpper a single numeric value, the upper limit for ground speed to be included (m/s)
+#' @param speedCol Name of the column containing ground speed values. Default is "ground_speed".
 #' @return A list of filtered data frames.
 #' @export
-filterLocs <- function(df, speedThreshLower = NULL, speedThreshUpper = NULL){
+filterLocs <- function(df, speedThreshLower = NULL, speedThreshUpper = NULL, speedCol = "ground_speed"){
   # argument checks
   checkmate::assertDataFrame(df)
   checkmate::assertNumeric(speedThreshLower, null.ok = TRUE, len = 1)
   checkmate::assertNumeric(speedThreshUpper, null.ok = TRUE, len = 1)
+  checkmate::assertChoice(speedCol, choices = names(df))
 
   # Apply speed filters
   # if no speed thresholds are set, warn that we're not applying filtering.
@@ -157,11 +159,11 @@ filterLocs <- function(df, speedThreshLower = NULL, speedThreshUpper = NULL){
   # if at least one threshold is set, apply filtering
   if(!is.null(speedThreshLower)){
     df <- df %>%
-      dplyr::filter(.data$ground_speed > speedThreshLower)
+      dplyr::filter(.data[[speedCol]] > speedThreshLower)
   }
   if(!is.null(speedThreshUpper)){
     df <- df %>%
-      dplyr::filter(.data$ground_speed < speedThreshUpper)
+      dplyr::filter(.data[[speedCol]] < speedThreshUpper)
   }
 
   return(df)
@@ -175,8 +177,10 @@ filterLocs <- function(df, speedThreshLower = NULL, speedThreshUpper = NULL){
 #' @export
 convertAndBuffer <- function(obj, dist = 50, crsMeters = 32636){
   checkmate::assertClass(obj, "sf")
+  checkmate::assertNumeric(dist, len = 1, lower = 0)
+
   originalCRS <- sf::st_crs(obj)
-  if(is.null(originalCRS)){
+  if(is.null(originalCRS)|is.na(originalCRS)){
     stop("Object does not have a valid CRS.")
   }
 
@@ -273,8 +277,7 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
                      maxTimestamp = max(.data[[timestampCol]], na.rm = T))
 
   # Retain timestamps for each point, with timegroup information appending. This will be joined back at the end, to fix #43 and make individual points traceable.
-  timestamps <- dataset %>%
-    dplyr::select(tidyselect::all_of(timestampCol), tidyselect::all_of(idCol), timegroup)
+  timestamps <- dataset[,c(timestampCol, idCol, "timegroup")]
 
   # Generate edge lists by timegroup
   edges <- spatsoc::edge_dist(DT = dataset, threshold = distThreshold, id = idCol,
@@ -295,7 +298,7 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
 
   if(sri){
     if(nrow(edgesFiltered) > 1){
-      dfSRI <- calcSRI(dataset = dataset, edges = edgesFiltered)
+      dfSRI <- calcSRI(dataset = dataset, edges = edgesFiltered, idCol = idCol)
     }else{
       dfSRI <- setNames(data.frame(matrix(ncol = 3, nrow = 0)), c("ID1", "ID2", "sri"))
     }
@@ -343,7 +346,7 @@ consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = 
     dplyr::ungroup() %>%
 
     # group by the new `grp` column and remove any `grp`s that have less than `consecThreshold` rows (i.e. less than `consecThreshold` consecutive time groups for that edge)
-    dplyr::group_by(.data[[id1Col]], .data[[id2Col]], .data$grp) %>%
+    dplyr::group_by(.data[[id1Col]], .data[[id2Col]], grp) %>%
     dplyr::filter(dplyr::n() >= consecThreshold) %>%
     dplyr::ungroup()
 
@@ -351,7 +354,7 @@ consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = 
   if(returnGroups == FALSE){
     consec <- consec %>%
       dplyr::ungroup() %>%
-      dplyr::select(-.data$grp)
+      dplyr::select(-grp)
     return(consec)
   }else{
     return(consec)

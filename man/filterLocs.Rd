@@ -4,7 +4,12 @@
 \alias{filterLocs}
 \title{Filter locs}
 \usage{
-filterLocs(df, speedThreshLower = NULL, speedThreshUpper = NULL)
+filterLocs(
+  df,
+  speedThreshLower = NULL,
+  speedThreshUpper = NULL,
+  speedCol = "ground_speed"
+)
 }
 \arguments{
 \item{df}{a data frame to filter}
@@ -12,6 +17,8 @@ filterLocs(df, speedThreshLower = NULL, speedThreshUpper = NULL)
 \item{speedThreshLower}{a single numeric value, the lower limit for ground speed to be included (m/s)}
 
 \item{speedThreshUpper}{a single numeric value, the upper limit for ground speed to be included (m/s)}
+
+\item{speedCol}{Name of the column containing ground speed values. Default is "ground_speed".}
 }
 \value{
 A list of filtered data frames.

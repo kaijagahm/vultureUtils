@@ -157,7 +157,7 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
     dplyr::mutate(dateOnly = lubridate::ymd(dateOnly)) %>%
     dplyr::left_join(times, by = "dateOnly") %>%
     dplyr::mutate(daylight = ifelse(timestamp >= sunrise & timestamp <= sunset, "day", "night")) %>%
-    dplyr::select(-c("sunrise", "sunset"))
+    dplyr::select(-c(sunrise, sunset))
 
   # re-calculate speeds again
   df3 <- vultureUtils::calcSpeeds(df3, grpCol = idCol, longCol = longCol, latCol = latCol)
@@ -304,13 +304,9 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the id of the first individual in this edge, and `ID2` is the id of the second individual in this edge.
 #' @export
 getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distThreshold, speedThreshUpper, speedThreshLower, timeThreshold = "10 minutes", idCol = "Nili_id", quiet = T, includeAllVertices = F, daytimeOnly = T, return = "edges"){
-  # test for Elvira
-  if(1 == 0){
-    print("this makes no sense")
-  }
-
   # Argument checks
   checkmate::assertDataFrame(dataset)
+  checkmate::assertSubset("sf", class(dataset))
   checkmate::assertClass(roostPolygons, "sf")
   checkmate::assertNumeric(roostBuffer, len = 1)
   checkmate::assertNumeric(consecThreshold, len = 1)
@@ -351,7 +347,9 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
                                        keep = c("sunrise", "sunset")) %>%
       dplyr::select(date, sunrise, sunset) # XXX the coordinates I'm using here are from the centroid of Israel calculated here: https://rona.sh/centroid. This is just a placeholder until we decide on a more accurate way of doing this.
     points <- points %>%
-      dplyr::select(-c("sunrise", "sunset")) %>% # remove leftover sunrise/sunset columns just in case
+      # remove leftover sunrise/sunset cols just in case
+      {if("sunrise" %in% names(.)) dplyr::select(., -sunrise) else .}%>%
+      {if("sunset" %in% names(.)) dplyr::select(., -sunset) else .}%>%
       dplyr::left_join(times, by = c("dateOnly" = "date")) %>%
       dplyr::mutate(daytime = dplyr::case_when(timestamp > .data[["sunrise"]] &
                                                  timestamp < .data[["sunset"]] ~ T,
@@ -390,7 +388,8 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
                                                                                distThreshold = distThreshold,
                                                                                consecThreshold = consecThreshold,
                                                                                timeThreshold = timeThreshold,
-                                                                               sri = FALSE)))
+                                                                               sri = FALSE,
+                                                                               idCol = idCol)))
       }else{
         ### EDGES ONLY, WARNINGS
         # compute edges without suppressing warnings
@@ -607,20 +606,13 @@ getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, dist
       }
 
       # Add an ID number for each roost.
-      roostPolygons <- roostPolygons %>%
-        dplyr::mutate(id = 1:nrow(.))
+      roostPolygons$roostPolygonID <- 1:nrow(roostPolygons)
+      roostPolygons <- roostPolygons[,"roostPolygonID"] # geometry comes along when you do this
 
       # Join the dataset to the roost polygons.
       polys <- sf::st_join(dataset, roostPolygons) %>%
-        sf::st_drop_geometry()
-
-      if("Name" %in% names(roostPolygons)){
-        polys <- polys %>%
-          dplyr::rename({{roostCol}} := Name)
-      }else{
-        polys <- polys %>%
-          dplyr::rename({{roostCol}} := id)
-      }
+        sf::st_drop_geometry() %>%
+        dplyr::rename({{roostCol}} := roostPolygonID)
     }else if(roostCol %in% names(dataset)){
       polys <- dataset # we can use the dataset as is.
     }else if(!(roostCol %in% names(dataset)) & is.null(roostPolygons)){
@@ -633,7 +625,8 @@ getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, dist
       dplyr::group_by(.data[[dateCol]], .data[[roostCol]]) %>% # each day/roost is treated separately
       dplyr::group_split(.keep = T) %>%
       purrr::map_dfr(~{tidyr::expand_grid("ID1" = .x[[idCol]], .x)}) %>% # for each polygon/day, create all pairs of individuals, and then bind the results back together into a data frame.
-      dplyr::rename("ID2" = tidyselect::all_of(idCol)) %>%
+
+      dplyr::rename("ID2" = {{idCol}}) %>%
       dplyr::filter(ID1 < ID2) # remove self and duplicate edges
   }
 
