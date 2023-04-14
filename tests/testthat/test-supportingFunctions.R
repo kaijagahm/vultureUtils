@@ -1,3 +1,4 @@
+# convertAndBuffer
 test_that("convertAndBuffer works", {
   # Set up sample data
   nc <- sf::st_read(system.file("shape/nc.shp", package = "sf"))
@@ -24,6 +25,7 @@ test_that("convertAndBuffer works", {
   expect_error(convertAndBuffer(ncNACRS)) # can't buffer if CRS is NA (or NULL, but I don't have an explicit test yet for NULL bc I can't figure out how to set the CRS to NULL)
 })
 
+# filterLocs
 test_that("filterLocs works", {
   # set up data
   base::load(test_path("testdata", "a.Rda"))
@@ -48,6 +50,22 @@ test_that("filterLocs works", {
   expect_error(filterLocs(df = a, speedCol = "fakeCol"))
 })
 
+# maskData
+test_that("maskData works", {
+  base::load(test_path("testdata", "ed_0905_0908.Rda"))
+  a <- ed_0905_0908
+  mask <- sf::st_read(test_path("testdata", "CutOffRegion.kml"))
+  smallMask <- sf::st_buffer(mask %>% sf::st_transform(32636), -100000)
+  m <- maskData(dataset = a, mask = smallMask)
+  # should get the same result if the input is not an sf object.
+  a_notSF <- sf::st_drop_geometry(a)
+  mm <- maskData(dataset = a_notSF, mask = smallMask)
+
+  # expectations about the masked dataset
+  expect_equal(nrow(m) < nrow(a), TRUE)
+  expect_equal(class(a), class(m))
+  expect_equal(m, mm)
+})
 
 
 

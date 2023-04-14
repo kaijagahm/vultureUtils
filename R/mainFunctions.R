@@ -164,7 +164,7 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
 
   # Exclude if during the night the distance between two locations are more than 10km apart
   df4 <- df3 %>%
-    dplyr::mutate(day_diff = as.numeric(difftime(lead(lubridate::date(timestamp)),
+    dplyr::mutate(day_diff = as.numeric(difftime(dplyr::lead(lubridate::date(timestamp)),
                                                  lubridate::date(timestamp), units = "days")),
                   night_outlier = ifelse(daylight == "night" &
                                            day_diff %in% c(0, 1) &
@@ -254,12 +254,12 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
       dplyr::mutate(minute = lubridate::minute(timestamp) %/% 10 * 10, # round to nearest 10 minutes
                     timestampFloor = lubridate::floor_date(timestamp, "hour") + lubridate::minutes(minute)) %>%
       dplyr::group_by(.data[[idCol]], timestampFloor) %>%
-      arrange(timestamp, .by_group = T) %>%
-      slice(1) %>%
+      dplyr::arrange(timestamp, .by_group = T) %>%
+      dplyr::slice(1) %>%
       dplyr::ungroup() %>%
       dplyr::group_by(.data[[idCol]]) %>%
-      mutate(diff = as.numeric(difftime(timestamp, dplyr::lag(timestamp), units = "secs"))) %>%
-      filter(diff >= 400) %>% # I don't really like this, because it loses entire minute-groups, but oh well.
+      dplyr::mutate(diff = as.numeric(difftime(timestamp, dplyr::lag(timestamp), units = "secs"))) %>%
+      dplyr::filter(diff >= 400) %>% # I don't really like this, because it loses entire minute-groups, but oh well.
       dplyr::select(-c("diff", "timestampFloor"))
 
     dataset <- dft
@@ -279,9 +279,11 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
                                               crs = crs)
     }
 
-    return(cleanedInMask)
+    return(cleanedInMask %>%
+             dplyr::ungroup())
   }else{
-    return(dataset)
+    return(dataset %>%
+             dplyr::ungroup())
   }
 }
 
@@ -554,8 +556,8 @@ getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, dist
     dataset <- dataset %>%
       sf::st_transform(crsToTransform) # convert to UTM: we'll need this for calculating distance later.
     dataset <- dataset %>%
-      dplyr::mutate(utmE = unlist(map(dataset$geometry, 1)),
-                    utmN = unlist(map(dataset$geometry, 2))) %>%
+      dplyr::mutate(utmE = unlist(purrr::map(dataset$geometry, 1)),
+                    utmN = unlist(purrr::map(dataset$geometry, 2))) %>%
       sf::st_drop_geometry() # spatsoc won't work if this is still an sf object.
     # XXXXXXXXXX # should probably make the above into its own function, since it's repeated code.
     # Use spatsoc to compute distance groups using the distance threshold
@@ -712,7 +714,7 @@ get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", 
   # If the speed is in km/h transform into m/s
   if(speed_units == "km/h"){
     df <- df %>%
-      dplyr::mutate("{{ground_speed}}" := round({{ground_speed}} / 3.6, 3))
+      dplyr::mutate({{ground_speed}} := round(.data[[ground_speed]] / 3.6, 3))
   }
 
   df[[timestamp]] <- as.POSIXct(df[[timestamp]],
