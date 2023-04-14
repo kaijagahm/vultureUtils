@@ -6,12 +6,12 @@ if(getRversion() >= "2.15.1")  utils::globalVariables(".") # this supposedly hel
 #' Given a mask and a dataset, apply the mask to the dataset and return only locations inside the mask.
 #' @param dataset a dataset to mask
 #' @param mask an sf object to use as the mask.
-#' @param longCol the name of the column in the dataset containing longitude values
-#' @param latCol the name of the column in the dataset containing latitude values
-#' @param crs (To be passed to `st_set_crs()`). One of (i) character: a string accepted by GDAL, (ii) integer, a valid EPSG value (numeric), or (iii) an object of class crs.
+#' @param longCol the name of the column in the dataset containing longitude (or x coordinate) values
+#' @param latCol the name of the column in the dataset containing latitude (or y coordinate) values
+#' @param crsToSet If `dataset` is not already an sf object, a character string to be passed to `st_set_crs()`). One of (i) character: a string accepted by GDAL, (ii) integer, a valid EPSG value (numeric), or (iii) an object of class crs. Default is "WGS84".
 #' @return A masked data set.
 #' @export
-maskData <- function(dataset, mask, longCol = "location_long", latCol = "location_lat", crs){
+maskData <- function(dataset, mask, longCol = "location_long", latCol = "location_lat", crsToSet = "WGS84"){
   # argument checks
   checkmate::assertClass(mask, "sf")
   checkmate::assertDataFrame(dataset)
@@ -25,7 +25,7 @@ maskData <- function(dataset, mask, longCol = "location_long", latCol = "locatio
   if(issf == FALSE){
     checkmate::assertSubset(x = c(longCol, latCol), choices = names(dataset))
     dataset_sf <- sf::st_as_sf(dataset, coords = c(longCol, latCol), remove = FALSE)
-    dataset_sf <- sf::st_set_crs(dataset_sf, value = crs)
+    dataset_sf <- sf::st_set_crs(dataset_sf, value = crsToSet)
   }else{
     dataset_sf <- dataset
   }
@@ -86,7 +86,7 @@ mostlyInMask <- function(dataset, maskedDataset, thresh = 0.333, dateCol = "date
   # Compare the two dates and calculate proportion
   datesCompare <- dplyr::left_join(dates, datesInMask %>%
                                      dplyr::select(tidyselect::all_of(idCol),
-                                                   "durationInMask" = .data$duration)) %>%
+                                                   "durationInMask" = duration)) %>%
     dplyr::mutate(propInMask = .data$durationInMask/.data$duration) # compute proportion of days spent in the mask area
 
   whichInMaskLongEnough <- datesCompare %>%
@@ -330,7 +330,6 @@ consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = 
   checkmate::assertCharacter(timegroupCol, len = 1)
   checkmate::assertChoice(timegroupCol, names(edgeList))
   checkmate::assertInteger(edgeList[[timegroupCol]])
-  checkmate::assertLogical(returnGroups, len = 1)
 
   # do the filtering
   consec <- edgeList %>%
