@@ -12,3 +12,5 @@ movebankCredentials/
 R/sysdata.rda
 chatGPT.R
 setup.R
+elviraData/
+script_example.R

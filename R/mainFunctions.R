@@ -552,11 +552,10 @@ getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, dist
 
     # Save lat and long coords, in case we need them later. Then, convert to UTM.
     dataset <- dataset %>%
-      dplyr::mutate(lon = sf::st_coordinates(.)[,1],
-                    lat = sf::st_coordinates(.)[,2]) %>%
-      sf::st_transform(crsToTransform) %>% # convert to UTM: we'll need this for calculating distance later.
-      dplyr::mutate(utmE = sf::st_coordinates(.)[,1],
-                    utmN = sf::st_coordinates(.)[,2]) %>%
+      sf::st_transform(crsToTransform) # convert to UTM: we'll need this for calculating distance later.
+    dataset <- dataset %>%
+      dplyr::mutate(utmE = unlist(map(dataset$geometry, 1)),
+                    utmN = unlist(map(dataset$geometry, 2))) %>%
       sf::st_drop_geometry() # spatsoc won't work if this is still an sf object.
     # XXXXXXXXXX # should probably make the above into its own function, since it's repeated code.
     # Use spatsoc to compute distance groups using the distance threshold
