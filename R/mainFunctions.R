@@ -452,7 +452,7 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
 #'
 #' Wrapper of getEdges() with defaults for co-feeding edges. Can still be customized!
 #' @param dataset The cleaned GPS dataset to be used to create the edge list. This should be the output from `vultureUtils::cleanData()`.
-#' @param roostPolygons Roost polygons. Must be an sf object with a CRS that matches the dataset CRS.
+#' @param roostPolygons Roost polygons. Must be an sf object with a CRS that matches the dataset CRS. This is used to filter out points with ground speed less than speedThreshLower that might be occurring at roost sites instead of at a carcass site.
 #' @param roostBuffer Number of meters to buffer the roost polygons by before intersecting them. Default is 50 m.
 #' @param consecThreshold Minimal number of co-occurrences for considering a viable pair of interacting vultures (default is 2 consecutive time steps). Passed to `vultureUtils::spaceTimeGroups()`. Must be numeric.
 #' @param distThreshold The maximum distance (in meters) at which vultures are considered interacting. Default is 50 for co-feeding. Passed to `vultureUtils::spaceTimeGroups()`. Must be numeric.
