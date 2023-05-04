@@ -9,7 +9,7 @@ maskData(
   mask,
   longCol = "location_long",
   latCol = "location_lat",
-  crs
+  crsToSet = "WGS84"
 )
 }
 \arguments{
@@ -17,11 +17,11 @@ maskData(
 
 \item{mask}{an sf object to use as the mask.}
 
-\item{longCol}{the name of the column in the dataset containing longitude values}
+\item{longCol}{the name of the column in the dataset containing longitude (or x coordinate) values}
 
-\item{latCol}{the name of the column in the dataset containing latitude values}
+\item{latCol}{the name of the column in the dataset containing latitude (or y coordinate) values}
 
-\item{crs}{(To be passed to `st_set_crs()`). One of (i) character: a string accepted by GDAL, (ii) integer, a valid EPSG value (numeric), or (iii) an object of class crs.}
+\item{crsToSet}{If `dataset` is not already an sf object, a character string to be passed to `st_set_crs()`). One of (i) character: a string accepted by GDAL, (ii) integer, a valid EPSG value (numeric), or (iii) an object of class crs. Default is "WGS84".}
 }
 \value{
 A masked data set.

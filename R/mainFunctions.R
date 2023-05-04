@@ -291,7 +291,7 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
 #'
 #' Given a dataset of GPS points, a geographic mask, and some roost polygons, create an edge list.
 #' @param dataset The cleaned GPS dataset to be used to create the edge list. This should be the output from `vultureUtils::cleanData()`. Must include the columns "ground_speed", "dateOnly", and "timestamp", as well as "location_lat" and "location_long" (which will be passed to `spaceTimeGroups`). XXX edit this: GH#58
-#' @param roostPolygons Roost polygons. Must be an sf object with a CRS that matches the dataset CRS.
+#' @param roostPolygons Roost polygons. Must be an sf object with a CRS that matches the dataset CRS. This is used to filter out points with ground speed less than speedThreshLower that might be occurring at roost sites instead of at a carcass site. If NULL, no filtering will be done by polygon intersections.
 #' @param roostBuffer Number of meters to buffer the roost polygons by before intersecting them.
 #' @param consecThreshold Minimal number of co-occurrences for considering a viable pair of interacting vultures. Passed to `vultureUtils::spaceTimeGroups()`. Must be numeric.
 #' @param distThreshold The maximum distance (in meters) at which vultures are considered interacting. Passed to `vultureUtils::spaceTimeGroups()`. Must be numeric.
@@ -309,7 +309,7 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
   # Argument checks
   checkmate::assertDataFrame(dataset)
   checkmate::assertSubset("sf", class(dataset))
-  checkmate::assertClass(roostPolygons, "sf")
+  checkmate::assertClass(roostPolygons, "sf", null.ok = TRUE)
   checkmate::assertNumeric(roostBuffer, len = 1)
   checkmate::assertNumeric(consecThreshold, len = 1)
   checkmate::assertNumeric(distThreshold, len = 1)
@@ -337,11 +337,17 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
                                            speedThreshUpper = speedThreshUpper,
                                            speedThreshLower = speedThreshLower)
 
-  # Buffer the roost polygons
-  roostPolygons <- convertAndBuffer(roostPolygons, dist = roostBuffer)
+  # If roost polygons were provided, use them to filter out data
+  if(!is.null(roostPolygons)){
+    # Buffer the roost polygons
+    roostPolygons <- convertAndBuffer(roostPolygons, dist = roostBuffer)
 
-  # Exclude any points that fall within a (buffered) roost polygon
-  points <- filteredData[lengths(sf::st_intersects(filteredData, roostPolygons)) == 0,]
+    # Exclude any points that fall within a (buffered) roost polygon
+    points <- filteredData[lengths(sf::st_intersects(filteredData, roostPolygons)) == 0,]
+  }else{
+    message("No roost polygons provided; points will not be filtered by spatial intersection.")
+    points <- filteredData
+  }
 
   # Restrict based on daylight
   if(daytimeOnly){
@@ -452,7 +458,7 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
 #'
 #' Wrapper of getEdges() with defaults for co-feeding edges. Can still be customized!
 #' @param dataset The cleaned GPS dataset to be used to create the edge list. This should be the output from `vultureUtils::cleanData()`.
-#' @param roostPolygons Roost polygons. Must be an sf object with a CRS that matches the dataset CRS. This is used to filter out points with ground speed less than speedThreshLower that might be occurring at roost sites instead of at a carcass site.
+#' @param roostPolygons Roost polygons. Must be an sf object with a CRS that matches the dataset CRS. This is used to filter out points with ground speed less than speedThreshLower that might be occurring at roost sites instead of at a carcass site. If NULL, no filtering will be done by polygon intersections.
 #' @param roostBuffer Number of meters to buffer the roost polygons by before intersecting them. Default is 50 m.
 #' @param consecThreshold Minimal number of co-occurrences for considering a viable pair of interacting vultures (default is 2 consecutive time steps). Passed to `vultureUtils::spaceTimeGroups()`. Must be numeric.
 #' @param distThreshold The maximum distance (in meters) at which vultures are considered interacting. Default is 50 for co-feeding. Passed to `vultureUtils::spaceTimeGroups()`. Must be numeric.
@@ -466,7 +472,7 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
 #' @param return One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist. Also includes timegroup information, which SRI cannot do. One row in this data frame represents a single edge in a single timegroup.); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the id of the first individual in this edge, and `ID2` is the id of the second individual in this edge.
 #' @export
-getFeedingEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThreshold = 2, distThreshold = 50, speedThreshUpper = 5, speedThreshLower = NULL, timeThreshold = "10 minutes", idCol = "Nili_id", quiet = T, includeAllVertices = F, daytimeOnly = T, return = "edges"){
+getFeedingEdges <- function(dataset, roostPolygons = NULL, roostBuffer = 50, consecThreshold = 2, distThreshold = 50, speedThreshUpper = 5, speedThreshLower = NULL, timeThreshold = "10 minutes", idCol = "Nili_id", quiet = T, includeAllVertices = F, daytimeOnly = T, return = "edges"){
   getEdges(dataset, roostPolygons = roostPolygons, roostBuffer = roostBuffer, consecThreshold = consecThreshold, distThreshold = distThreshold, speedThreshUpper = speedThreshUpper, speedThreshLower = speedThreshLower, timeThreshold = timeThreshold, idCol = idCol, quiet = quiet, includeAllVertices = includeAllVertices, daytimeOnly = daytimeOnly, return = return)
 }
 
@@ -474,7 +480,7 @@ getFeedingEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThre
 #'
 #' Wrapper of getEdges() with defaults for co-flight edges. Can still be customized!
 #' @param dataset The cleaned GPS dataset to be used to create the edge list. This should be the output from `vultureUtils::cleanData()`.
-#' @param roostPolygons Roost polygons. Must be an sf object with a CRS that matches the dataset CRS.
+#' @param roostPolygons Roost polygons. Must be an sf object with a CRS that matches the dataset CRS. This is used to filter out points with ground speed less than speedThreshLower that might be occurring at roost sites instead of at a carcass site. If NULL, no filtering will be done by polygon intersections.
 #' @param roostBuffer Number of meters to buffer the roost polygons by before intersecting them. Default is 50 m.
 #' @param consecThreshold Minimal number of co-occurrences for considering a viable pair of interacting vultures (default is 2 consecutive time steps). Passed to `vultureUtils::spaceTimeGroups()`. Must be numeric.
 #' @param distThreshold The maximum distance (in meters) at which vultures are considered interacting. Default is 1000 m for co-flight Passed to `vultureUtils::spaceTimeGroups()`. Must be numeric.
@@ -488,7 +494,7 @@ getFeedingEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThre
 #' @param return One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist. Also includes timegroup information, which SRI cannot do. One row in this data frame represents a single edge in a single timegroup.); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the id of the first individual in this edge, and `ID2` is the id of the second individual in this edge.
 #' @export
-getFlightEdges <- function(dataset, roostPolygons, roostBuffer = 50, consecThreshold = 2, distThreshold = 1000, speedThreshUpper = NULL, speedThreshLower = 5, timeThreshold = "10 minutes", idCol = "Nili_id", quiet = T, includeAllVertices = F, daytimeOnly = T, return = "edges"){
+getFlightEdges <- function(dataset, roostPolygons = NULL, roostBuffer = 50, consecThreshold = 2, distThreshold = 1000, speedThreshUpper = NULL, speedThreshLower = 5, timeThreshold = "10 minutes", idCol = "Nili_id", quiet = T, includeAllVertices = F, daytimeOnly = T, return = "edges"){
   getEdges(dataset, roostPolygons = roostPolygons, roostBuffer = roostBuffer, consecThreshold = consecThreshold, distThreshold = distThreshold, speedThreshUpper = speedThreshUpper, speedThreshLower = speedThreshLower, timeThreshold = timeThreshold, idCol = idCol, quiet = quiet, includeAllVertices = includeAllVertices, daytimeOnly = daytimeOnly, return = return)
 }
 
