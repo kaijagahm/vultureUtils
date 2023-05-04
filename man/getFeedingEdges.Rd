@@ -6,7 +6,7 @@
 \usage{
 getFeedingEdges(
   dataset,
-  roostPolygons,
+  roostPolygons = NULL,
   roostBuffer = 50,
   consecThreshold = 2,
   distThreshold = 50,
@@ -23,7 +23,7 @@ getFeedingEdges(
 \arguments{
 \item{dataset}{The cleaned GPS dataset to be used to create the edge list. This should be the output from `vultureUtils::cleanData()`.}
 
-\item{roostPolygons}{Roost polygons. Must be an sf object with a CRS that matches the dataset CRS.}
+\item{roostPolygons}{Roost polygons. Must be an sf object with a CRS that matches the dataset CRS. This is used to filter out points with ground speed less than speedThreshLower that might be occurring at roost sites instead of at a carcass site. If NULL, no filtering will be done by polygon intersections.}
 
 \item{roostBuffer}{Number of meters to buffer the roost polygons by before intersecting them. Default is 50 m.}
 
