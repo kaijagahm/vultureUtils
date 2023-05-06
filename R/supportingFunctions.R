@@ -331,24 +331,26 @@ consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = 
   checkmate::assertChoice(timegroupCol, names(edgeList))
   checkmate::assertInteger(edgeList[[timegroupCol]])
 
-  # do the filtering
-  consec <- edgeList %>%
+  uniquePairs <- edgeList %>%
+    dplyr::select(.data[[id1Col]], .data[[id2Col]], .data[[timegroupCol]]) %>%
+    dplyr::distinct(.data[[timegroupCol]], .data[[id1Col]], .data[[id2Col]]) %>%
     # for each edge, arrange by timegroup
     dplyr::group_by(.data[[id1Col]], .data[[id2Col]]) %>%
     dplyr::arrange(.data[[timegroupCol]], .by_group = TRUE) %>%
-
     # create a new index grp that groups rows into consecutive runs
-    dplyr::mutate("grp" = cumsum(c(1, diff(timegroupCol) != 1))) %>%
-    dplyr::ungroup() %>%
+    dplyr::mutate("grp" = cumsum(c(1, diff(.data[[timegroupCol]]) != 1))) %>% # apparently when you append a 1 to a logical vector, it converts the logical to numeric 1/0. Who knew!
+    dplyr::ungroup()
 
+  uniquePairs_toKeep <- uniquePairs %>%
     # group by the new `grp` column and remove any `grp`s that have less than `consecThreshold` rows (i.e. less than `consecThreshold` consecutive time groups for that edge)
     dplyr::group_by(.data[[id1Col]], .data[[id2Col]], grp) %>%
     dplyr::filter(dplyr::n() >= consecThreshold) %>%
-    dplyr::ungroup()
-
-  consec <- consec %>%
     dplyr::ungroup() %>%
     dplyr::select(-grp)
+
+  consec <- uniquePairs_toKeep %>%
+    left_join(edgeList, by = c(id1Col, id2Col, timegroupCol))
+
   return(consec)
 }
 
