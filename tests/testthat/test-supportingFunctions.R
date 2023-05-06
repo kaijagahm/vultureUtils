@@ -67,5 +67,18 @@ test_that("maskData works", {
   expect_equal(m, mm)
 })
 
+test_that("consecEdges works", {
+  base::load(test_path("testdata", "edges_2021.08.27_2021.09.10_25m_20min.Rda"))
+  a <- edges_2021.08.27_2021.09.10_25m_20min # rename this to make it easier to read
+  cs1 <- consecEdges(edgeList = a, consecThreshold = 1)
+  cs2 <- consecEdges(edgeList = a, consecThreshold = 2)
+  cs5 <- consecEdges(edgeList = a, consecThreshold = 5)
+  cs100 <- consecEdges(edgeList = a, consecThreshold = 100)
+  expect_equal(nrow(cs1), 21550)
+  expect_equal(nrow(cs2), 16914)
+  expect_equal(nrow(cs5), 6075)
+  expect_equal(nrow(cs100), 0)
+})
+
 
 
