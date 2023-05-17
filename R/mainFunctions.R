@@ -89,11 +89,11 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
 #' @param removeVars Whether or not to remove unnecessary variables. Default is T.
 #' @param reMask Whether or not to re-mask after removing individuals that spend less than `inMaskThreshold` in the mask area. Default is T.
 #' @param quiet Whether to silence the message that happens when doing spatial joins. Default is T.
-#' @param downsample T/F. Whether to downsample the data to a 10 min interval. #XXX expand functionality here, or consider making it a separate function. This is quick and dirty. Also fix the actual downsampling, because I don't think it's quite right.
 #' @param ... additional arguments to be passed to any of several functions: `vultureUtils::removeUnnecessaryVars()` (`addlVars`, `keepVars`);
+#' @param report Default TRUE. Whether to print a report of how many rows/individuals were removed in each of the data cleaning steps.
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the id of the first individual in this edge, and `ID2` is the id of the second individual in this edge.
 #' @export
-cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", longCol = "location_long.1", latCol = "location_lat.1", dateCol = "dateOnly", idCol = "Nili_id", removeVars = T, reMask = T, quiet = T, downsample = T, ...){
+cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", longCol = "location_long.1", latCol = "location_lat.1", dateCol = "dateOnly", idCol = "Nili_id", removeVars = T, reMask = T, quiet = T, report = T, ...){
   # Argument checks
   checkmate::assertClass(mask, "sf")
   checkmate::assertDataFrame(dataset)
@@ -107,27 +107,41 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
   checkmate::assertChoice("ground_speed", names(dataset))
   checkmate::assertChoice("external_temperature", names(dataset))
   checkmate::assertChoice("barometric_height", names(dataset))
-  checkmate::assertSubset(x = c(longCol, latCol, dateCol), choices = names(dataset))
   checkmate::assertClass(dataset$timestamp, "POSIXct")
+
+  # For checking as we go along and getting a report: a little function to calculate rows, columns, and individuals.
+  getStats <- function(df){
+    rows <- nrow(df)
+    cols <- ncol(df)
+    indivs <- length(unique(df[[idCol]]))
+    return(c("rows" = rows, "cols" = cols, "indivs" = indivs))
+  }
+  init <- getStats(dataset) # get an initial baseline from the input data.
 
   # Basic data quality filters ----------------------------------------------
   # Remove outlier points based on zeroes (Marta's code)
   dataset <- dataset %>%
-    dplyr::mutate(outlier = ifelse(.data$external_temperature == 0 & .data$barometric_height == 0 & .data$ground_speed == 0, 1, 0)) %>%
+    dplyr::mutate(outlier = ifelse(.data$external_temperature == 0 & .data$barometric_height == 0 & .data$ground_speed == 0, 1, 0))
+
+  dataset <- dataset %>%
     dplyr::filter(is.na(outlier) | outlier == 0) %>%
     dplyr::select(-"outlier")
+  outliers <- getStats(dataset) # AAA
 
   # filter out bad gps data
   dataset <- dataset %>%
     dplyr::filter(.data$gps_time_to_fix <= 89)
+  badTimeToFix <- getStats(dataset) # AAA
 
   # filter out bad heading data
   dataset <- dataset %>%
-    dplyr::filter(.data$heading < 360 & .data$heading > 0) # only reasonable headings, between 0 and 360.
+    dplyr::filter(.data$heading <= 360 & .data$heading >= 0) # only reasonable headings, between 0 and 360.
+  badHeading <- getStats(dataset) # AAA
 
   # only take locs that have at least 3 satellites
   dataset <- dataset %>%
     dplyr::filter(.data$gps_satellite_count >= 3) # must have at least 3 satellites in order to triangulate.
+  badSatellites <- getStats(dataset) # AAA
 
   # SPIKY SPEEDS START (XXX eventually should put this in its own function, maybe)
   # remove unrealistic "spiky" speeds (based on Marta's code)
@@ -146,6 +160,7 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
   df3 <- df2 %>%
     dplyr::filter(lead_speed_m_s <= 50)
   # This also does not get rid of all the outliers... But most of them are at night, which because of the reduced schedule, does not seem like such a large speed (many hours divided by a few kms)
+  spikySpeeds <- getStats(df3) # AAA
 
   # So now we have to calculate if the fix is during the day or the night.
   times <- suncalc::getSunlightTimes(date = unique(lubridate::date(df3$timestamp)),
@@ -153,17 +168,17 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
                                      keep = c("sunrise", "sunset")) %>%
     dplyr::select("dateOnly" = date, sunrise, sunset)
 
-  df3 <- df3 %>%
+  df4 <- df3 %>%
     dplyr::mutate(dateOnly = lubridate::ymd(dateOnly)) %>%
     dplyr::left_join(times, by = "dateOnly") %>%
     dplyr::mutate(daylight = ifelse(timestamp >= sunrise & timestamp <= sunset, "day", "night")) %>%
     dplyr::select(-c(sunrise, sunset))
 
   # re-calculate speeds again
-  df3 <- vultureUtils::calcSpeeds(df3, grpCol = idCol, longCol = longCol, latCol = latCol)
+  df4 <- vultureUtils::calcSpeeds(df4, grpCol = idCol, longCol = longCol, latCol = latCol)
 
   # Exclude if during the night the distance between two locations are more than 10km apart
-  df4 <- df3 %>%
+  df5 <- df4 %>%
     dplyr::mutate(day_diff = as.numeric(difftime(dplyr::lead(lubridate::date(timestamp)),
                                                  lubridate::date(timestamp), units = "days")),
                   night_outlier = ifelse(daylight == "night" &
@@ -173,7 +188,8 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
     dplyr::filter(!night_outlier) %>%
     dplyr::select(-c("lead_hour_diff_sec", "lag_hour_diff_sec", "lead_dist_m",
                      "lag_dist_m", "lead_speed_m_s", "lag_speed_m_s"))
-  dataset <- df4
+  nightDistance <- getStats(df5) # AAA
+  dataset <- df5
 
   # SPIKY SPEEDS END (XXX eventually should put this in its own function, maybe)
 
@@ -207,15 +223,18 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
   dfAlt <- dfAlt %>%
     dplyr::select(-c("lead_hour_diff_sec", "lag_hour_diff_sec", "lead_dist_mV",
                      "lag_dist_mV", "lead_speed_m_s", "lag_speed_m_s"))
+  nAltitudesToNA <- sum(is.na(dfAlt$height_above_msl)) - sum(is.na(dataset$height_above_msl)) # AAA--how many are NA now, minus the ones that were NA before.
   dataset <- dfAlt
 
   # Remove unnecessary variables, if desired. ---------------------------
   if(removeVars == T){
-    dataset <- vultureUtils::removeUnnecessaryVars(dataset)
+    varsRemoved <- vultureUtils::removeUnnecessaryVars(dataset)
+    nColsRemoved <- ncol(dataset)-ncol(varsRemoved) # AAA
+    dataset <- varsRemoved
   }
 
   # Filter to in-mask threshold -----------------------------------------
-  # If an inMaskThreshold is given (it usually is), then filter to only the individuals that spend at least the threshold proportion of their days within the mask. Otherwise, just pass the dataset through unfiltered.
+  # If an inMaskThreshold is given (it usually is), then filter to only the individuals that spend at least the threshold proportion of their days within the mask. Otherwise, just pass the dataset through unfiltered. # filter INDIVIDUALS:
   if(!is.null(inMaskThreshold)){
     # Select only points that fall in the mask
     if(quiet == TRUE){
@@ -240,32 +259,18 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
                                                      dateCol = dateCol,
                                                      idCol = idCol)
     }
+    # tally up how many individuals are getting removed
 
-    dataset <- dataset %>% # using datDF because we don't want to actually restrict it to the mask yet
+    # remove the individuals
+    dataset <- dataset %>%
       dplyr::filter(.data[[idCol]] %in% longEnoughIndivs)
+    firstMask <- getStats(dataset)
+  }else{
+    firstMask <- rep(NA, 3)
   }
 
-  # Downsample so it's all at the same interval
-  if(downsample){
-    # "aggregating before filtering gross location errors and unrealistic movement leads to the persistence of large-scale errors (such as prolonged spikes). (c) Thinning before data cleaning can lead to significant mis-estimations of essential movement metrics such as speed at lower intervals" (Gupte et al. 2021), hence why I'm doing this thinning after removing the spikes and doing the data cleaning.
-    # an attempt by ChatGPT:
-    dft <- dataset %>%
-      dplyr::group_by(.data[[idCol]]) %>%
-      dplyr::mutate(minute = lubridate::minute(timestamp) %/% 10 * 10, # round to nearest 10 minutes
-                    timestampFloor = lubridate::floor_date(timestamp, "hour") + lubridate::minutes(minute)) %>%
-      dplyr::group_by(.data[[idCol]], timestampFloor) %>%
-      dplyr::arrange(timestamp, .by_group = T) %>%
-      dplyr::slice(1) %>%
-      dplyr::ungroup() %>%
-      dplyr::group_by(.data[[idCol]]) %>%
-      dplyr::mutate(diff = as.numeric(difftime(timestamp, dplyr::lag(timestamp), units = "secs"))) %>%
-      dplyr::filter(diff >= 400) %>% # I don't really like this, because it loses entire minute-groups, but oh well.
-      dplyr::select(-c("diff", "timestampFloor"))
 
-    dataset <- dft
-  }
-
-  # Mask again to remove out-of-mask points, if desired
+  # Mask again to remove out-of-mask POINTS, if desired
   if(reMask == T){
     if(quiet == TRUE){
       cleanedInMask <- suppressMessages(vultureUtils::maskData(dataset = dataset, mask = mask,
@@ -278,13 +283,32 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
                                               latCol = latCol,
                                               crs = crs)
     }
-
-    return(cleanedInMask %>%
-             dplyr::ungroup())
+    secondMask <- getStats(cleanedInMask) # AAA
+    out <- cleanedInMask
   }else{
-    return(dataset %>%
-             dplyr::ungroup())
+    secondMask <- rep(NA, 3) # AAA
+    out <- dataset
   }
+  final <- getStats(out) # AAA
+  if(report){
+    df <- dplyr::bind_rows(init, outliers, badTimeToFix, badHeading, badSatellites, spikySpeeds, nightDistance, firstMask, secondMask, final) %>%
+      dplyr::mutate(step = c("Input data",
+                      "Removed outliers with zeroes in three columns",
+                      "Removed points that took too long to get GPS fix",
+                      "Removed points with invalid heading data",
+                      "Removed points with too few satellites",
+                      "Removed spiky speeds",
+                      "Removed points that moved too far at night",
+                      "First mask",
+                      "Second mask",
+                      "Final")) %>%
+      dplyr::relocate(step) %>%
+      dplyr::mutate(rowsLost = dplyr::lag(rows) - rows,
+                    propRowsLost = round(rowsLost/dplyr::lag(rows), 3))
+    print(df)
+  }
+  return(out %>%
+           dplyr::ungroup())
 }
 
 #' Create an edge list (flexible; must insert parameters.)
