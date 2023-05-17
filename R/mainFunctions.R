@@ -518,7 +518,7 @@ getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, dist
   # Arg checks
   checkmate::assertDataFrame(dataset)
   checkmate::assertSubset(mode, c("distance", "polygon"), empty.ok = F)
-  if(!missing(roostPolygons)){
+  if(!missing(roostPolygons) & !is.null(roostPolygons)){
     checkmate::assertSubset("sf", class(roostPolygons))
     if(is.na(sf::st_crs(roostPolygons))){
       stop("roostPolygons object must have a valid crs.")
