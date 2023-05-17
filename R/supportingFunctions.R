@@ -141,7 +141,7 @@ removeUnnecessaryVars <- function(dataset, addlVars = NULL, keepVars = NULL){
 #' @param speedThreshLower a single numeric value, the lower limit for ground speed to be included (m/s)
 #' @param speedThreshUpper a single numeric value, the upper limit for ground speed to be included (m/s)
 #' @param speedCol Name of the column containing ground speed values. Default is "ground_speed".
-#' @return A list of filtered data frames.
+#' @return A filtered data frame
 #' @export
 filterLocs <- function(df, speedThreshLower = NULL, speedThreshUpper = NULL, speedCol = "ground_speed"){
   # argument checks
