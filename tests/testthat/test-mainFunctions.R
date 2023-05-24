@@ -9,9 +9,11 @@ test_that("getFeedingEdges works", {
 
   # produce some interactions
   edges <- getFeedingEdges(dataset = a, roostPolygons = rp, idCol = "id", return = "edges")
+  edgesLocs <- getFeedingEdges(dataset = a, roostPolygons = rp, idCol = "id", return = "edges", getLocs = T)
   ind <- getFeedingEdges(dataset = a, roostPolygons = rp, idCol = "id", return = "edges", includeAllVertices = T)
   sri <- getFeedingEdges(dataset = a, roostPolygons = rp, idCol = "id", return = "sri")
   both <- getFeedingEdges(dataset = a, roostPolygons = rp, idCol = "id", return = "both")
+  bothLocs <- getFeedingEdges(dataset = a, roostPolygons = rp, idCol = "id", return = "both", getLocs = T)
   o <- capture_output(getFeedingEdges(dataset = a, roostPolygons = rp, idCol = "id", return = "sri"))
   expect_match(o, "Computing SRI... this may take a while if your dataset is large.", all = FALSE)
   expect_match(o, "SRI computation completed in", all = FALSE)
@@ -22,6 +24,10 @@ test_that("getFeedingEdges works", {
   expect_equal(class(both[[2]]), "data.frame")
   expect_equal(class(ind), "list")
   expect_equal(class(ind[[2]]), "character")
+  expect_equal(ncol(edgesLocs) > ncol(edges), T)
+  expect_equal(ncol(bothLocs$edges) > ncol(both$edges), T)
+  expect_equal(all(c("latID1", "longID1", "latID2", "longID2", "interactionLat", "interactionLong") %in% names(edgesLocs)), T)
+  expect_equal(all(c("latID1", "longID1", "latID2", "longID2", "interactionLat", "interactionLong") %in% names(bothLocs$edges)), T)
 
   # quiet = F
   output_qf <- capture_output(getFeedingEdges(dataset = a, roostPolygons = rp, idCol = "id", return = "edges", quiet = F))

@@ -21,7 +21,7 @@ filterLocs(
 \item{speedCol}{Name of the column containing ground speed values. Default is "ground_speed".}
 }
 \value{
-A list of filtered data frames.
+A filtered data frame
 }
 \description{
 Filter dataset for reasonableness

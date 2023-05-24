@@ -327,9 +327,10 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
 #' @param includeAllVertices logical. Whether to include another list item in the output that's a vector of all individuals in the dataset. For use in creating sparse graphs. Default is F.
 #' @param daytimeOnly T/F, whether to restrict interactions to daytime only. Default is T.
 #' @param return One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist. Also includes timegroup information, which SRI cannot do. One row in this data frame represents a single edge in a single timegroup.); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)
+#' @param getLocs Whether or not to return locations where the interactions happened (for edge list only, doesn't make sense for SRI). Default is FALSE. If getLocs is set to TRUE when return = "sri", a message will tell the user that no locations can be returned for SRI.
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the id of the first individual in this edge, and `ID2` is the id of the second individual in this edge.
 #' @export
-getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distThreshold, speedThreshUpper, speedThreshLower, timeThreshold = "10 minutes", idCol = "Nili_id", quiet = T, includeAllVertices = F, daytimeOnly = T, return = "edges"){
+getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distThreshold, speedThreshUpper, speedThreshLower, timeThreshold = "10 minutes", idCol = "Nili_id", quiet = T, includeAllVertices = F, daytimeOnly = T, return = "edges", getLocs = FALSE){
   # Argument checks
   checkmate::assertDataFrame(dataset)
   checkmate::assertSubset("sf", class(dataset))
@@ -349,6 +350,12 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
   checkmate::assertSubset("location_lat", names(dataset)) # passed to spaceTimeGroups. XXX fix with GH#58
   checkmate::assertSubset("location_long", names(dataset)) # passed to spaceTimeGroups. XXX fix with GH#58
   checkmate::assertSubset(idCol, names(dataset)) # passed to spaceTimeGroups.
+  checkmate::assertLogical(getLocs, len = 1)
+
+  # Message about getLocs and sri
+  if(getLocs & return == "sri"){
+    warning("Cannot return interaction locations when return = 'sri'. If you want interaction locations, use return = 'edges' or return = 'both'.")
+  }
 
   # Get all unique individuals before applying any filtering
   if(includeAllVertices){
@@ -462,6 +469,22 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
     }
   }
 
+  locsColNames <- c("latID1", "longID1", "latID2", "longID2", "interactionLat", "interactionLong")
+  if(!getLocs & return %in% c("edges", "both")){
+    if(!is.list(out)){
+      out <- out %>%
+        dplyr::select(-any_of(locsColNames))
+    }else{
+      if("edges" %in% names(out)){
+        out$edges <- out$edges %>%
+          dplyr::select(-any_of(locsColNames))
+      }else{
+        out <- out %>%
+          dplyr::select(-any_of(locsColNames))
+      }
+    }
+  }
+
   ## APPEND VERTICES
   if(includeAllVertices){
     toReturn <- append(out, list(as.character(uniqueIndivs)))
@@ -494,10 +517,11 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
 #' @param includeAllVertices logical. Whether to include another list item in the output that's a vector of all individuals in the dataset. For use in creating sparse graphs. Default is F.
 #' @param daytimeOnly T/F, whether to restrict interactions to daytime only. Default is T.
 #' @param return One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist. Also includes timegroup information, which SRI cannot do. One row in this data frame represents a single edge in a single timegroup.); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)
+#' @param getLocs Whether or not to return locations where the interactions happened (for edge list only, doesn't make sense for SRI). Default is FALSE. If getLocs is set to TRUE when return = "sri", a message will tell the user that no locations can be returned for SRI.
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the id of the first individual in this edge, and `ID2` is the id of the second individual in this edge.
 #' @export
-getFeedingEdges <- function(dataset, roostPolygons = NULL, roostBuffer = 50, consecThreshold = 2, distThreshold = 50, speedThreshUpper = 5, speedThreshLower = NULL, timeThreshold = "10 minutes", idCol = "Nili_id", quiet = T, includeAllVertices = F, daytimeOnly = T, return = "edges"){
-  getEdges(dataset, roostPolygons = roostPolygons, roostBuffer = roostBuffer, consecThreshold = consecThreshold, distThreshold = distThreshold, speedThreshUpper = speedThreshUpper, speedThreshLower = speedThreshLower, timeThreshold = timeThreshold, idCol = idCol, quiet = quiet, includeAllVertices = includeAllVertices, daytimeOnly = daytimeOnly, return = return)
+getFeedingEdges <- function(dataset, roostPolygons = NULL, roostBuffer = 50, consecThreshold = 2, distThreshold = 50, speedThreshUpper = 5, speedThreshLower = NULL, timeThreshold = "10 minutes", idCol = "Nili_id", quiet = T, includeAllVertices = F, daytimeOnly = T, return = "edges", getLocs = FALSE){
+  getEdges(dataset, roostPolygons = roostPolygons, roostBuffer = roostBuffer, consecThreshold = consecThreshold, distThreshold = distThreshold, speedThreshUpper = speedThreshUpper, speedThreshLower = speedThreshLower, timeThreshold = timeThreshold, idCol = idCol, quiet = quiet, includeAllVertices = includeAllVertices, daytimeOnly = daytimeOnly, return = return, getLocs = getLocs)
 }
 
 #' Create co-flight edge list
@@ -516,10 +540,11 @@ getFeedingEdges <- function(dataset, roostPolygons = NULL, roostBuffer = 50, con
 #' @param includeAllVertices logical. Whether to include another list item in the output that's a vector of all individuals in the dataset. For use in creating sparse graphs. Default is F.
 #' @param daytimeOnly T/F, whether to restrict interactions to daytime only. Default is T.
 #' @param return One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist. Also includes timegroup information, which SRI cannot do. One row in this data frame represents a single edge in a single timegroup.); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)
+#' @param getLocs Whether or not to return locations where the interactions happened (for edge list only, doesn't make sense for SRI). Default is FALSE. If getLocs is set to TRUE when return = "sri", a message will tell the user that no locations can be returned for SRI.
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the id of the first individual in this edge, and `ID2` is the id of the second individual in this edge.
 #' @export
-getFlightEdges <- function(dataset, roostPolygons = NULL, roostBuffer = 50, consecThreshold = 2, distThreshold = 1000, speedThreshUpper = NULL, speedThreshLower = 5, timeThreshold = "10 minutes", idCol = "Nili_id", quiet = T, includeAllVertices = F, daytimeOnly = T, return = "edges"){
-  getEdges(dataset, roostPolygons = roostPolygons, roostBuffer = roostBuffer, consecThreshold = consecThreshold, distThreshold = distThreshold, speedThreshUpper = speedThreshUpper, speedThreshLower = speedThreshLower, timeThreshold = timeThreshold, idCol = idCol, quiet = quiet, includeAllVertices = includeAllVertices, daytimeOnly = daytimeOnly, return = return)
+getFlightEdges <- function(dataset, roostPolygons = NULL, roostBuffer = 50, consecThreshold = 2, distThreshold = 1000, speedThreshUpper = NULL, speedThreshLower = 5, timeThreshold = "10 minutes", idCol = "Nili_id", quiet = T, includeAllVertices = F, daytimeOnly = T, return = "edges", getLocs = FALSE){
+  getEdges(dataset, roostPolygons = roostPolygons, roostBuffer = roostBuffer, consecThreshold = consecThreshold, distThreshold = distThreshold, speedThreshUpper = speedThreshUpper, speedThreshLower = speedThreshLower, timeThreshold = timeThreshold, idCol = idCol, quiet = quiet, includeAllVertices = includeAllVertices, daytimeOnly = daytimeOnly, return = return, getLocs = getLocs)
 }
 
 #' Create co-roosting edge list

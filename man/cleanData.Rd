@@ -16,7 +16,7 @@ cleanData(
   removeVars = T,
   reMask = T,
   quiet = T,
-  downsample = T,
+  report = T,
   ...
 )
 }
@@ -43,7 +43,7 @@ cleanData(
 
 \item{quiet}{Whether to silence the message that happens when doing spatial joins. Default is T.}
 
-\item{downsample}{T/F. Whether to downsample the data to a 10 min interval. #XXX expand functionality here, or consider making it a separate function. This is quick and dirty. Also fix the actual downsampling, because I don't think it's quite right.}
+\item{report}{Default TRUE. Whether to print a report of how many rows/individuals were removed in each of the data cleaning steps.}
 
 \item{...}{additional arguments to be passed to any of several functions: `vultureUtils::removeUnnecessaryVars()` (`addlVars`, `keepVars`);}
 }
