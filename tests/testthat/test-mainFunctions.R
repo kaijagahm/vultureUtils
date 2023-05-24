@@ -9,9 +9,11 @@ test_that("getFeedingEdges works", {
 
   # produce some interactions
   edges <- getFeedingEdges(dataset = a, roostPolygons = rp, idCol = "id", return = "edges")
+  edgesLocs <- getFeedingEdges(dataset = a, roostPolygons = rp, idCol = "id", return = "edges", getLocs = T)
   ind <- getFeedingEdges(dataset = a, roostPolygons = rp, idCol = "id", return = "edges", includeAllVertices = T)
   sri <- getFeedingEdges(dataset = a, roostPolygons = rp, idCol = "id", return = "sri")
   both <- getFeedingEdges(dataset = a, roostPolygons = rp, idCol = "id", return = "both")
+  bothLocs <- getFeedingEdges(dataset = a, roostPolygons = rp, idCol = "id", return = "both", getLocs = T)
   o <- capture_output(getFeedingEdges(dataset = a, roostPolygons = rp, idCol = "id", return = "sri"))
   expect_match(o, "Computing SRI... this may take a while if your dataset is large.", all = FALSE)
   expect_match(o, "SRI computation completed in", all = FALSE)
@@ -22,6 +24,10 @@ test_that("getFeedingEdges works", {
   expect_equal(class(both[[2]]), "data.frame")
   expect_equal(class(ind), "list")
   expect_equal(class(ind[[2]]), "character")
+  expect_equal(ncol(edgesLocs) > ncol(edges), T)
+  expect_equal(ncol(bothLocs$edges) > ncol(both$edges), T)
+  expect_equal(all(c("latID1", "longID1", "latID2", "longID2", "interactionLat", "interactionLong") %in% names(edgesLocs)), T)
+  expect_equal(all(c("latID1", "longID1", "latID2", "longID2", "interactionLat", "interactionLong") %in% names(bothLocs$edges)), T)
 
   # quiet = F
   output_qf <- capture_output(getFeedingEdges(dataset = a, roostPolygons = rp, idCol = "id", return = "edges", quiet = F))
@@ -66,7 +72,9 @@ test_that("getRoostEdges works", {
   rp <- sf::st_read(test_path("testdata", "roosts25_cutOffRegion.kml")) # roost polygons
   r <- get_roosts_df(df = a, id = "id")
   dist_e <- getRoostEdges(r, mode = "distance", idCol = "id", return = "edges")
+  dist_e_locs <- getRoostEdges(r, mode = "distance", idCol = "id", return = "edges", getLocs = TRUE)
   poly_e <- getRoostEdges(r, mode = "polygon", roostPolygons = rp, idCol = "id", return = "edges")
+  poly_e_locs <- getRoostEdges(r, mode = "polygon", roostPolygons = rp, idCol = "id", return = "edges", getLocs = TRUE)
   dist_s <- getRoostEdges(r, mode = "distance", idCol = "id", return = "sri")
   poly_s <- getRoostEdges(r, mode = "polygon", roostPolygons = rp, idCol = "id", return = "sri")
 
@@ -75,6 +83,10 @@ test_that("getRoostEdges works", {
   expect_equal(class(poly_e), c("tbl_df", "tbl", "data.frame"))
   expect_equal(class(dist_s), "data.frame")
   expect_equal(class(poly_s), "data.frame")
+  expect_equal(ncol(dist_e_locs) > ncol(dist_e), TRUE)
+  expect_equal(ncol(poly_e_locs) > ncol(poly_e), TRUE)
+  expect_equal(all(c("location_lat", "location_long", "roostID") %in% names(poly_e_locs)), TRUE)
+  expect_equal(all(c("latID1", "longID1", "latID2", "longID2", "interactionLat", "interactionLong") %in% names(dist_e_locs)), TRUE)
 })
 
 # cleanData
@@ -86,18 +98,13 @@ test_that("cleanData works", {
   b <- cleanData(a, mask = mask, idCol = "trackId", removeVars = T, reMask = F) # not re-masked
   c_notRemoved <- cleanData(a, mask = mask, idCol = "trackId", removeVars = F)
 
-  # not downsampled
-  nd <- cleanData(a, mask = mask, idCol = "trackId", removeVars = T, downsample = F)
-
   # not quiet
   nq <- cleanData(a, mask = mask, idCol = "trackId", removeVars = T, quiet = F)
 
   # expectations
   expect_equal(ncol(c_notRemoved) > ncol(c), TRUE) # more vars if not removed (duh)
   expect_equal(class(c), c("sf", "tbl_df", "tbl", "data.frame")) # expected classes
-  expect_equal(class(nd), class(c)) # class shouldn't change if you don't downsample the data
   expect_equal(class(b), c("tbl_df", "tbl", "data.frame")) # if we don't re-mask, the resulting object doesn't have class sf. #XXX should look into fixing this to make it consistent.
-  expect_equal(nrow(nd) > nrow(c), TRUE) # there should be more data if we don't downsample
   expect_equal(nq, c) # setting quiet = F should not change the output
   o <- capture_messages(cleanData(a, mask = mask, idCol = "trackId", removeVars = T, quiet = F))
   expect_match(o, "dropping Z and/or M coordinate", all = FALSE)

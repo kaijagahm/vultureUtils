@@ -269,7 +269,7 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
   # Group the points into timegroups using spatsoc::group_times.
   dataset <- spatsoc::group_times(dataset, datetime = timestampCol, threshold = timeThreshold)
   timegroupData <- dataset %>%
-    dplyr::select(all_of(timestampCol), timegroup) %>% # save information about when each timegroup starts and ends.
+    dplyr::select(tidyselect::all_of(timestampCol), timegroup) %>% # save information about when each timegroup starts and ends.
     dplyr::group_by(timegroup) %>%
     dplyr::summarize(minTimestamp = min(.data[[timestampCol]], na.rm = T),
                      maxTimestamp = max(.data[[timestampCol]], na.rm = T))
@@ -293,6 +293,33 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
   # Join to the timegroup data
   edgesFiltered <- edgesFiltered %>%
     dplyr::left_join(timegroupData, by = "timegroup")
+
+  # Compute interaction locations
+  ## get locations of each individual at each time group
+  locs <- dataset %>%
+    tibble::as_tibble() %>%
+    dplyr::select(tidyselect::all_of(c(idCol, "timegroup", latCol, longCol))) %>%
+    dplyr::distinct() %>%
+    dplyr::mutate(across(tidyselect::all_of(c(latCol, longCol)), as.numeric))
+
+  # In case there is more than one point per individual per timegroup, get the mean.
+  meanLocs <- locs %>%
+    dplyr::group_by(across(all_of(c(idCol, "timegroup")))) %>%
+    dplyr::summarize(mnLat = mean(.data[[latCol]], na.rm = T),
+                     mnLong = mean(.data[[longCol]], na.rm = T))
+
+  ef <- edgesFiltered %>%
+    dplyr::left_join(meanLocs, by = c("ID1" = idCol, "timegroup")) %>%
+    dplyr::rename("latID1" = mnLat, "longID1" = mnLong) %>%
+    dplyr::left_join(meanLocs, by = c("ID2" = idCol, "timegroup")) %>%
+    dplyr::rename("latID2" = mnLat, "longID2" = mnLong) %>%
+    dplyr::mutate(interactionLat = (latID1 + latID2)/2,
+                  interactionLong = (longID1 + longID2)/2)
+
+  if(!(nrow(ef) == nrow(edgesFiltered))){
+    stop("wrong number of rows") # XXX need a better way of preventing and handling this error.
+  }
+  edgesFiltered <- ef
 
   if(sri){
     if(nrow(edgesFiltered) > 1){
@@ -332,7 +359,7 @@ consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = 
   checkmate::assertInteger(edgeList[[timegroupCol]])
 
   uniquePairs <- edgeList %>%
-    dplyr::select(.data[[id1Col]], .data[[id2Col]], .data[[timegroupCol]]) %>%
+    dplyr::select(tidyselect::all_of(c(id1Col, id2Col, timegroupCol))) %>%
     dplyr::distinct(.data[[timegroupCol]], .data[[id1Col]], .data[[id2Col]]) %>%
     # for each edge, arrange by timegroup
     dplyr::group_by(.data[[id1Col]], .data[[id2Col]]) %>%
@@ -349,7 +376,7 @@ consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = 
     dplyr::select(-grp)
 
   consec <- uniquePairs_toKeep %>%
-    left_join(edgeList, by = c(id1Col, id2Col, timegroupCol))
+    dplyr::left_join(edgeList, by = c(id1Col, id2Col, timegroupCol))
 
   return(consec)
 }
