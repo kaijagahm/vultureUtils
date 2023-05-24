@@ -660,6 +660,8 @@ getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, dist
       stop("Wrong number of rows!") # XXX need to better address this error.
     }
 
+    edges <- ef
+
   }else{
     ## POLYGON MODE
     # Polygon assignment is triggered if the roostID column is missing and there are some polygons provided.
@@ -718,6 +720,12 @@ getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, dist
 
       dplyr::rename("ID2" = {{idCol}}) %>%
       dplyr::filter(ID1 < ID2) # remove self and duplicate edges
+  }
+
+  locsColNames <- c("latID1", "longID1", "latID2", "longID2", "interactionLat", "interactionLong")
+  if(!getLocs & !is.null(edges)){
+    edges <- edges %>%
+      dplyr::select(-any_of(locsColNames))
   }
 
   # now we have either distanceEdges or polygonEdges. Now need to determine whether to calculate SRI or not.

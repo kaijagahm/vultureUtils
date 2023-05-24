@@ -72,6 +72,7 @@ test_that("getRoostEdges works", {
   rp <- sf::st_read(test_path("testdata", "roosts25_cutOffRegion.kml")) # roost polygons
   r <- get_roosts_df(df = a, id = "id")
   dist_e <- getRoostEdges(r, mode = "distance", idCol = "id", return = "edges")
+  dist_e_locs <- getRoostEdges(r, mode = "distance", idCol = "id", return = "edges", getLocs = TRUE)
   poly_e <- getRoostEdges(r, mode = "polygon", roostPolygons = rp, idCol = "id", return = "edges")
   dist_s <- getRoostEdges(r, mode = "distance", idCol = "id", return = "sri")
   poly_s <- getRoostEdges(r, mode = "polygon", roostPolygons = rp, idCol = "id", return = "sri")
