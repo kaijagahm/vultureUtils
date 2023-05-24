@@ -269,7 +269,7 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
   # Group the points into timegroups using spatsoc::group_times.
   dataset <- spatsoc::group_times(dataset, datetime = timestampCol, threshold = timeThreshold)
   timegroupData <- dataset %>%
-    dplyr::select(all_of(timestampCol), timegroup) %>% # save information about when each timegroup starts and ends.
+    dplyr::select(tidyselect::all_of(timestampCol), timegroup) %>% # save information about when each timegroup starts and ends.
     dplyr::group_by(timegroup) %>%
     dplyr::summarize(minTimestamp = min(.data[[timestampCol]], na.rm = T),
                      maxTimestamp = max(.data[[timestampCol]], na.rm = T))
@@ -332,7 +332,7 @@ consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = 
   checkmate::assertInteger(edgeList[[timegroupCol]])
 
   uniquePairs <- edgeList %>%
-    dplyr::select(.data[[id1Col]], .data[[id2Col]], .data[[timegroupCol]]) %>%
+    dplyr::select(tidyselect::all_of(c(id1Col, id2Col, timegroupCol))) %>%
     dplyr::distinct(.data[[timegroupCol]], .data[[id1Col]], .data[[id2Col]]) %>%
     # for each edge, arrange by timegroup
     dplyr::group_by(.data[[id1Col]], .data[[id2Col]]) %>%
@@ -349,7 +349,7 @@ consecEdges <- function(edgeList, consecThreshold = 2, id1Col = "ID1", id2Col = 
     dplyr::select(-grp)
 
   consec <- uniquePairs_toKeep %>%
-    left_join(edgeList, by = c(id1Col, id2Col, timegroupCol))
+    dplyr::left_join(edgeList, by = c(id1Col, id2Col, timegroupCol))
 
   return(consec)
 }
