@@ -719,11 +719,15 @@ getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, dist
       purrr::map_dfr(~{tidyr::expand_grid("ID1" = .x[[idCol]], .x)}) %>% # for each polygon/day, create all pairs of individuals, and then bind the results back together into a data frame.
 
       dplyr::rename("ID2" = {{idCol}}) %>%
-      dplyr::filter(ID1 < ID2) # remove self and duplicate edges
+      dplyr::filter(ID1 < ID2) %>% # remove self and duplicate edges
+      dplyr::select(-c("sunrise", "sunset", "sunrise_twilight", "sunset_twilight", "daylight", "is_roost"))
   }
 
   locsColNames <- c("latID1", "longID1", "latID2", "longID2", "interactionLat", "interactionLong")
-  if(!getLocs & !is.null(edges)){
+  if(!getLocs & !is.null(edges) & mode == "polygon"){
+    edges <- edges %>%
+      dplyr::select(-c(latCol, longCol, roostCol))
+  }else if(!getLocs & !is.null(edges) & mode != "polygon"){
     edges <- edges %>%
       dplyr::select(-any_of(locsColNames))
   }

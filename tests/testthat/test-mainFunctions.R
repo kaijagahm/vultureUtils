@@ -74,6 +74,7 @@ test_that("getRoostEdges works", {
   dist_e <- getRoostEdges(r, mode = "distance", idCol = "id", return = "edges")
   dist_e_locs <- getRoostEdges(r, mode = "distance", idCol = "id", return = "edges", getLocs = TRUE)
   poly_e <- getRoostEdges(r, mode = "polygon", roostPolygons = rp, idCol = "id", return = "edges")
+  poly_e_locs <- getRoostEdges(r, mode = "polygon", roostPolygons = rp, idCol = "id", return = "edges", getLocs = TRUE)
   dist_s <- getRoostEdges(r, mode = "distance", idCol = "id", return = "sri")
   poly_s <- getRoostEdges(r, mode = "polygon", roostPolygons = rp, idCol = "id", return = "sri")
 
@@ -82,6 +83,10 @@ test_that("getRoostEdges works", {
   expect_equal(class(poly_e), c("tbl_df", "tbl", "data.frame"))
   expect_equal(class(dist_s), "data.frame")
   expect_equal(class(poly_s), "data.frame")
+  expect_equal(ncol(dist_e_locs) > ncol(dist_e), TRUE)
+  expect_equal(ncol(poly_e_locs) > ncol(poly_e), TRUE)
+  expect_equal(all(c("location_lat", "location_long", "roostID") %in% names(poly_e_locs)), TRUE)
+  expect_equal(all(c("latID1", "longID1", "latID2", "longID2", "interactionLat", "interactionLong") %in% names(dist_e_locs)), TRUE)
 })
 
 # cleanData
