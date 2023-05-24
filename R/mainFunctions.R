@@ -266,7 +266,7 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
       dplyr::filter(.data[[idCol]] %in% longEnoughIndivs)
     firstMask <- getStats(dataset)
   }else{
-    firstMask <- rep(NA, 3)
+    firstMask <- c("rows" = NA, "cols" = NA, "indivs" = NA) # AAA
   }
 
 
@@ -286,7 +286,7 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
     secondMask <- getStats(cleanedInMask) # AAA
     out <- cleanedInMask
   }else{
-    secondMask <- rep(NA, 3) # AAA
+    secondMask <- c("rows" = NA, "cols" = NA, "indivs" = NA) # AAA
     out <- dataset
   }
   final <- getStats(out) # AAA
