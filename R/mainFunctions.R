@@ -725,8 +725,9 @@ getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, dist
 
   locsColNames <- c("latID1", "longID1", "latID2", "longID2", "interactionLat", "interactionLong")
   if(!getLocs & !is.null(edges) & mode == "polygon"){
-    edges <- edges %>%
-      dplyr::select(-c(latCol, longCol, roostCol))
+    edges[[latCol]] <- NULL
+    edges[[longCol]] <- NULL
+    edges[[roostCol]] <- NULL
   }else if(!getLocs & !is.null(edges) & mode != "polygon"){
     edges <- edges %>%
       dplyr::select(-any_of(locsColNames))
