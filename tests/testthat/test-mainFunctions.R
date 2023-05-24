@@ -86,18 +86,13 @@ test_that("cleanData works", {
   b <- cleanData(a, mask = mask, idCol = "trackId", removeVars = T, reMask = F) # not re-masked
   c_notRemoved <- cleanData(a, mask = mask, idCol = "trackId", removeVars = F)
 
-  # not downsampled
-  nd <- cleanData(a, mask = mask, idCol = "trackId", removeVars = T, downsample = F)
-
   # not quiet
   nq <- cleanData(a, mask = mask, idCol = "trackId", removeVars = T, quiet = F)
 
   # expectations
   expect_equal(ncol(c_notRemoved) > ncol(c), TRUE) # more vars if not removed (duh)
   expect_equal(class(c), c("sf", "tbl_df", "tbl", "data.frame")) # expected classes
-  expect_equal(class(nd), class(c)) # class shouldn't change if you don't downsample the data
   expect_equal(class(b), c("tbl_df", "tbl", "data.frame")) # if we don't re-mask, the resulting object doesn't have class sf. #XXX should look into fixing this to make it consistent.
-  expect_equal(nrow(nd) > nrow(c), TRUE) # there should be more data if we don't downsample
   expect_equal(nq, c) # setting quiet = F should not change the output
   o <- capture_messages(cleanData(a, mask = mask, idCol = "trackId", removeVars = T, quiet = F))
   expect_match(o, "dropping Z and/or M coordinate", all = FALSE)
