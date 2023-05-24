@@ -562,8 +562,9 @@ getFlightEdges <- function(dataset, roostPolygons = NULL, roostBuffer = 50, cons
 #' @param crsToSet CRS to assign to `dataset` if it is not already an sf object. Default is "WGS84".
 #' @param crsToTransform CRS to transform the `dataset` to. Default is "32636" for ITM.
 #' @param return One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)
+#' @param getLocs Whether or not to return locations where the interactions happened (for edge list only, doesn't make sense for SRI). Default is FALSE. If getLocs is set to TRUE when return = "sri", a message will tell the user that no locations can be returned for SRI.
 #' @export
-getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, distThreshold = 500, latCol = "location_lat", longCol = "location_long", idCol = "Nili_id", dateCol = "date", roostCol = "roostID", crsToSet = "WGS84", crsToTransform = 32636, return = "edges"){
+getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, distThreshold = 500, latCol = "location_lat", longCol = "location_long", idCol = "Nili_id", dateCol = "date", roostCol = "roostID", crsToSet = "WGS84", crsToTransform = 32636, return = "edges", getLocs = FALSE){
   # Arg checks
   checkmate::assertDataFrame(dataset)
   checkmate::assertSubset(mode, c("distance", "polygon"), empty.ok = F)
@@ -581,6 +582,12 @@ getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, dist
   checkmate::assertCharacter(roostCol, null.ok = T, len = 1)
   checkmate::assertSubset(c(latCol, longCol, idCol, dateCol), names(dataset))
   checkmate::assertSubset(return, c("edges", "sri", "both"))
+  checkmate::assertLogical(getLocs, len = 1)
+
+  # Message about getLocs and sri
+  if(getLocs & return == "sri"){
+    warning("Cannot return interaction locations when return = 'sri'. If you want interaction locations, use return = 'edges' or return = 'both'.")
+  }
 
   # Begin computation of edge list
   if(mode == "distance"){
@@ -626,6 +633,33 @@ getRoostEdges <- function(dataset, mode = "distance", roostPolygons = NULL, dist
                                 id = idCol, coords = c("utmE", "utmN"),
                                 splitBy = dateCol, timegroup = NULL,
                                 fillNA = FALSE, returnDist = TRUE)
+
+    # Compute interaction locations
+    ## get locations of each individual at each time group
+    locs <- dataset %>%
+      tibble::as_tibble() %>%
+      dplyr::select(tidyselect::all_of(c(idCol, dateCol, latCol, longCol))) %>%
+      dplyr::distinct() %>%
+      dplyr::mutate(across(tidyselect::all_of(c(latCol, longCol)), as.numeric))
+
+    # In case there is more than one point per individual per night, get the mean (there really shouldn't be, but you never know)
+    meanLocs <- locs %>%
+      dplyr::group_by(across(all_of(c(idCol, dateCol)))) %>%
+      dplyr::summarize(mnLat = mean(.data[[latCol]], na.rm = T),
+                       mnLong = mean(.data[[longCol]], na.rm = T))
+
+    ef <- edges %>%
+      dplyr::left_join(meanLocs, by = c("ID1" = idCol, dateCol)) %>%
+      dplyr::rename("latID1" = mnLat, "longID1" = mnLong) %>%
+      dplyr::left_join(meanLocs, by = c("ID2" = idCol, dateCol)) %>%
+      dplyr::rename("latID2" = mnLat, "longID2" = mnLong) %>%
+      dplyr::mutate(interactionLat = (latID1 + latID2)/2,
+                    interactionLong = (longID1 + longID2)/2)
+
+    if(!(nrow(edges) == nrow(ef))){
+      stop("Wrong number of rows!") # XXX need to better address this error.
+    }
+
   }else{
     ## POLYGON MODE
     # Polygon assignment is triggered if the roostID column is missing and there are some polygons provided.
