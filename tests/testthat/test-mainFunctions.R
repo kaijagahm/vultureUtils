@@ -98,6 +98,8 @@ test_that("cleanData works", {
   b <- cleanData(a, mask = mask, idCol = "trackId", removeVars = T, reMask = F) # not re-masked
   c_notRemoved <- cleanData(a, mask = mask, idCol = "trackId", removeVars = F)
 
+  c_2 <- cleanData(a, mask = mask, idCol = "trackId", removeVars = T, inMaskThreshold = 1.5)
+
   # not quiet
   nq <- cleanData(a, mask = mask, idCol = "trackId", removeVars = T, quiet = F)
 
