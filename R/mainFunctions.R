@@ -80,7 +80,7 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
 #' @param dataset The GPS dataset to be used to create the edge list. Must contain columns specified by `longCol`, `latCol`, and `dateCol` args. Must also contain columns "gps_time_to_fix", "heading", "gps_satellite_count", and "ground_speed" because data cleaning is based on this info. Note that because of how the masking is conducted in `mostlyInMask`, the data is grouped into single days. As a result, `dataset` must contain at least 1 day's worth of data in order for the output of this function to have any rows.
 #' @param removeVars Whether or not to remove unnecessary variables from movebank download. Default is T.
 #' @param mask The object to use to mask the data. Passed to `vultureUtils::maskData()`. Must be an sf object.
-#' @param inMaskThreshold Proportion of an individual's days tracked that must fall within the mask. Default is 0.33 (one third of days tracked). Passed to `vultureUtils::mostlyInMask()`. Must be numeric.
+#' @param inMaskThreshold Proportion of an individual's days tracked that must fall within the mask. Default is 0.33 (one third of days tracked). If a number >1 is supplied, will be interpreted as number of days that fall in the mask. Passed to `vultureUtils::mostlyInMask()`. Must be numeric.
 #' @param crs Coordinate Reference System to check for and transform to, for both the GPS data and the mask. Default is "WGS84". This value is passed to `vultureUtils::maskData()`. Must be a valid CRS or character string coercible to CRS.
 #' @param longCol The name of the column in the dataset containing longitude values. Defaults to "location_long.1". Passed to `vultureUtils::maskData()`.
 #' @param latCol The name of the column in the dataset containing latitude values. Defaults to "location_lat.1". Passed to `vultureUtils::maskData()`.
@@ -97,7 +97,7 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
   # Argument checks
   checkmate::assertClass(mask, "sf")
   checkmate::assertDataFrame(dataset)
-  checkmate::assertNumeric(inMaskThreshold, len = 1, lower = 0, upper = 1, null.ok = TRUE)
+  checkmate::assertNumeric(inMaskThreshold, len = 1, null.ok = TRUE)
   checkmate::assertCharacter(longCol, len = 1)
   checkmate::assertCharacter(latCol, len = 1)
   checkmate::assertCharacter(dateCol, len = 1)
