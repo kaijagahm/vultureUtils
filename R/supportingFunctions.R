@@ -48,7 +48,7 @@ maskData <- function(dataset, mask, longCol = "location_long", latCol = "locatio
 #' Compare masked and unmasked data. Return IDs of individual birds that spent at least `thresh` proportion of days in the masked area (vs. outside of the masked area). This function should be used after creating a masked dataset with vultureUtils::maskData(). Note: this function does its calculations based on numbers of *days*. Later modifications might allow for other units of time, but for now everything is in days.
 #' @param dataset the full dataset, before masking.
 #' @param maskedDataset the dataset after being masked to Israel (output of maskIsrael function)
-#' @param thresh proportion (between 0 and 1) of a vulture's total tracked days that it spent in Israel
+#' @param thresh proportion (between 0 and 1) of a vulture's total tracked days that it spent in the mask, or number of days the vulture must spend in the mask (values > 1)
 #' @param dateCol the name of the column containing dates (must be the same in `dataset` and `maskedDataset`). Defaults to "dateOnly".
 #' @param idCol the name of the column containing vulture ID's.
 #' @return A vector of id's for vultures
@@ -57,7 +57,7 @@ mostlyInMask <- function(dataset, maskedDataset, thresh = 0.333, dateCol = "date
   # argument checks
   checkmate::assertDataFrame(dataset)
   checkmate::assertDataFrame(maskedDataset)
-  checkmate::assertNumeric(thresh, len = 1, lower = 0, upper = 1)
+  checkmate::assertNumeric(thresh, len = 1)
   checkmate::assertCharacter(dateCol, len = 1)
   checkmate::assertSubset(idCol, names(dataset))
   checkmate::assertSubset(idCol, names(maskedDataset))
@@ -72,27 +72,37 @@ mostlyInMask <- function(dataset, maskedDataset, thresh = 0.333, dateCol = "date
     dplyr::group_by(.data[[idCol]]) %>%
     dplyr::summarize(duration = as.numeric(max(.data[[dateCol]],
                                                na.rm = T) - min(.data[[dateCol]],
-                                                                na.rm = T)))
+                                                                na.rm = T)),
+                     nDays = length(unique(.data[[dateCol]])))
 
 
   # Look at date durations in the masked Israel dataset
   datesInMask <- maskedDataset %>%
     as.data.frame() %>%
     dplyr::group_by(.data[[idCol]]) %>%
-    dplyr::summarize(duration =
+    dplyr::summarize(durationInMask =
                        as.numeric(max(.data[[dateCol]], na.rm = T) -
-                                    min(.data[[dateCol]], na.rm = T)))
+                                    min(.data[[dateCol]], na.rm = T)),
+                     nDaysInMask = length(unique(.data[[dateCol]])))
 
   # Compare the two dates and calculate proportion
   datesCompare <- dplyr::left_join(dates, datesInMask %>%
-                                     dplyr::select(tidyselect::all_of(idCol),
-                                                   "durationInMask" = duration)) %>%
-    dplyr::mutate(propInMask = .data$durationInMask/.data$duration) # compute proportion of days spent in the mask area
+                                     dplyr::select(tidyselect::all_of(idCol), durationInMask, nDaysInMask)) %>%
+    dplyr::mutate(propDurationInMask = .data$durationInMask/.data$duration) # compute proportion of days spent in the mask a
 
-  whichInMaskLongEnough <- datesCompare %>%
-    dplyr::filter(.data$propInMask > thresh) %>%
-    dplyr::pull(.data[[idCol]]) %>%
-    unique()
+  if(thresh > 1){
+    print("thresholding by number of days")
+    whichInMaskLongEnough <- datesCompare %>%
+      dplyr::filter(.data$nDaysInMask > thresh) %>%
+      dplyr::pull(.data[[idCol]]) %>%
+      unique()
+  }else{
+    print("thresholding by proportion of duration")
+    whichInMaskLongEnough <- datesCompare %>%
+      dplyr::filter(.data$propDurationInMask > thresh) %>%
+      dplyr::pull(.data[[idCol]]) %>%
+      unique()
+  }
 
   return(whichInMaskLongEnough)
 }
