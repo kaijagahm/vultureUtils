@@ -70,25 +70,19 @@ mostlyInMask <- function(dataset, maskedDataset, thresh = 0.333, dateCol = "date
   # Look at date durations in the full dataset
   dates <- dataset %>%
     dplyr::group_by(.data[[idCol]]) %>%
-    dplyr::summarize(duration = as.numeric(max(.data[[dateCol]],
-                                               na.rm = T) - min(.data[[dateCol]],
-                                                                na.rm = T)),
-                     nDays = length(unique(.data[[dateCol]])))
+    dplyr::summarize(nDays = length(unique(.data[[dateCol]])))
 
 
   # Look at date durations in the masked Israel dataset
   datesInMask <- maskedDataset %>%
     as.data.frame() %>%
     dplyr::group_by(.data[[idCol]]) %>%
-    dplyr::summarize(durationInMask =
-                       as.numeric(max(.data[[dateCol]], na.rm = T) -
-                                    min(.data[[dateCol]], na.rm = T)),
-                     nDaysInMask = length(unique(.data[[dateCol]])))
+    dplyr::summarize(nDaysInMask = length(unique(.data[[dateCol]])))
 
   # Compare the two dates and calculate proportion
   datesCompare <- dplyr::left_join(dates, datesInMask %>%
-                                     dplyr::select(tidyselect::all_of(idCol), durationInMask, nDaysInMask)) %>%
-    dplyr::mutate(propDurationInMask = .data$durationInMask/.data$duration) # compute proportion of days spent in the mask a
+                                     dplyr::select(tidyselect::all_of(idCol), nDaysInMask)) %>%
+    dplyr::mutate(propDaysInMask = .data$nDaysInMask/.data$nDays) # compute proportion of days spent in the mask a
 
   if(thresh > 1){
     print("thresholding by number of days")
@@ -99,7 +93,7 @@ mostlyInMask <- function(dataset, maskedDataset, thresh = 0.333, dateCol = "date
   }else{
     print("thresholding by proportion of duration")
     whichInMaskLongEnough <- datesCompare %>%
-      dplyr::filter(.data$propDurationInMask > thresh) %>%
+      dplyr::filter(.data$propDaysInMask > thresh) %>%
       dplyr::pull(.data[[idCol]]) %>%
       unique()
   }
