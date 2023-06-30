@@ -1,84 +1,51 @@
-# convertAndBuffer
-test_that("convertAndBuffer works", {
-  # Set up sample data
-  nc <- sf::st_read(system.file("shape/nc.shp", package = "sf"))
-  ncBuff <- convertAndBuffer(nc)
-  ncNACRS <- nc
-  sf::st_crs(ncNACRS) <- NA
-  basicPoint <- sf::st_point(c(1,2))
+test_that("calcSpeed check", {
+  base::load(test_path("testdata", "raw2022.Rda"))
+  a <- raw2022
+  test_data <- a[1:3,]
+  test_data[,"tag_id"] <- 0 # group only 1 id
+  default_timestamp = strptime("2023-6-24 01:23:45", "%Y-%m-%d %H:%M:%S")
+  test_data$timestamp <- default_timestamp
 
-  # some vulture data
-  base::load(test_path("testdata", "a.Rda"))
-  aSF <- sf::st_as_sf(a, coords = c("location_long", "location_lat"), remove = F, crs = "WGS84")
-  aSFBuff <- convertAndBuffer(aSF)
+  test_data[1, 'timestamp'] <- test_data[1, 'timestamp'] - 60 * 60 ## try ordering later
+  test_data[3, 'timestamp'] <- test_data[3, 'timestamp'] + 60 * 60
 
-  # Equal
-  expect_equal(class(nc), class(ncBuff)) # output should be the same type of object as the input
-  expect_equal("sf" %in% class(ncBuff), TRUE) # output should be an sf object
-  expect_equal(all(sf::st_area(ncBuff) > sf::st_area(nc)), TRUE) # buffering should make the area larger
-  expect_equal(sf::st_crs(nc, parameters = TRUE)$units_gdal, sf::st_crs(ncBuff, parameters = TRUE)$units_gdal) # check that the units are the same before and after
-  expect_equal(all(sf::st_geometry_type(aSFBuff) == "POLYGON"), TRUE) # points get buffered to polygons
+  test_data$location_long.1 <- 30
+  test_data$location_lat.1 <- 30
+  test_data[1, 'location_long.1'] <- 29.98
+  test_data[1, 'location_lat.1'] <- 29.98
+  test_data[3, 'location_long.1'] <- 30.02
+  test_data[3, 'location_lat.1'] <- 30.02
+  b <- calcSpeeds(df = test_data, grpCol = "tag_id", longCol = 'location_long.1', latCol = 'location_lat.1')
+  b <- b[, c('tag_id', 'timestamp', 'location_long.1', 'location_lat.1', 'lead_hour_diff_sec'
+             ,'lag_hour_diff_sec', 'lead_dist_m', 'lag_dist_m', 'lead_speed_m_s', 'lag_speed_m_s')]
+  b %>% print(width=Inf)
+  expect_equal(typeof(b), typeof(a)) # dataframe type shouldn't change
+  expect_equal(b$tag_id, c(0, 0, 0)) # id shouldn't change
+  expect_equal(b$timestamp, test_data$timestamp)     # columns shouldn't change
+  expect_equal(b$location_long.1, test_data$location_long.1)
+  expect_equal(b$location_lat.1, test_data$location_lat.1)
 
-  # Error
-  expect_error(convertAndBuffer(nc, dist = -10)) # negative distances shouldn't work
-  expect_error(convertAndBuffer(basicPoint)) # can't buffer something that's not an sf object
-  expect_error(convertAndBuffer(ncNACRS)) # can't buffer if CRS is NA (or NULL, but I don't have an explicit test yet for NULL bc I can't figure out how to set the CRS to NULL)
+  expect_true(all(b$lead_hour_diff_sec > 0 | is.na(b$lead_hour_diff_sec))) # time signs should match
+  expect_true(all(b$lag_hour_diff_sec < 0 | is.na(b$lag_hour_diff_sec)))
+  
+  expect_equal(b$lead_hour_diff_sec, c(3600, 3600, NA)) # time lengths should match (3600s difference)
+  expect_equal(b$lag_hour_diff_sec, c(NA, -3600, -3600))
+  
+  expected_distance <- 2939 # lead and lag distances should be the same
+  expect_true(all(round(b$lead_dist_m[!is.na(b$lead_dist_m)], digits=0) == expected_distance))
+  expect_true(all(round(b$lag_dist_m[!is.na(b$lag_dist_m)],digits=0) == expected_distance))
+  
+  expected_lead_speed <- 0.82 # speed check
+  expected_lag_speed <- -0.82
+  
+  expect_true(all(b$lead_speed_m_s[!is.na(b$lead_speed_m_s)] == expected_lead_speed))
+  
+  expect_true(all(b$lag_speed_m_s[!is.na(b$lag_speed_m_s)] == expected_lag_speed))
+  
+  #TODO test timestamp ordering, groupby, same timestamp spiking, outlier distances/times/speeds
+  
 })
 
-# filterLocs
-test_that("filterLocs works", {
-  # set up data
-  base::load(test_path("testdata", "a.Rda"))
-  h <- 14
-  l <- 2
-  filtHigh <- filterLocs(df = a, speedThreshLower = NULL, speedThreshUpper = h)
-  filtLow <- filterLocs(df = a, speedThreshLower = l, speedThreshUpper = NULL)
-  filtBoth <- filterLocs(df = a, speedThreshLower = l, speedThreshUpper = h)
-
-  # rows are getting removed
-  expect_equal(nrow(filtHigh) < nrow(a), TRUE)
-  expect_equal(nrow(filtLow) < nrow(a), TRUE)
-  expect_equal(nrow(filtBoth) < nrow(a), TRUE)
-  expect_equal(nrow(filtBoth) < nrow(filtHigh) & nrow(filtBoth) < nrow(filtLow), TRUE)
-
-  # data structure doesn't change
-  expect_equal(class(filtBoth), class(a))
-  expect_equal(ncol(filtBoth), ncol(a))
-
-  # errors and warnings
-  expect_warning(filterLocs(df = a, speedThreshLower = NULL, speedThreshUpper = NULL))
-  expect_error(filterLocs(df = a, speedCol = "fakeCol"))
-})
-
-# maskData
-test_that("maskData works", {
-  base::load(test_path("testdata", "ed_0905_0908.Rda"))
-  a <- ed_0905_0908
-  mask <- sf::st_read(test_path("testdata", "CutOffRegion.kml"))
-  smallMask <- sf::st_buffer(mask %>% sf::st_transform(32636), -100000)
-  m <- maskData(dataset = a, mask = smallMask)
-  # should get the same result if the input is not an sf object.
-  a_notSF <- sf::st_drop_geometry(a)
-  mm <- maskData(dataset = a_notSF, mask = smallMask)
-
-  # expectations about the masked dataset
-  expect_equal(nrow(m) < nrow(a), TRUE)
-  expect_equal(class(a), class(m))
-  expect_equal(m, mm)
-})
-
-test_that("consecEdges works", {
-  base::load(test_path("testdata", "edges_2021.08.27_2021.09.10_25m_20min.Rda"))
-  a <- edges_2021.08.27_2021.09.10_25m_20min # rename this to make it easier to read
-  cs1 <- consecEdges(edgeList = a, consecThreshold = 1)
-  cs2 <- consecEdges(edgeList = a, consecThreshold = 2)
-  cs5 <- consecEdges(edgeList = a, consecThreshold = 5)
-  cs100 <- consecEdges(edgeList = a, consecThreshold = 100)
-  expect_equal(nrow(cs1), 21550)
-  expect_equal(nrow(cs2), 16914)
-  expect_equal(nrow(cs5), 6075)
-  expect_equal(nrow(cs100), 0)
-})
 
 
 

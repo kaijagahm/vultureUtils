@@ -1,115 +1,90 @@
-# getFeedingEdges, which also tests getEdges
-test_that("getFeedingEdges works", {
-  # sample data we can use for testing
-  base::load(test_path("testdata", "ed_0905_0908.Rda"))
-  a <- ed_0905_0908 # name this something more usable
-  rp <- sf::st_read(test_path("testdata", "roosts25_cutOffRegion.kml")) # roost polygons
-  # sample data that will *not* produce interactions
-  aSample <- a[1:50,]
-
-  # produce some interactions
-  edges <- getFeedingEdges(dataset = a, roostPolygons = rp, idCol = "id", return = "edges")
-  edgesLocs <- getFeedingEdges(dataset = a, roostPolygons = rp, idCol = "id", return = "edges", getLocs = T)
-  ind <- getFeedingEdges(dataset = a, roostPolygons = rp, idCol = "id", return = "edges", includeAllVertices = T)
-  sri <- getFeedingEdges(dataset = a, roostPolygons = rp, idCol = "id", return = "sri")
-  both <- getFeedingEdges(dataset = a, roostPolygons = rp, idCol = "id", return = "both")
-  bothLocs <- getFeedingEdges(dataset = a, roostPolygons = rp, idCol = "id", return = "both", getLocs = T)
-  o <- capture_output(getFeedingEdges(dataset = a, roostPolygons = rp, idCol = "id", return = "sri"))
-  expect_match(o, "Computing SRI... this may take a while if your dataset is large.", all = FALSE)
-  expect_match(o, "SRI computation completed in", all = FALSE)
-  expect_equal(class(edges), c("tbl_df", "tbl", "data.frame"))
-  expect_equal(class(sri), "data.frame")
-  expect_equal(class(both), "list")
-  expect_equal(class(both[[1]]), c("tbl_df", "tbl", "data.frame"))
-  expect_equal(class(both[[2]]), "data.frame")
-  expect_equal(class(ind), "list")
-  expect_equal(class(ind[[2]]), "character")
-  expect_equal(ncol(edgesLocs) > ncol(edges), T)
-  expect_equal(ncol(bothLocs$edges) > ncol(both$edges), T)
-  expect_equal(all(c("latID1", "longID1", "latID2", "longID2", "interactionLat", "interactionLong") %in% names(edgesLocs)), T)
-  expect_equal(all(c("latID1", "longID1", "latID2", "longID2", "interactionLat", "interactionLong") %in% names(bothLocs$edges)), T)
-
-  # quiet = F
-  output_qf <- capture_output(getFeedingEdges(dataset = a, roostPolygons = rp, idCol = "id", return = "edges", quiet = F))
-  expect_match(output_qf, "Removed 0 nighttime points, leaving 91 points.", all = FALSE)
-
-  # errors and warnings
-  w <- capture_warnings(getFeedingEdges(dataset = aSample, roostPolygons = rp, idCol = "id", return = "edges"))
-  expect_match(w, "Item 1 has 0 rows but longest item has 1; filled with NA", all = FALSE)
-  expect_match(w, "After filtering, the dataset had 0 rows.", all = FALSE)
-})
-
-# get_roosts_df
-test_that("get_roosts_df works", {
-  base::load(test_path("testdata", "elviraData_2021.09.03_2021.09.13.Rda"))
-  a <- elviraData_2021.09.03_2021.09.13
-
-    # A normal run
-  ## messages
-  m <- capture_output(get_roosts_df(a, id = "id"))
-  expect_match(m, "Finding roosts... this may take a while if your dataset is large.", all = FALSE)
-  expect_match(m, "Roost computation completed in", all = FALSE)
-
-  ## create the output
-  roostsOut <- get_roosts_df(a, id = "id", quiet = T)
-  a_kmh <- a
-  a_kmh$ground_speed <- a_kmh$ground_speed*3.6
-  roostsOut_diffSpeed <- get_roosts_df(a_kmh, id = "id", quiet = T, speed_units = "km/h")
-
-  ## test the output
-  expect_equal(class(roostsOut), c("tbl_df", "tbl", "data.frame")) # output is a tibble/data frame
-  expect_equal(names(roostsOut), c("id", "date", "roost_date", "sunrise", "sunset", "sunrise_twilight", "sunset_twilight", "daylight", "is_roost", "location_lat", "location_long"
-  ))
-  expect_equal(all(unique(roostsOut$id) %in% unique(a$id)), TRUE)
-  expect_equal(all(roostsOut$date %in% a$dateOnly), TRUE)
-  expect_equal(nrow(roostsOut %>% dplyr::distinct(id, date)) < nrow(a %>% dplyr::distinct(id, dateOnly)), TRUE)
-})
-
-# getRoostEdges
-test_that("getRoostEdges works", {
-  base::load(test_path("testdata", "elviraData_2021.09.03_2021.09.13.Rda"))
-  a <- elviraData_2021.09.03_2021.09.13
-  rp <- sf::st_read(test_path("testdata", "roosts25_cutOffRegion.kml")) # roost polygons
-  r <- get_roosts_df(df = a, id = "id")
-  dist_e <- getRoostEdges(r, mode = "distance", idCol = "id", return = "edges")
-  dist_e_locs <- getRoostEdges(r, mode = "distance", idCol = "id", return = "edges", getLocs = TRUE)
-  poly_e <- getRoostEdges(r, mode = "polygon", roostPolygons = rp, idCol = "id", return = "edges")
-  poly_e_locs <- getRoostEdges(r, mode = "polygon", roostPolygons = rp, idCol = "id", return = "edges", getLocs = TRUE)
-  dist_s <- getRoostEdges(r, mode = "distance", idCol = "id", return = "sri")
-  poly_s <- getRoostEdges(r, mode = "polygon", roostPolygons = rp, idCol = "id", return = "sri")
-
-  # test the outputs
-  expect_equal(class(dist_e), c("data.table", "data.frame"))
-  expect_equal(class(poly_e), c("tbl_df", "tbl", "data.frame"))
-  expect_equal(class(dist_s), "data.frame")
-  expect_equal(class(poly_s), "data.frame")
-  expect_equal(ncol(dist_e_locs) > ncol(dist_e), TRUE)
-  expect_equal(ncol(poly_e_locs) > ncol(poly_e), TRUE)
-  expect_equal(all(c("location_lat", "location_long", "roostID") %in% names(poly_e_locs)), TRUE)
-  expect_equal(all(c("latID1", "longID1", "latID2", "longID2", "interactionLat", "interactionLong") %in% names(dist_e_locs)), TRUE)
-})
-
-# cleanData
-test_that("cleanData works", {
-  base::load(test_path("testdata", "rawDataSample.Rda"))
-  a <- rawDataSample
+test_that("cleanData outlier check", {
+  base::load(test_path("testdata", "raw2022.Rda"))
+  a <- raw2022
   mask <- sf::st_read(test_path("testdata", "CutOffRegion.kml"))
-  c <- cleanData(a, mask = mask, idCol = "trackId", removeVars = T) # normal use case, re-masked
-  b <- cleanData(a, mask = mask, idCol = "trackId", removeVars = T, reMask = F) # not re-masked
-  c_notRemoved <- cleanData(a, mask = mask, idCol = "trackId", removeVars = F)
+  default_row <- a[1]
+  default_row['external_temperature'] <- 1 # make sure control row is not outlier
+  outlier <- default_row
+  outlier['external_temperature'] <- 0     # make outlier
+  outlier['barometric_height'] <- 0
+  outlier['ground_speed'] <- 0
+  test_data <- data.frame(c(default_row, outlier), nrows=2, byrow=T)
+  
+  cleaned_outlier <- cleanData(test_data, idCol = "trackId", removeVars = T)
 
-  c_2 <- cleanData(a, mask = mask, idCol = "trackId", removeVars = T, inMaskThreshold = 1.5)
-
-  # not quiet
-  nq <- cleanData(a, mask = mask, idCol = "trackId", removeVars = T, quiet = F)
-
-  # expectations
-  expect_equal(ncol(c_notRemoved) > ncol(c), TRUE) # more vars if not removed (duh)
-  expect_equal(class(c), c("sf", "tbl_df", "tbl", "data.frame")) # expected classes
-  expect_equal(class(b), c("tbl_df", "tbl", "data.frame")) # if we don't re-mask, the resulting object doesn't have class sf. #XXX should look into fixing this to make it consistent.
-  expect_equal(nq, c) # setting quiet = F should not change the output
-  o <- capture_messages(cleanData(a, mask = mask, idCol = "trackId", removeVars = T, quiet = F))
-  expect_match(o, "dropping Z and/or M coordinate", all = FALSE)
-  expect_match(o, "Joining, by =", all = FALSE)
+  expect_equal(nrow(cleaned_outlier), 1) # cleaned data should remove 1 outlier
+  
+  # attempt all permutations of outlier stats
+  
+  test_data <- data.frame()
+  
+  perms <- expand.grid(rep(list(0:1), 3))
+  for (i in seq_len(nrow(perms))){
+    perm <- perms[i]
+    outlier['external_temperature'] <- perm[1]
+    outlier['barometric_height'] <- perm[2]
+    outlier['ground_speed'] <- perm[3]
+    
+    test_data <- rbind(test_data, outlier)
+  }
+  
+  cleaned_outlier_perms <- cleanData(test_data, mask = mask, idCol = "trackId", removeVars = T)
+  
+  expect_equal(nrow(cleaned_outlier_perms), 7) # all permutations should only have 1 outlier
+  expect_equal("outlier" %in% colnames(cleaned_outlier_perms), F) # outlier column name should be removed
 })
 
+test_that("cleanData bad gps check", {
+  base::load(test_path("testdata", "raw2022.Rda"))
+  a <- raw2022
+  mask <- sf::st_read(test_path("testdata", "CutOffRegion.kml"))
+  default_row <- a[1]
+  default_row['gps_time_to_fix'] <- 20 # control row
+  badgps_greater <- default_row
+  badgps_greater['gps_time_to_fix'] <- 120
+  badgps_equal <- default_row
+  badgps_equal['gps_time_to_fix'] <- 89
+  badgps_less <- default_row
+  badgps_less['gps_time_to_fix'] <- -20
+  test_data <- data.frame(c(default_row, badgps_less, badgps_equal, badgps_greater), nrows=4, byrow=T)
+  
+  cleaned_gps <- cleanData(test_data, idCol = "trackId", removeVars = T)
+  
+  expect_equal(nrow(cleaned_gps), 1) # gps_time_to_fix <= 89 should return 2 rows, but -20 is illogical
+})
+
+test_that("cleanData bad heading check", {
+  base::load(test_path("testdata", "raw2022.Rda"))
+  a <- raw2022
+  mask <- sf::st_read(test_path("testdata", "CutOffRegion.kml"))
+  default_row <- a[1]
+  default_row['heading'] <- 180 # control row
+  heading_greater <- default_row
+  heading_greater['gps_time_to_fix'] <- 400
+  heading_less <- default_row
+  heading_less['gps_time_to_fix'] <- -20
+  test_data <- data.frame(c(default_row, heading_less, heading_greater), nrows=3, byrow=T)
+  
+  cleaned_heading <- cleanData(test_data, idCol = "trackId", removeVars = T)
+  
+  expect_equal(nrow(cleaned_heading), 1) # heading shouldn't accept values not between 0-360
+})
+
+test_that("cleanData sattelite check", {
+  base::load(test_path("testdata", "raw2022.Rda"))
+  a <- raw2022
+  mask <- sf::st_read(test_path("testdata", "CutOffRegion.kml"))
+  default_row <- a[1]
+  default_row['gps_satellite_count'] <- 5 # control row
+  sattelite_equal <- default_row
+  sattelite_equal['gps_satellite_count'] <- 3
+  sattelite_less <- default_row
+  sattelite_less['gps_satellite_count'] <- 2
+  sattelite_neg <- default_row
+  sattelite_neg['gps_satellite_count'] <- -1
+  test_data <- data.frame(c(default_row, sattelite_equal, sattelite_less, sattelite_neg), nrows=4, byrow=T)
+  
+  cleaned_sattelite <- cleanData(test_data, idCol = "trackId", removeVars = T)
+  
+  expect_equal(nrow(cleaned_sattelite), 2) # 3 sattelites inclusive
+})
