@@ -86,7 +86,6 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
 #' @param latCol The name of the column in the dataset containing latitude values. Defaults to "location_lat.1". Passed to `vultureUtils::maskData()`.
 #' @param dateCol The name of the column in the dataset containing dates. Defaults to "dateOnly". Passed to `vultureUtils::mostlyInMask()`.
 #' @param idCol The name of the column in the dataset containing vulture ID's. Defaults to "Nili_id" (assuming you have joined the Nili_ids from the who's who table).
-#' @param removeVars Whether or not to remove unnecessary variables. Default is T.
 #' @param reMask Whether or not to re-mask after removing individuals that spend less than `inMaskThreshold` in the mask area. Default is T.
 #' @param quiet Whether to silence the message that happens when doing spatial joins. Default is T.
 #' @param ... additional arguments to be passed to any of several functions: `vultureUtils::removeUnnecessaryVars()` (`addlVars`, `keepVars`);
