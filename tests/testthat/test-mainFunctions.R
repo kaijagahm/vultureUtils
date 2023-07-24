@@ -1,90 +1,361 @@
-test_that("cleanData outlier check", {
-  base::load(test_path("testdata", "raw2022.Rda"))
-  a <- raw2022
-  mask <- sf::st_read(test_path("testdata", "CutOffRegion.kml"))
-  default_row <- a[1]
-  default_row['external_temperature'] <- 1 # make sure control row is not outlier
-  outlier <- default_row
-  outlier['external_temperature'] <- 0     # make outlier
-  outlier['barometric_height'] <- 0
-  outlier['ground_speed'] <- 0
-  test_data <- data.frame(c(default_row, outlier), nrows=2, byrow=T)
-  
-  cleaned_outlier <- cleanData(test_data, idCol = "trackId", removeVars = T)
+# TODO: testing data organization, turn testing files into temp files, have target files be the only permanent files (testthat keeps newly generated testing files when diff)
 
-  expect_equal(nrow(cleaned_outlier), 1) # cleaned data should remove 1 outlier
-  
-  # attempt all permutations of outlier stats
-  
-  test_data <- data.frame()
-  
-  perms <- expand.grid(rep(list(0:1), 3))
-  for (i in seq_len(nrow(perms))){
-    perm <- perms[i]
-    outlier['external_temperature'] <- perm[1]
-    outlier['barometric_height'] <- perm[2]
-    outlier['ground_speed'] <- perm[3]
-    
-    test_data <- rbind(test_data, outlier)
-  }
-  
-  cleaned_outlier_perms <- cleanData(test_data, mask = mask, idCol = "trackId", removeVars = T)
-  
-  expect_equal(nrow(cleaned_outlier_perms), 7) # all permutations should only have 1 outlier
-  expect_equal("outlier" %in% colnames(cleaned_outlier_perms), F) # outlier column name should be removed
+test_that("cleanData snapshot test", {
+  base::load(test_path("testdata", "month_data.Rda"))
+  data <- month_data
+  mask <- sf::st_read(test_path("testdata", "CutOffRegion.kml"))
+  cleanData_testing_data <- vultureUtils::cleanData(data, mask, idCol = "tag_id")
+  save(cleanData_testing_data,file=test_path("testdata", "cleanData_testing_data.Rda"))
+  announce_snapshot_file("cleanData_target_data.Rda")
+  expect_snapshot_file(test_path("testdata", "cleanData_testing_data.Rda"), "cleanData_target_data.Rda")
 })
 
-test_that("cleanData bad gps check", {
-  base::load(test_path("testdata", "raw2022.Rda"))
-  a <- raw2022
-  mask <- sf::st_read(test_path("testdata", "CutOffRegion.kml"))
-  default_row <- a[1]
-  default_row['gps_time_to_fix'] <- 20 # control row
-  badgps_greater <- default_row
-  badgps_greater['gps_time_to_fix'] <- 120
-  badgps_equal <- default_row
-  badgps_equal['gps_time_to_fix'] <- 89
-  badgps_less <- default_row
-  badgps_less['gps_time_to_fix'] <- -20
-  test_data <- data.frame(c(default_row, badgps_less, badgps_equal, badgps_greater), nrows=4, byrow=T)
-  
-  cleaned_gps <- cleanData(test_data, idCol = "trackId", removeVars = T)
-  
-  expect_equal(nrow(cleaned_gps), 1) # gps_time_to_fix <= 89 should return 2 rows, but -20 is illogical
+test_that("getFlightEdges no polygon sri snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "cleanData_target_data.Rda")) # can't reassign name
+  cleaned_data <- cleanData_testing_data
+  getFlightEdges_noPolygonSRI_testing_data <- vultureUtils::getFlightEdges(cleaned_data, roostPolygons = NULL, distThreshold = 1000, idCol = "tag_id", return ="sri")
+  save(getFlightEdges_noPolygonSRI_testing_data,file=test_path("testdata", "getFlightEdges_noPolygonSRI_testing_data.Rda"))
+  announce_snapshot_file("getFlightEdges_noPolygonSRI_target_data.Rda")
+  expect_snapshot_file(test_path("testdata", "getFlightEdges_noPolygonSRI_testing_data.Rda"),
+                       "getFlightEdges_noPolygonSRI_target_data.Rda")
 })
 
-test_that("cleanData bad heading check", {
-  base::load(test_path("testdata", "raw2022.Rda"))
-  a <- raw2022
-  mask <- sf::st_read(test_path("testdata", "CutOffRegion.kml"))
-  default_row <- a[1]
-  default_row['heading'] <- 180 # control row
-  heading_greater <- default_row
-  heading_greater['gps_time_to_fix'] <- 400
-  heading_less <- default_row
-  heading_less['gps_time_to_fix'] <- -20
-  test_data <- data.frame(c(default_row, heading_less, heading_greater), nrows=3, byrow=T)
-  
-  cleaned_heading <- cleanData(test_data, idCol = "trackId", removeVars = T)
-  
-  expect_equal(nrow(cleaned_heading), 1) # heading shouldn't accept values not between 0-360
+test_that("getFlightEdges polygon sri snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "cleanData_target_data.Rda")) # can't reassign name
+  cleaned_data <- cleanData_testing_data
+  roostPolygons <- sf::st_read(test_path("testdata", "roosts50_kde95_cutOffRegion.kml"))
+  getFlightEdges_PolygonSRI_testing_data <- vultureUtils::getFlightEdges(cleaned_data, roostPolygons = roostPolygons, distThreshold = 1000, idCol = "tag_id", return ="sri")
+  save(getFlightEdges_PolygonSRI_testing_data,file=test_path("testdata", "getFlightEdges_PolygonSRI_testing_data.Rda"))
+  announce_snapshot_file("getFlightEdges_PolygonSRI_target_data.Rda")
+  expect_snapshot_file(test_path("testdata", "getFlightEdges_PolygonSRI_testing_data.Rda"),
+                       "getFlightEdges_PolygonSRI_target_data.Rda")
 })
 
-test_that("cleanData sattelite check", {
-  base::load(test_path("testdata", "raw2022.Rda"))
-  a <- raw2022
-  mask <- sf::st_read(test_path("testdata", "CutOffRegion.kml"))
-  default_row <- a[1]
-  default_row['gps_satellite_count'] <- 5 # control row
-  sattelite_equal <- default_row
-  sattelite_equal['gps_satellite_count'] <- 3
-  sattelite_less <- default_row
-  sattelite_less['gps_satellite_count'] <- 2
-  sattelite_neg <- default_row
-  sattelite_neg['gps_satellite_count'] <- -1
-  test_data <- data.frame(c(default_row, sattelite_equal, sattelite_less, sattelite_neg), nrows=4, byrow=T)
-  
-  cleaned_sattelite <- cleanData(test_data, idCol = "trackId", removeVars = T)
-  
-  expect_equal(nrow(cleaned_sattelite), 2) # 3 sattelites inclusive
+test_that("getFlightEdges no polygon edges snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "cleanData_target_data.Rda")) # can't reassign name
+  cleaned_data <- cleanData_testing_data
+  getFlightEdges_noPolygonEdges_testing_data <- vultureUtils::getFlightEdges(cleaned_data, roostPolygons = NULL, distThreshold = 1000, idCol = "tag_id", return ="edges")
+  save(getFlightEdges_noPolygonEdges_testing_data,file=test_path("testdata", "getFlightEdges_noPolygonEdges_testing_data.Rda"))
+  announce_snapshot_file("getFlightEdges_noPolygonEdges_target_data.Rda")
+  expect_snapshot_file(test_path("testdata", "getFlightEdges_noPolygonEdges_testing_data.Rda"),
+                       "getFlightEdges_noPolygonEdges_target_data.Rda")
+})
+
+test_that("getFlightEdges polygon edges snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "cleanData_target_data.Rda")) # can't reassign name
+  cleaned_data <- cleanData_testing_data
+  roostPolygons <- sf::st_read(test_path("testdata", "roosts50_kde95_cutOffRegion.kml"))
+  getFlightEdges_PolygonEdges_testing_data <- vultureUtils::getFlightEdges(cleaned_data, roostPolygons = roostPolygons, distThreshold = 1000, idCol = "tag_id", return ="edges")
+  save(getFlightEdges_PolygonEdges_testing_data,file=test_path("testdata", "getFlightEdges_PolygonEdges_testing_data.Rda"))
+  announce_snapshot_file("getFlightEdges_PolygonEdges_target_data.Rda")
+  expect_snapshot_file(test_path("testdata", "getFlightEdges_PolygonEdges_testing_data.Rda"),
+                       "getFlightEdges_PolygonEdges_target_data.Rda")
+})
+
+test_that("getFeedingEdges no polygon sri snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "cleanData_target_data.Rda")) # can't reassign name
+  cleaned_data <- cleanData_testing_data
+  getFeedingEdges_noPolygonSRI_testing_data <- vultureUtils::getFeedingEdges(cleaned_data, roostPolygons = NULL, distThreshold = 50, idCol = "tag_id", return ="sri")
+  save(getFeedingEdges_noPolygonSRI_testing_data,file=test_path("testdata", "getFeedingEdges_noPolygonSRI_testing_data.Rda"))
+  announce_snapshot_file("getFeedingEdges_noPolygonSRI_target_data.Rda")
+  expect_snapshot_file(test_path("testdata", "getFeedingEdges_noPolygonSRI_testing_data.Rda"),
+                       "getFeedingEdges_noPolygonSRI_target_data.Rda")
+})
+
+test_that("getFeedingEdges polygon sri snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "cleanData_target_data.Rda")) # can't reassign name
+  cleaned_data <- cleanData_testing_data
+  roostPolygons <- sf::st_read(test_path("testdata", "roosts50_kde95_cutOffRegion.kml"))
+  getFeedingEdges_PolygonSRI_testing_data <- vultureUtils::getFeedingEdges(cleaned_data, roostPolygons = roostPolygons, distThreshold = 50, idCol = "tag_id", return ="sri")
+  save(getFeedingEdges_PolygonSRI_testing_data,file=test_path("testdata", "getFeedingEdges_PolygonSRI_testing_data.Rda"))
+  announce_snapshot_file("getFeedingEdges_PolygonSRI_target_data.Rda")
+  expect_snapshot_file(test_path("testdata", "getFeedingEdges_PolygonSRI_testing_data.Rda"),
+                       "getFeedingEdges_PolygonSRI_target_data.Rda")
+})
+
+test_that("getFeedingEdges no polygon edges snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "cleanData_target_data.Rda")) # can't reassign name
+  cleaned_data <- cleanData_testing_data
+  getFeedingEdges_noPolygonEdges_testing_data <- vultureUtils::getFeedingEdges(cleaned_data, roostPolygons = NULL, distThreshold = 50, idCol = "tag_id", return ="edges")
+  save(getFeedingEdges_noPolygonEdges_testing_data,file=test_path("testdata", "getFeedingEdges_noPolygonEdges_testing_data.Rda"))
+  announce_snapshot_file("getFeedingEdges_noPolygonEdges_target_data.Rda")
+  expect_snapshot_file(test_path("testdata", "getFeedingEdges_noPolygonEdges_testing_data.Rda"),
+                       "getFeedingEdges_noPolygonEdges_target_data.Rda")
+})
+
+test_that("getFeedingEdges polygon edges snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "cleanData_target_data.Rda")) # can't reassign name
+  cleaned_data <- cleanData_testing_data
+  roostPolygons <- sf::st_read(test_path("testdata", "roosts50_kde95_cutOffRegion.kml"))
+  getFeedingEdges_PolygonEdges_testing_data <- vultureUtils::getFeedingEdges(cleaned_data, roostPolygons = roostPolygons, distThreshold = 50, idCol = "tag_id", return ="edges")
+  save(getFeedingEdges_PolygonEdges_testing_data,file=test_path("testdata", "getFeedingEdges_PolygonEdges_testing_data.Rda"))
+  announce_snapshot_file("getFeedingEdges_PolygonEdges_target_data.Rda")
+  expect_snapshot_file(test_path("testdata", "getFeedingEdges_PolygonEdges_testing_data.Rda"),
+                       "getFeedingEdges_PolygonEdges_target_data.Rda")
+})
+
+test_that("getRoostEdges no polygon sri snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "get_roosts_df_target_data.Rda")) # can't reassign name
+  roosts_data <- get_roosts_df_testing_data
+  getRoostEdges_noPolygonSRI_testing_data <- vultureUtils::getRoostEdges(roosts_data, roostPolygons = NULL, idCol = "tag_id", return ="sri", latCol = "location_lat", longCol = "location_long", dateCol = "roost_date")
+  save(getRoostEdges_noPolygonSRI_testing_data,file=test_path("testdata", "getRoostEdges_noPolygonSRI_testing_data.Rda"))
+  announce_snapshot_file("getRoostEdges_noPolygonSRI_target_data.Rda")
+  expect_snapshot_file(test_path("testdata", "getRoostEdges_noPolygonSRI_testing_data.Rda"),
+                       "getRoostEdges_noPolygonSRI_target_data.Rda")
+})
+
+test_that("getRoostEdges polygon sri snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "get_roosts_df_target_data.Rda")) # can't reassign name
+  roosts_data <- get_roosts_df_testing_data
+  roostPolygons <- sf::st_read(test_path("testdata", "roosts50_kde95_cutOffRegion.kml"))
+  getRoostEdges_PolygonSRI_testing_data <- vultureUtils::getRoostEdges(roosts_data, roostPolygons = roostPolygons, idCol = "tag_id", return ="sri", latCol = "location_lat", longCol = "location_long", dateCol = "roost_date")
+  save(getRoostEdges_PolygonSRI_testing_data,file=test_path("testdata", "getRoostEdges_PolygonSRI_testing_data.Rda"))
+  announce_snapshot_file("getRoostEdges_PolygonSRI_target_data.Rda")
+  expect_snapshot_file(test_path("testdata", "getRoostEdges_PolygonSRI_testing_data.Rda"),
+                       "getRoostEdges_PolygonSRI_target_data.Rda")
+})
+
+test_that("getRoostEdges no polygon edges snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "get_roosts_df_target_data.Rda")) # can't reassign name
+  roosts_data <- get_roosts_df_testing_data
+  getRoostEdges_noPolygonEdges_testing_data <- vultureUtils::getRoostEdges(roosts_data, roostPolygons = NULL, idCol = "tag_id", return ="edges", latCol = "location_lat", longCol = "location_long", dateCol = "roost_date")
+  save(getRoostEdges_noPolygonEdges_testing_data,file=test_path("testdata", "getRoostEdges_noPolygonEdges_testing_data.Rda"))
+  announce_snapshot_file("getRoostEdges_noPolygonEdges_target_data.Rda")
+  expect_snapshot_file(test_path("testdata", "getRoostEdges_noPolygonEdges_testing_data.Rda"),
+                       "getRoostEdges_noPolygonEdges_target_data.Rda")
+})
+
+test_that("getRoostEdges polygon edges snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "get_roosts_df_target_data.Rda")) # can't reassign name
+  roosts_data <- get_roosts_df_testing_data
+  roostPolygons <- sf::st_read(test_path("testdata", "roosts50_kde95_cutOffRegion.kml"))
+  getRoostEdges_PolygonEdges_testing_data <- vultureUtils::getRoostEdges(roosts_data, roostPolygons = roostPolygons, idCol = "tag_id", return ="edges", latCol = "location_lat", longCol = "location_long", dateCol = "roost_date")
+  save(getRoostEdges_PolygonEdges_testing_data,file=test_path("testdata", "getRoostEdges_PolygonEdges_testing_data.Rda"))
+  announce_snapshot_file("getRoostEdges_PolygonEdges_target_data.Rda")
+  expect_snapshot_file(test_path("testdata", "getRoostEdges_PolygonEdges_testing_data.Rda"),
+                       "getRoostEdges_PolygonEdges_target_data.Rda")
+})
+
+test_that("get_roosts_df snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "cleanData_target_data.Rda"))
+  cleaned_data <- cleanData_testing_data
+  get_roosts_df_testing_data <- vultureUtils::get_roosts_df(cleaned_data, id = "tag_id", timestamp = "timestamp", x = "location_long", y = "location_lat", ground_speed = "ground_speed", speed_units = "m/s", quiet = F)
+  save(get_roosts_df_testing_data,file=test_path("testdata", "get_roosts_df_testing_data.Rda"))
+  announce_snapshot_file("get_roosts_df_target_data.Rda")
+  expect_snapshot_file(test_path("testdata", "get_roosts_df_testing_data.Rda"), "get_roosts_df_target_data.Rda")
+})
+
+test_that("makeGraph unweighted flight no polygon sri snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "getFlightEdges_noPolygonSRI_target_data.Rda"))
+  sri_data <- getFlightEdges_noPolygonSRI_testing_data
+  flight_no_poly_sri_unweighted_testing_data <- vultureUtils::makeGraph(mode = "sri", data = sri_data, weighted = F)
+  igraph::write_graph(flight_no_poly_sri_unweighted_testing_data, file=test_path("testdata", "flight_no_poly_sri_unweighted_testing_data.txt"), "edgelist")
+  announce_snapshot_file("flight_no_poly_sri_unweighted_target_data.txt")
+  expect_snapshot_file(test_path("testdata", "flight_no_poly_sri_unweighted_testing_data.txt"), "flight_no_poly_sri_unweighted_target_data.txt")
+})
+
+test_that("makeGraph unweighted flight polygon sri snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "getFlightEdges_PolygonSRI_target_data.Rda"))
+  sri_data <- getFlightEdges_PolygonSRI_testing_data
+  flight_poly_sri_unweighted_testing_data <- vultureUtils::makeGraph(mode = "sri", data = sri_data, weighted = F)
+  igraph::write_graph(flight_poly_sri_unweighted_testing_data, file=test_path("testdata", "flight_poly_sri_unweighted_testing_data.txt"), "edgelist")
+  announce_snapshot_file("flight_poly_sri_unweighted_target_data.txt")
+  expect_snapshot_file(test_path("testdata", "flight_poly_sri_unweighted_testing_data.txt"), "flight_poly_sri_unweighted_target_data.txt")
+})
+
+test_that("makeGraph unweighted flight no polygon edgelist snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "getFlightEdges_noPolygonEdges_target_data.Rda"))
+  edges_data <- getFlightEdges_noPolygonEdges_testing_data
+  flight_no_poly_edgelist_unweighted_testing_data <- vultureUtils::makeGraph(mode = "edgelist", data = edges_data, weighted = F)
+  igraph::write_graph(flight_no_poly_edgelist_unweighted_testing_data, file=test_path("testdata", "flight_no_poly_edgelist_unweighted_testing_data.txt"), "edgelist")
+  announce_snapshot_file("flight_no_poly_edgelist_unweighted_target_data.txt")
+  expect_snapshot_file(test_path("testdata", "flight_no_poly_edgelist_unweighted_testing_data.txt"), "flight_no_poly_edgelist_unweighted_target_data.txt")
+})
+
+test_that("makeGraph unweighted flight polygon edgelist snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "getFlightEdges_PolygonEdges_target_data.Rda"))
+  edges_data <- getFlightEdges_PolygonEdges_testing_data
+  flight_poly_edgelist_unweighted_testing_data <- vultureUtils::makeGraph(mode = "edgelist", data = edges_data, weighted = F)
+  igraph::write_graph(flight_poly_edgelist_unweighted_testing_data, file=test_path("testdata", "flight_poly_edgelist_unweighted_testing_data.txt"), "edgelist")
+  announce_snapshot_file("flight_poly_edgelist_unweighted_target_data.txt")
+  expect_snapshot_file(test_path("testdata", "flight_poly_edgelist_unweighted_testing_data.txt"), "flight_poly_edgelist_unweighted_target_data.txt")
+})
+
+test_that("makeGraph unweighted feeding no polygon sri snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "getFeedingEdges_noPolygonSRI_target_data.Rda"))
+  sri_data <- getFeedingEdges_noPolygonSRI_testing_data
+  feeding_no_poly_sri_unweighted_testing_data <- vultureUtils::makeGraph(mode = "sri", data = sri_data, weighted = F)
+  igraph::write_graph(feeding_no_poly_sri_unweighted_testing_data, file=test_path("testdata", "feeding_no_poly_sri_unweighted_testing_data.txt"), "edgelist")
+  announce_snapshot_file("feeding_no_poly_sri_unweighted_target_data.txt")
+  expect_snapshot_file(test_path("testdata", "feeding_no_poly_sri_unweighted_testing_data.txt"), "feeding_no_poly_sri_unweighted_target_data.txt")
+})
+
+test_that("makeGraph unweighted feeding polygon sri snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "getFeedingEdges_PolygonSRI_target_data.Rda"))
+  sri_data <- getFeedingEdges_PolygonSRI_testing_data
+  feeding_poly_sri_unweighted_testing_data <- vultureUtils::makeGraph(mode = "sri", data = sri_data, weighted = F)
+  igraph::write_graph(feeding_poly_sri_unweighted_testing_data, file=test_path("testdata", "feeding_poly_sri_unweighted_testing_data.txt"), "edgelist")
+  announce_snapshot_file("feeding_poly_sri_unweighted_target_data.txt")
+  expect_snapshot_file(test_path("testdata", "feeding_poly_sri_unweighted_testing_data.txt"), "feeding_poly_sri_unweighted_target_data.txt")
+})
+
+test_that("makeGraph unweighted feeding no polygon edgelist snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "getFeedingEdges_noPolygonEdges_target_data.Rda"))
+  edges_data <- getFeedingEdges_noPolygonEdges_testing_data
+  feeding_no_poly_edgelist_unweighted_testing_data <- vultureUtils::makeGraph(mode = "edgelist", data = edges_data, weighted = F)
+  igraph::write_graph(feeding_no_poly_edgelist_unweighted_testing_data, file=test_path("testdata", "feeding_no_poly_edgelist_unweighted_testing_data.txt"), "edgelist")
+  announce_snapshot_file("feeding_no_poly_edgelist_unweighted_target_data.txt")
+  expect_snapshot_file(test_path("testdata", "feeding_no_poly_edgelist_unweighted_testing_data.txt"), "feeding_no_poly_edgelist_unweighted_target_data.txt")
+})
+
+test_that("makeGraph unweighted feeding polygon edgelist snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "getFeedingEdges_PolygonEdges_target_data.Rda"))
+  edges_data <- getFeedingEdges_PolygonEdges_testing_data
+  feeding_poly_edgelist_unweighted_testing_data <- vultureUtils::makeGraph(mode = "edgelist", data = edges_data, weighted = F)
+  igraph::write_graph(feeding_poly_edgelist_unweighted_testing_data, file=test_path("testdata", "feeding_poly_edgelist_unweighted_testing_data.txt"), "edgelist")
+  announce_snapshot_file("feeding_poly_edgelist_unweighted_target_data.txt")
+  expect_snapshot_file(test_path("testdata", "feeding_poly_edgelist_unweighted_testing_data.txt"), "feeding_poly_edgelist_unweighted_target_data.txt")
+})
+
+test_that("makeGraph unweighted roost no polygon sri snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "getRoostEdges_noPolygonSRI_target_data.Rda"))
+  sri_data <- getRoostEdges_noPolygonSRI_testing_data
+  roost_no_poly_sri_unweighted_testing_data <- vultureUtils::makeGraph(mode = "sri", data = sri_data, weighted = F)
+  igraph::write_graph(roost_no_poly_sri_unweighted_testing_data, file=test_path("testdata", "roost_no_poly_sri_unweighted_testing_data.txt"), "edgelist")
+  announce_snapshot_file("roost_no_poly_sri_unweighted_target_data.txt")
+  expect_snapshot_file(test_path("testdata", "roost_no_poly_sri_unweighted_testing_data.txt"), "roost_no_poly_sri_unweighted_target_data.txt")
+})
+
+test_that("makeGraph unweighted roost polygon sri snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "getRoostEdges_PolygonSRI_target_data.Rda"))
+  sri_data <- getRoostEdges_PolygonSRI_testing_data
+  roost_poly_sri_unweighted_testing_data <- vultureUtils::makeGraph(mode = "sri", data = sri_data, weighted = F)
+  igraph::write_graph(roost_poly_sri_unweighted_testing_data, file=test_path("testdata", "roost_poly_sri_unweighted_testing_data.txt"), "edgelist")
+  announce_snapshot_file("roost_poly_sri_unweighted_target_data.txt")
+  expect_snapshot_file(test_path("testdata", "roost_poly_sri_unweighted_testing_data.txt"), "roost_poly_sri_unweighted_target_data.txt")
+})
+
+test_that("makeGraph unweighted roost no polygon edgelist snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "getRoostEdges_noPolygonEdges_target_data.Rda"))
+  edges_data <- getRoostEdges_noPolygonEdges_testing_data
+  roost_no_poly_edgelist_unweighted_testing_data <- vultureUtils::makeGraph(mode = "edgelist", data = edges_data, weighted = F)
+  igraph::write_graph(roost_no_poly_edgelist_unweighted_testing_data, file=test_path("testdata", "roost_no_poly_edgelist_unweighted_testing_data.txt"), "edgelist")
+  announce_snapshot_file("roost_no_poly_edgelist_unweighted_target_data.txt")
+  expect_snapshot_file(test_path("testdata", "roost_no_poly_edgelist_unweighted_testing_data.txt"), "roost_no_poly_edgelist_unweighted_target_data.txt")
+})
+
+test_that("makeGraph unweighted roost polygon edgelist snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "getRoostEdges_PolygonEdges_target_data.Rda"))
+  edges_data <- getRoostEdges_PolygonEdges_testing_data
+  roost_poly_edgelist_unweighted_testing_data <- vultureUtils::makeGraph(mode = "edgelist", data = edges_data, weighted = F)
+  igraph::write_graph(roost_poly_edgelist_unweighted_testing_data, file=test_path("testdata", "roost_poly_edgelist_unweighted_testing_data.txt"), "edgelist")
+  announce_snapshot_file("roost_poly_edgelist_unweighted_target_data.txt")
+  expect_snapshot_file(test_path("testdata", "roost_poly_edgelist_unweighted_testing_data.txt"), "roost_poly_edgelist_unweighted_target_data.txt")
+})
+test_that("makeGraph weighted flight no polygon sri snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "getFlightEdges_noPolygonSRI_target_data.Rda"))
+  sri_data <- getFlightEdges_noPolygonSRI_testing_data
+  flight_no_poly_sri_weighted_testing_data <- vultureUtils::makeGraph(mode = "sri", data = sri_data, weighted = T)
+  igraph::write_graph(flight_no_poly_sri_weighted_testing_data, file=test_path("testdata", "flight_no_poly_sri_weighted_testing_data.txt"), "edgelist")
+  announce_snapshot_file("flight_no_poly_sri_weighted_target_data.txt")
+  expect_snapshot_file(test_path("testdata", "flight_no_poly_sri_weighted_testing_data.txt"), "flight_no_poly_sri_weighted_target_data.txt")
+})
+
+test_that("makeGraph weighted flight polygon sri snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "getFlightEdges_PolygonSRI_target_data.Rda"))
+  sri_data <- getFlightEdges_PolygonSRI_testing_data
+  flight_poly_sri_weighted_testing_data <- vultureUtils::makeGraph(mode = "sri", data = sri_data, weighted = T)
+  igraph::write_graph(flight_poly_sri_weighted_testing_data, file=test_path("testdata", "flight_poly_sri_weighted_testing_data.txt"), "edgelist")
+  announce_snapshot_file("flight_poly_sri_weighted_target_data.txt")
+  expect_snapshot_file(test_path("testdata", "flight_poly_sri_weighted_testing_data.txt"), "flight_poly_sri_weighted_target_data.txt")
+})
+
+test_that("makeGraph weighted flight no polygon edgelist snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "getFlightEdges_noPolygonEdges_target_data.Rda"))
+  edges_data <- getFlightEdges_noPolygonEdges_testing_data
+  flight_no_poly_edgelist_weighted_testing_data <- vultureUtils::makeGraph(mode = "edgelist", data = edges_data, weighted = T)
+  igraph::write_graph(flight_no_poly_edgelist_weighted_testing_data, file=test_path("testdata", "flight_no_poly_edgelist_weighted_testing_data.txt"), "edgelist")
+  announce_snapshot_file("flight_no_poly_edgelist_weighted_target_data.txt")
+  expect_snapshot_file(test_path("testdata", "flight_no_poly_edgelist_weighted_testing_data.txt"), "flight_no_poly_edgelist_weighted_target_data.txt")
+})
+
+test_that("makeGraph weighted flight polygon edgelist snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "getFlightEdges_PolygonEdges_target_data.Rda"))
+  edges_data <- getFlightEdges_PolygonEdges_testing_data
+  flight_poly_edgelist_weighted_testing_data <- vultureUtils::makeGraph(mode = "edgelist", data = edges_data, weighted = T)
+  igraph::write_graph(flight_poly_edgelist_weighted_testing_data, file=test_path("testdata", "flight_poly_edgelist_weighted_testing_data.txt"), "edgelist")
+  announce_snapshot_file("flight_poly_edgelist_weighted_target_data.txt")
+  expect_snapshot_file(test_path("testdata", "flight_poly_edgelist_weighted_testing_data.txt"), "flight_poly_edgelist_weighted_target_data.txt")
+})
+
+test_that("makeGraph weighted feeding no polygon sri snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "getFeedingEdges_noPolygonSRI_target_data.Rda"))
+  sri_data <- getFeedingEdges_noPolygonSRI_testing_data
+  feeding_no_poly_sri_weighted_testing_data <- vultureUtils::makeGraph(mode = "sri", data = sri_data, weighted = T)
+  igraph::write_graph(feeding_no_poly_sri_weighted_testing_data, file=test_path("testdata", "feeding_no_poly_sri_weighted_testing_data.txt"), "edgelist")
+  announce_snapshot_file("feeding_no_poly_sri_weighted_target_data.txt")
+  expect_snapshot_file(test_path("testdata", "feeding_no_poly_sri_weighted_testing_data.txt"), "feeding_no_poly_sri_weighted_target_data.txt")
+})
+
+test_that("makeGraph weighted feeding polygon sri snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "getFeedingEdges_PolygonSRI_target_data.Rda"))
+  sri_data <- getFeedingEdges_PolygonSRI_testing_data
+  feeding_poly_sri_weighted_testing_data <- vultureUtils::makeGraph(mode = "sri", data = sri_data, weighted = T)
+  igraph::write_graph(feeding_poly_sri_weighted_testing_data, file=test_path("testdata", "feeding_poly_sri_weighted_testing_data.txt"), "edgelist")
+  announce_snapshot_file("feeding_poly_sri_weighted_target_data.txt")
+  expect_snapshot_file(test_path("testdata", "feeding_poly_sri_weighted_testing_data.txt"), "feeding_poly_sri_weighted_target_data.txt")
+})
+
+test_that("makeGraph weighted feeding no polygon edgelist snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "getFeedingEdges_noPolygonEdges_target_data.Rda"))
+  edges_data <- getFeedingEdges_noPolygonEdges_testing_data
+  feeding_no_poly_edgelist_weighted_testing_data <- vultureUtils::makeGraph(mode = "edgelist", data = edges_data, weighted = T)
+  igraph::write_graph(feeding_no_poly_edgelist_weighted_testing_data, file=test_path("testdata", "feeding_no_poly_edgelist_weighted_testing_data.txt"), "edgelist")
+  announce_snapshot_file("feeding_no_poly_edgelist_weighted_target_data.txt")
+  expect_snapshot_file(test_path("testdata", "feeding_no_poly_edgelist_weighted_testing_data.txt"), "feeding_no_poly_edgelist_weighted_target_data.txt")
+})
+
+test_that("makeGraph weighted feeding polygon edgelist snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "getFeedingEdges_PolygonEdges_target_data.Rda"))
+  edges_data <- getFeedingEdges_PolygonEdges_testing_data
+  feeding_poly_edgelist_weighted_testing_data <- vultureUtils::makeGraph(mode = "edgelist", data = edges_data, weighted = T)
+  igraph::write_graph(feeding_poly_edgelist_weighted_testing_data, file=test_path("testdata", "feeding_poly_edgelist_weighted_testing_data.txt"), "edgelist")
+  announce_snapshot_file("feeding_poly_edgelist_weighted_target_data.txt")
+  expect_snapshot_file(test_path("testdata", "feeding_poly_edgelist_weighted_testing_data.txt"), "feeding_poly_edgelist_weighted_target_data.txt")
+})
+
+test_that("makeGraph weighted roost no polygon sri snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "getRoostEdges_noPolygonSRI_target_data.Rda"))
+  sri_data <- getRoostEdges_noPolygonSRI_testing_data
+  roost_no_poly_sri_weighted_testing_data <- vultureUtils::makeGraph(mode = "sri", data = sri_data, weighted = T)
+  igraph::write_graph(roost_no_poly_sri_weighted_testing_data, file=test_path("testdata", "roost_no_poly_sri_weighted_testing_data.txt"), "edgelist")
+  announce_snapshot_file("roost_no_poly_sri_weighted_target_data.txt")
+  expect_snapshot_file(test_path("testdata", "roost_no_poly_sri_weighted_testing_data.txt"), "roost_no_poly_sri_weighted_target_data.txt")
+})
+
+test_that("makeGraph weighted roost polygon sri snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "getRoostEdges_PolygonSRI_target_data.Rda"))
+  sri_data <- getRoostEdges_PolygonSRI_testing_data
+  roost_poly_sri_weighted_testing_data <- vultureUtils::makeGraph(mode = "sri", data = sri_data, weighted = T)
+  igraph::write_graph(roost_poly_sri_weighted_testing_data, file=test_path("testdata", "roost_poly_sri_weighted_testing_data.txt"), "edgelist")
+  announce_snapshot_file("roost_poly_sri_weighted_target_data.txt")
+  expect_snapshot_file(test_path("testdata", "roost_poly_sri_weighted_testing_data.txt"), "roost_poly_sri_weighted_target_data.txt")
+})
+
+test_that("makeGraph weighted roost no polygon edgelist snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "getRoostEdges_noPolygonEdges_target_data.Rda"))
+  edges_data <- getRoostEdges_noPolygonEdges_testing_data
+  roost_no_poly_edgelist_weighted_testing_data <- vultureUtils::makeGraph(mode = "edgelist", data = edges_data, weighted = T)
+  igraph::write_graph(roost_no_poly_edgelist_weighted_testing_data, file=test_path("testdata", "roost_no_poly_edgelist_weighted_testing_data.txt"), "edgelist")
+  announce_snapshot_file("roost_no_poly_edgelist_weighted_target_data.txt")
+  expect_snapshot_file(test_path("testdata", "roost_no_poly_edgelist_weighted_testing_data.txt"), "roost_no_poly_edgelist_weighted_target_data.txt")
+})
+
+test_that("makeGraph weighted roost polygon edgelist snapshot test", {
+  base::load(test_path("_snaps", "mainFunctions", "getRoostEdges_PolygonEdges_target_data.Rda"))
+  edges_data <- getRoostEdges_PolygonEdges_testing_data
+  roost_poly_edgelist_weighted_testing_data <- vultureUtils::makeGraph(mode = "edgelist", data = edges_data, weighted = T)
+  igraph::write_graph(roost_poly_edgelist_weighted_testing_data, file=test_path("testdata", "roost_poly_edgelist_weighted_testing_data.txt"), "edgelist")
+  announce_snapshot_file("roost_poly_edgelist_weighted_target_data.txt")
+  expect_snapshot_file(test_path("testdata", "roost_poly_edgelist_weighted_testing_data.txt"), "roost_poly_edgelist_weighted_target_data.txt")
 })
