@@ -856,25 +856,33 @@ get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", 
     id.df$dist_km <- distances
     id.df$dist_km[id.df$day_diff != 1] <- NA
 
-    # Calculate the time of sunrise and sunset for the locations
-    crds <- matrix(c(id.df[[x]],
-                     id.df[[y]]),
-                   nrow = nrow(id.df),
-                   ncol = 2)
+    # Ryan's Code: I think maptools::sunriset can be replaced with suncalc::getSunlightTimes since its used in other places
+    # SEE: https://cran.r-project.org/web/packages/suncalc/ https://cran.r-project.org/web/packages/suncalc/suncalc.pdf
+    
+    data <- data.frame(date = as.Date(id.df[[timestamp]]), lat = id.df[[y]], lon = id.df[[x]])
 
-    id.df$sunrise <- maptools::sunriset(crds,
-                                        id.df[[timestamp]],
-                                        proj4string =
-                                          sp::CRS("+proj=longlat +datum=WGS84"),
-                                        direction = "sunrise",
-                                        POSIXct.out = TRUE)$time
-
-    id.df$sunset <- maptools::sunriset(crds,
-                                       id.df[[timestamp]],
-                                       proj4string =
-                                         sp::CRS("+proj=longlat +datum=WGS84"),
-                                       direction = "sunset",
-                                       POSIXct.out = TRUE)$time
+    id.df$sunrise <- suncalc::getSunlightTimes(data = data, keep = c("sunrise"))$sunrise
+    id.df$sunset <- suncalc::getSunlightTimes(data = data, keep = c("sunset"))$sunset
+    
+    # # Calculate the time of sunrise and sunset for the locations
+    # crds <- matrix(c(id.df[[x]],
+    #                  id.df[[y]]),
+    #                nrow = nrow(id.df),
+    #                ncol = 2)
+    # 
+    # id.df$sunrise <- maptools::sunriset(crds,
+    #                                     id.df[[timestamp]],
+    #                                     proj4string =
+    #                                       sp::CRS("+proj=longlat +datum=WGS84"),
+    #                                     direction = "sunrise",
+    #                                     POSIXct.out = TRUE)$time
+    # 
+    # id.df$sunset <- maptools::sunriset(crds,
+    #                                    id.df[[timestamp]],
+    #                                    proj4string =
+    #                                      sp::CRS("+proj=longlat +datum=WGS84"),
+    #                                    direction = "sunset",
+    #                                    POSIXct.out = TRUE)$time
 
     # Set the twilight
     id.df$sunrise_twilight <- id.df$sunrise + twilight_secs
