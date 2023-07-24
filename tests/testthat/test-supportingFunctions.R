@@ -306,6 +306,7 @@ test_that("convertAndBuffer check", {
   expect_snapshot_file(test_path("testdata", "convertAndBuffer_testing_data.Rda"), "convertAndBuffer_target_data.Rda")
 })
 # NOTE: error with spatsoc::edge_dist "found duplicate id in a timegroup and/or splitBy - does your group_times threshold match the fix rate?"
+# NOTE: should be fine
 test_that("spaceTimeGroups check", {
   base::load(test_path("_snaps", "mainFunctions", "cleanData_target_data.Rda"))
   cleaned_data <- cleanData_testing_data
@@ -440,7 +441,7 @@ test_that("consecEdges check", {
                                                crsToTransform = crsToTransform, timestampCol = timestampCol, timeThreshold = timeThreshold,
                                                idCol = idCol, latCol = latCol, longCol = longCol, returnDist = returnDist, fillNA = fillNA)[[1]]
 
-  feeding_edgelist <- points_to_edgelist_helper(feeding_points, dist_flight, crsToSet = crsToSet,
+  feeding_edgelist <- points_to_edgelist_helper(feeding_points, dist_feeding, crsToSet = crsToSet,
                                                crsToTransform = crsToTransform, timestampCol = timestampCol, timeThreshold = timeThreshold,
                                                idCol = idCol, latCol = latCol, longCol = longCol, returnDist = returnDist, fillNA = fillNA)[[1]]
 
@@ -486,11 +487,11 @@ test_that("calcSRI check", {
   feeding_data <- points_to_edgelist_helper(feeding_points, dist_flight, crsToSet = crsToSet,
                                                crsToTransform = crsToTransform, timestampCol = timestampCol, timeThreshold = timeThreshold,
                                                idCol = idCol, latCol = latCol, longCol = longCol, returnDist = returnDist, fillNA = fillNA)[[2]]
-  
+
   flight_timegroup_data <- points_to_edgelist_helper(flight_points, dist_flight, crsToSet = crsToSet,   # retrieve timegrouped dataset
                                            crsToTransform = crsToTransform, timestampCol = timestampCol, timeThreshold = timeThreshold,
                                            idCol = idCol, latCol = latCol, longCol = longCol, returnDist = returnDist, fillNA = fillNA)[[3]]
-  
+
   feeding_timegroup_data <- points_to_edgelist_helper(feeding_points, dist_flight, crsToSet = crsToSet,
                                             crsToTransform = crsToTransform, timestampCol = timestampCol, timeThreshold = timeThreshold,
                                             idCol = idCol, latCol = latCol, longCol = longCol, returnDist = returnDist, fillNA = fillNA)[[3]]
@@ -498,22 +499,22 @@ test_that("calcSRI check", {
   flight_edges <- consecEdges_flightPolygon_testing_data
   base::load(test_path("_snaps", "supportingFunctions", "consecEdges_feedingPolygon_target_data.Rda"))
   feeding_edges <- consecEdges_feedingPolygon_testing_data
-  
+
   calcSRI_flight_dataset <- parameter_calcSRI_helper(dataset = flight_data, edgesFiltered = flight_edges, timegroupData = flight_timegroup_data,  # finish data modification from spaceTimeGroups before call to calcSRI
                                                      idCol = idCol, latCol = latCol, longCol = longCol)[[1]]
   calcSRI_flight_edges <- parameter_calcSRI_helper(dataset = flight_data, edgesFiltered = flight_edges, timegroupData = flight_timegroup_data,
                                                      idCol = idCol, latCol = latCol, longCol = longCol)[[2]]
-  
+
   calcSRI_feeding_dataset <- parameter_calcSRI_helper(dataset = feeding_data, edgesFiltered = feeding_edges, timegroupData = feeding_timegroup_data,
                                                      idCol = idCol, latCol = latCol, longCol = longCol)[[1]]
   calcSRI_feeding_edges <- parameter_calcSRI_helper(dataset = feeding_data, edgesFiltered = feeding_edges, timegroupData = feeding_timegroup_data,
                                                    idCol = idCol, latCol = latCol, longCol = longCol)[[2]]
-  
+
   calcSRI_flight_testing_data <- vultureUtils::calcSRI(dataset = calcSRI_flight_dataset, edges = calcSRI_flight_edges, idCol = idCol)
   save(calcSRI_flight_testing_data,file=test_path("testdata", "calcSRI_flight_testing_data.Rda"))
   announce_snapshot_file("calcSRI_flight_target_data.Rda")
   expect_snapshot_file(test_path("testdata", "calcSRI_flight_testing_data.Rda"), "calcSRI_flight_target_data.Rda")
-  
+
   calcSRI_feeding_testing_data <- vultureUtils::calcSRI(dataset = calcSRI_feeding_dataset, edges = calcSRI_feeding_edges, idCol = idCol)
   save(calcSRI_feeding_testing_data,file=test_path("testdata", "calcSRI_feeding_testing_data.Rda"))
   announce_snapshot_file("calcSRI_feeding_target_data.Rda")
