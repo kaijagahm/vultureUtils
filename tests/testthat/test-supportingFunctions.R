@@ -306,6 +306,7 @@ test_that("convertAndBuffer check", {
   expect_snapshot_file(test_path("testdata", "convertAndBuffer_testing_data.Rda"), "convertAndBuffer_target_data.Rda")
 })
 # NOTE: error with spatsoc::edge_dist "found duplicate id in a timegroup and/or splitBy - does your group_times threshold match the fix rate?"
+# NOTE: should be fine
 test_that("spaceTimeGroups check", {
   base::load(test_path("_snaps", "mainFunctions", "cleanData_target_data.Rda"))
   cleaned_data <- cleanData_testing_data
@@ -440,7 +441,7 @@ test_that("consecEdges check", {
                                                crsToTransform = crsToTransform, timestampCol = timestampCol, timeThreshold = timeThreshold,
                                                idCol = idCol, latCol = latCol, longCol = longCol, returnDist = returnDist, fillNA = fillNA)[[1]]
 
-  feeding_edgelist <- points_to_edgelist_helper(feeding_points, dist_flight, crsToSet = crsToSet,
+  feeding_edgelist <- points_to_edgelist_helper(feeding_points, dist_feeding, crsToSet = crsToSet,
                                                crsToTransform = crsToTransform, timestampCol = timestampCol, timeThreshold = timeThreshold,
                                                idCol = idCol, latCol = latCol, longCol = longCol, returnDist = returnDist, fillNA = fillNA)[[1]]
 
