@@ -88,7 +88,7 @@ points_to_edgelist_helper <- function(dataset, distThreshold, crsToSet = "WGS84"
                      maxTimestamp = max(.data[[timestampCol]], na.rm = T))
 
   # Retain timestamps for each point, with timegroup information appending. This will be joined back at the end, to fix #43 and make individual points traceable.
-  timestamps <- dataset[,c(timestampCol, idCol, "timegroup")]
+  # timestamps <- dataset[,c(timestampCol, idCol, "timegroup")]
 
   # Generate edge lists by timegroup
   edges <- spatsoc::edge_dist(DT = dataset, threshold = distThreshold, id = idCol,
