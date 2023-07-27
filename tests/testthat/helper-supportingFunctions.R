@@ -133,5 +133,5 @@ parameter_calcSRI_helper <- function(dataset, edgesFiltered, timegroupData, idCo
     stop("wrong number of rows") # XXX need a better way of preventing and handling this error.
   }
   edgesFiltered <- ef
-  return(list(dataset, ef))
+  return(ef)
 }

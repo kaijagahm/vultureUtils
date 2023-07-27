@@ -321,8 +321,8 @@
 #   dist_feeding <- 50
 #   dist_flight <- 1000
 #
-#   flight_points <- data_to_points_helper(cleaned_data, roostPolygons, roostBuffer, NULL, 5, daytimeOnly)    # convert cleaned data to points (steps taken in getEdges)
-#   feeding_points <- data_to_points_helper(cleaned_data, roostPolygons, roostBuffer, 5, NULL, daytimeOnly)
+#   flight_points <- data_to_points_helper(dataset = cleaned_data, roostPolygons = roostPolygons, roostBuffer = roostBuffer, speedThreshLower = 5, speedThreshUpper = NULL, daytimeOnly = daytimeOnly)    # convert cleaned data to points (steps taken in getEdges)
+#   feeding_points <- data_to_points_helper(dataset = cleaned_data, roostPolygons = roostPolygons, roostBuffer = roostBuffer, speedThreshLower = NULL, speedThreshUpper = 5, daytimeOnly = daytimeOnly)
 #
 #   # typical getEdges wrapper calls from getFlightEdges and getFeedingEdges
 #
@@ -368,8 +368,8 @@
 #
 #   # # test no roostPolygon filtering ## NOTE: looks like it's taking too long
 #   #
-#   # flight_points <- data_to_points_helper(cleaned_data, NULL, roostBuffer, NULL, 5, daytimeOnly)
-#   # feeding_points <- data_to_points_helper(cleaned_data, NULL, roostBuffer, 5, NULL, daytimeOnly)
+#   # flight_points <- data_to_points_helper(dataset = cleaned_data, roostPolygons = roostPolygons, roostBuffer = roostBuffer, speedThreshLower = 5, speedThreshUpper = NULL, daytimeOnly = daytimeOnly)    # convert cleaned data to points (steps taken in getEdges)
+#   # feeding_points <- data_to_points_helper(dataset = cleaned_data, roostPolygons = roostPolygons, roostBuffer = roostBuffer, speedThreshLower = NULL, speedThreshUpper = 5, daytimeOnly = daytimeOnly)
 #   #
 #   # spaceTimeGroups_flightSRInoPolygon_testing_data <- vultureUtils::spaceTimeGroups(dataset = flight_points,
 #   #                                                                                distThreshold = dist_flight,
@@ -434,8 +434,8 @@
 #   dist_feeding <- 50
 #   dist_flight <- 1000
 #
-#   flight_points <- data_to_points_helper(cleaned_data, roostPolygons, roostBuffer, NULL, 5, daytimeOnly)    # convert cleaned data to points (steps taken in getEdges)
-#   feeding_points <- data_to_points_helper(cleaned_data, roostPolygons, roostBuffer, 5, NULL, daytimeOnly)
+#   flight_points <- data_to_points_helper(dataset = cleaned_data, roostPolygons = roostPolygons, roostBuffer = roostBuffer, speedThreshLower = 5, speedThreshUpper = NULL, daytimeOnly = daytimeOnly)    # convert cleaned data to points (steps taken in getEdges)
+#   feeding_points <- data_to_points_helper(dataset = cleaned_data, roostPolygons = roostPolygons, roostBuffer = roostBuffer, speedThreshLower = NULL, speedThreshUpper = 5, daytimeOnly = daytimeOnly)
 #
 #   flight_edgelist <- points_to_edgelist_helper(flight_points, dist_flight, crsToSet = crsToSet,            # convert points to edgelist (steps taken in spaceTimeGroups)
 #                                                crsToTransform = crsToTransform, timestampCol = timestampCol, timeThreshold = timeThreshold,
@@ -477,9 +477,8 @@ test_that("calcSRI check", {
   dist_feeding <- 50
   dist_flight <- 1000
 
-  flight_points <- data_to_points_helper(cleaned_data, roostPolygons, roostBuffer, NULL, 5, daytimeOnly) # convert cleaned data to points (steps taken in getEdges)
-  feeding_points <- data_to_points_helper(cleaned_data, roostPolygons, roostBuffer, 5, NULL, daytimeOnly)
-
+  flight_points <- data_to_points_helper(dataset = cleaned_data, roostPolygons = roostPolygons, roostBuffer = roostBuffer, speedThreshLower = 5, speedThreshUpper = NULL, daytimeOnly = daytimeOnly)    # convert cleaned data to points (steps taken in getEdges)
+  feeding_points <- data_to_points_helper(dataset = cleaned_data, roostPolygons = roostPolygons, roostBuffer = roostBuffer, speedThreshLower = NULL, speedThreshUpper = 5, daytimeOnly = daytimeOnly)
   flight_data <- points_to_edgelist_helper(dataset = flight_points, distThreshold = dist_flight, crsToSet = crsToSet, # retrieve modified dataset from converting to points
                                                crsToTransform = crsToTransform, timestampCol = timestampCol, timeThreshold = timeThreshold,
                                                idCol = idCol, latCol = latCol, longCol = longCol, returnDist = returnDist, fillNA = fillNA)
@@ -498,26 +497,18 @@ test_that("calcSRI check", {
   base::load(test_path("_snaps", "supportingFunctions", "consecEdges_feedingPolygon_target_data.Rda"))
   feeding_edges <- consecEdges_feedingPolygon_testing_data
 
-  calcSRI_flight_data <- parameter_calcSRI_helper(dataset = flight_dataset, edgesFiltered = flight_edges, timegroupData = flight_timegroup_data,  # finish data modification from spaceTimeGroups before call to calcSRI
+  calcSRI_flight_edges <- parameter_calcSRI_helper(dataset = flight_dataset, edgesFiltered = flight_edges, timegroupData = flight_timegroup_data,  # finish data modification from spaceTimeGroups before call to calcSRI
                                                      idCol = idCol, latCol = latCol, longCol = longCol)
 
-  calcSRI_feeding_data <- parameter_calcSRI_helper(dataset = feeding_dataset, edgesFiltered = feeding_edges, timegroupData = feeding_timegroup_data,
+  calcSRI_feeding_edges <- parameter_calcSRI_helper(dataset = feeding_dataset, edgesFiltered = feeding_edges, timegroupData = feeding_timegroup_data,
                                                      idCol = idCol, latCol = latCol, longCol = longCol)
 
-  calcSRI_flight_dataset <- calcSRI_flight_data[[1]]
-  calcSRI_flight_edges <- calcSRI_flight_data[[2]]
-
-  browser()
-
-  calcSRI_feeding_dataset <- calcSRI_feeding_data[[1]]
-  calcSRI_feeding_edges <- calcSRI_feeding_data[[2]]
-
-  calcSRI_flight_testing_data <- vultureUtils::calcSRI(dataset = calcSRI_flight_dataset, edges = calcSRI_flight_edges, idCol = idCol)
+  calcSRI_flight_testing_data <- vultureUtils::calcSRI(dataset = flight_dataset, edges = calcSRI_flight_edges, idCol = idCol)
   save(calcSRI_flight_testing_data,file=test_path("testdata", "calcSRI_flight_testing_data.Rda"))
   announce_snapshot_file("calcSRI_flight_target_data.Rda")
   expect_snapshot_file(test_path("testdata", "calcSRI_flight_testing_data.Rda"), "calcSRI_flight_target_data.Rda")
 
-  calcSRI_feeding_testing_data <- vultureUtils::calcSRI(dataset = calcSRI_feeding_dataset, edges = calcSRI_feeding_edges, idCol = idCol)
+  calcSRI_feeding_testing_data <- vultureUtils::calcSRI(dataset = feeding_dataset, edges = calcSRI_feeding_edges, idCol = idCol)
   save(calcSRI_feeding_testing_data,file=test_path("testdata", "calcSRI_feeding_testing_data.Rda"))
   announce_snapshot_file("calcSRI_feeding_target_data.Rda")
   expect_snapshot_file(test_path("testdata", "calcSRI_feeding_testing_data.Rda"), "calcSRI_feeding_target_data.Rda")
