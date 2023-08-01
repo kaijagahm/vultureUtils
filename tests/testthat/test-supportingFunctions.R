@@ -199,20 +199,21 @@ test_that("maskData check", {
   data <- month_data
   mask <- sf::st_read(test_path("testdata", "CutOffRegion.kml"))
 
-  maskData_testing_data <- vultureUtils::maskData(dataset = data, mask = mask, longCol = "location_long.1", latCol = "location_lat.1", crsToSet = "WGS84")
+  maskData_data <- vultureUtils::maskData(dataset = data, mask = mask, longCol = "location_long.1", latCol = "location_lat.1", crsToSet = "WGS84")
 
-  expect_true("sf" %in% class(maskData_testing_data)) # data should be converted to sf object
+  expect_true("sf" %in% class(maskData_data)) # data should be converted to sf object
 
-  save(maskData_testing_data,file=test_path("testdata", "maskData_testing_data.Rda"))
-  announce_snapshot_file("maskData_target_data.Rda")
-  expect_snapshot_file(test_path("testdata", "maskData_testing_data.Rda"), "maskData_target_data.Rda")
+  withr::local_file("maskData_data.Rda")
+  save(maskData_data,file="maskData_data.Rda")
+  announce_snapshot_file("maskData_data.Rda")
+  expect_snapshot_file("maskData_data.Rda")
 })
 ## NOTE: numerical thresholding is > exclusive
 test_that("mostlyInMask check", {
   base::load(test_path("testdata", "month_data.Rda"))
   data <- month_data
-  base::load(test_path("_snaps", "supportingFunctions", "maskData_target_data.Rda"))
-  inMask <- maskData_testing_data
+  base::load(test_path("_snaps", "supportingFunctions", "maskData_data.Rda"))
+  inMask <- maskData_data
 
   num_thresh <- 20 # numerical days threshold
 
@@ -243,7 +244,7 @@ test_that("mostlyInMask check", {
                                                           idCol = "tag_id"), "thresholding by number of days")
   ## default proportion usage with snapshot testing
 
-  mostlyInMask_testing_data <- vultureUtils::mostlyInMask(dataset = data,
+  mostlyInMask_data <- vultureUtils::mostlyInMask(dataset = data,
                              maskedDataset = inMask,
                              thresh = 0.33,
                              dateCol = "dateOnly",
@@ -254,15 +255,15 @@ test_that("mostlyInMask check", {
                                                           thresh = 0.33,
                                                           dateCol = "dateOnly",
                                                           idCol = "tag_id"), "thresholding by proportion of duration")
-
-  save(mostlyInMask_testing_data,file=test_path("testdata", "mostlyInMask_testing_data.Rda"))
-  announce_snapshot_file("mostlyInMask_target_data.Rda")
-  expect_snapshot_file(test_path("testdata", "mostlyInMask_testing_data.Rda"), "mostlyInMask_target_data.Rda")
+  withr::local_file("mostlyInMask_data.Rda")
+  save(mostlyInMask_data,file="mostlyInMask_data.Rda")
+  announce_snapshot_file("mostlyInMask_data.Rda")
+  expect_snapshot_file("mostlyInMask_data.Rda")
 })
 
 test_that("filterLocs check", {
-  base::load(test_path("_snaps", "mainFunctions", "cleanData_target_data.Rda"))
-  cleaned_data <- cleanData_testing_data
+  base::load(test_path("_snaps", "mainFunctions", "cleanData_data.Rda"))
+  cleaned_data <- cleanData_data
 
   expect_equal(vultureUtils::filterLocs(data.frame(ground_speed=c(1, 2, 3)), speedThreshLower=1.5), data.frame(ground_speed=c(2, 3))) # lower filter within bounds
   expect_equal(vultureUtils::filterLocs(data.frame(ground_speed=c(1, 2, 3)), speedThreshLower=2), data.frame(ground_speed=c(3))) # lower filter edge case
@@ -277,38 +278,39 @@ test_that("filterLocs check", {
 
   # typical getFeedingEdges usage
 
-  filterLocs_upper_testing_data <- vultureUtils::filterLocs(df = cleaned_data,
+  filterLocs_upper_data <- vultureUtils::filterLocs(df = cleaned_data,
                                            speedThreshUpper = 5,
                                            speedThreshLower = NULL)
-
-  save(filterLocs_upper_testing_data,file=test_path("testdata", "filterLocs_upper_testing_data.Rda"))
-  announce_snapshot_file("filterLocs_upper_target_data.Rda")
-  expect_snapshot_file(test_path("testdata", "filterLocs_upper_testing_data.Rda"), "filterLocs_upper_target_data.Rda")
+  withr::local_file("filterLocs_upper_data.Rda")
+  save(filterLocs_upper_data,file="filterLocs_upper_data.Rda")
+  announce_snapshot_file("filterLocs_upper_data.Rda")
+  expect_snapshot_file("filterLocs_upper_data.Rda")
 
   # typical getFlightEdges usage
 
-  filterLocs_lower_testing_data <- vultureUtils::filterLocs(df = cleaned_data,
+  filterLocs_lower_data <- vultureUtils::filterLocs(df = cleaned_data,
                                            speedThreshUpper = NULL,
                                            speedThreshLower = 5)
-
-  save(filterLocs_lower_testing_data,file=test_path("testdata", "filterLocs_lower_testing_data.Rda"))
-  announce_snapshot_file("filterLocs_lower_target_data.Rda")
-  expect_snapshot_file(test_path("testdata", "filterLocs_lower_testing_data.Rda"), "filterLocs_lower_target_data.Rda")
+  withr::local_file("filterLocs_lower_data.Rda")
+  save(filterLocs_upper_data,file="filterLocs_lower_data.Rda")
+  announce_snapshot_file("filterLocs_lower_data.Rda")
+  expect_snapshot_file("filterLocs_lower_data.Rda")
 })
 
 test_that("convertAndBuffer check", {
   roostPolygons <- sf::st_read(test_path("testdata", "roosts50_kde95_cutOffRegion.kml"))
   default_roost_buffer <- 50
-  convertAndBuffer_testing_data <- vultureUtils::convertAndBuffer(roostPolygons, dist = default_roost_buffer)
-  save(convertAndBuffer_testing_data,file=test_path("testdata", "convertAndBuffer_testing_data.Rda"))
-  announce_snapshot_file("convertAndBuffer_target_data.Rda")
-  expect_snapshot_file(test_path("testdata", "convertAndBuffer_testing_data.Rda"), "convertAndBuffer_target_data.Rda")
+  convertAndBuffer_data <- vultureUtils::convertAndBuffer(roostPolygons, dist = default_roost_buffer)
+  withr::local_file("convertAndBuffer_data.Rda")
+  save(convertAndBuffer_data,file="convertAndBuffer_data.Rda")
+  announce_snapshot_file("convertAndBuffer_data.Rda")
+  expect_snapshot_file("convertAndBuffer_data.Rda")
 })
 # NOTE: error with spatsoc::edge_dist "found duplicate id in a timegroup and/or splitBy - does your group_times threshold match the fix rate?"
 # NOTE: should be fine
 test_that("spaceTimeGroups check", {
-  base::load(test_path("_snaps", "mainFunctions", "cleanData_target_data.Rda"))
-  cleaned_data <- cleanData_testing_data
+  base::load(test_path("_snaps", "mainFunctions", "cleanData_data.Rda"))
+  cleaned_data <- cleanData_data
   roostPolygons <- sf::st_read(test_path("testdata", "roosts50_kde95_cutOffRegion.kml"))
   roostBuffer <- 50
   daytimeOnly <- T
@@ -325,96 +327,104 @@ test_that("spaceTimeGroups check", {
 
   # typical getEdges wrapper calls from getFlightEdges and getFeedingEdges
 
-  spaceTimeGroups_flightSRIPolygon_testing_data <- vultureUtils::spaceTimeGroups(dataset = flight_points,
+  spaceTimeGroups_flightSRIPolygon_data <- vultureUtils::spaceTimeGroups(dataset = flight_points,
                                 distThreshold = dist_flight,
                                 consecThreshold = consecThreshold,
                                 timeThreshold = timeThreshold,
                                 sri = TRUE,
                                 idCol = idCol)
-  save(spaceTimeGroups_flightSRIPolygon_testing_data,file=test_path("testdata", "spaceTimeGroups_flightSRIPolygon_testing_data.Rda"))
-  announce_snapshot_file("spaceTimeGroups_flightSRIPolygon_target_data.Rda")
-  expect_snapshot_file(test_path("testdata", "spaceTimeGroups_flightSRIPolygon_testing_data.Rda"), "spaceTimeGroups_flightSRIPolygon_target_data.Rda")
+  withr::local_file("spaceTimeGroups_flightSRIPolygon_data.Rda")
+  save(spaceTimeGroups_flightSRIPolygon_data,file="spaceTimeGroups_flightSRIPolygon_data.Rda")
+  announce_snapshot_file("spaceTimeGroups_flightSRIPolygon_data.Rda")
+  expect_snapshot_file("spaceTimeGroups_flightSRIPolygon_data.Rda")
 
-  spaceTimeGroups_flightEdgesPolygon_testing_data <- vultureUtils::spaceTimeGroups(dataset = flight_points,
+  spaceTimeGroups_flightEdgesPolygon_data <- vultureUtils::spaceTimeGroups(dataset = flight_points,
                                                                           distThreshold = dist_flight,
                                                                           consecThreshold = consecThreshold,
                                                                           timeThreshold = timeThreshold,
                                                                           sri = FALSE,
                                                                           idCol = idCol)
-  save(spaceTimeGroups_flightEdgesPolygon_testing_data,file=test_path("testdata", "spaceTimeGroups_flightEdgesPolygon_testing_data.Rda"))
-  announce_snapshot_file("spaceTimeGroups_flightEdgesPolygon_target_data.Rda")
-  expect_snapshot_file(test_path("testdata", "spaceTimeGroups_flightEdgesPolygon_testing_data.Rda"), "spaceTimeGroups_flightEdgesPolygon_target_data.Rda")
+  withr::local_file("spaceTimeGroups_flightEdgesPolygon_data.Rda")
+  save(spaceTimeGroups_flightEdgesPolygon_data,file="spaceTimeGroups_flightEdgesPolygon_data.Rda")
+  announce_snapshot_file("spaceTimeGroups_flightEdgesPolygon_data.Rda")
+  expect_snapshot_file("spaceTimeGroups_flightEdgesPolygon_data.Rda")
 
-  spaceTimeGroups_feedingSRIPolygon_testing_data <- vultureUtils::spaceTimeGroups(dataset = feeding_points,
+  spaceTimeGroups_feedingSRIPolygon_data <- vultureUtils::spaceTimeGroups(dataset = feeding_points,
                                                                             distThreshold = dist_feeding,
                                                                             consecThreshold = consecThreshold,
                                                                             timeThreshold = timeThreshold,
                                                                             sri = TRUE,
                                                                             idCol = idCol)
-  save(spaceTimeGroups_feedingSRIPolygon_testing_data,file=test_path("testdata", "spaceTimeGroups_feedingSRIPolygon_testing_data.Rda"))
-  announce_snapshot_file("spaceTimeGroups_feedingSRIPolygon_target_data.Rda")
-  expect_snapshot_file(test_path("testdata", "spaceTimeGroups_feedingSRIPolygon_testing_data.Rda"), "spaceTimeGroups_feedingSRIPolygon_target_data.Rda")
+  withr::local_file("spaceTimeGroups_feedingSRIPolygon_data.Rda")
+  save(spaceTimeGroups_feedingSRIPolygon_data,file="spaceTimeGroups_feedingSRIPolygon_data.Rda")
+  announce_snapshot_file("spaceTimeGroups_feedingSRIPolygon_data.Rda")
+  expect_snapshot_file("spaceTimeGroups_feedingSRIPolygon_data.Rda")
 
-  spaceTimeGroups_feedingEdgesPolygon_testing_data <- vultureUtils::spaceTimeGroups(dataset = feeding_points,
+  spaceTimeGroups_feedingEdgesPolygon_data <- vultureUtils::spaceTimeGroups(dataset = feeding_points,
                                                                             distThreshold = dist_feeding,
                                                                             consecThreshold = consecThreshold,
                                                                             timeThreshold = timeThreshold,
                                                                             sri = FALSE,
                                                                             idCol = idCol)
-  save(spaceTimeGroups_feedingEdgesPolygon_testing_data,file=test_path("testdata", "spaceTimeGroups_feedingEdgesPolygon_testing_data.Rda"))
-  announce_snapshot_file("spaceTimeGroups_feedingEdgesPolygon_target_data.Rda")
-  expect_snapshot_file(test_path("testdata", "spaceTimeGroups_feedingEdgesPolygon_testing_data.Rda"), "spaceTimeGroups_feedingEdgesPolygon_target_data.Rda")
+  withr::local_file("spaceTimeGroups_feedingEdgesPolygon_data.Rda")
+  save(spaceTimeGroups_feedingEdgesPolygon_data,file="spaceTimeGroups_feedingEdgesPolygon_data.Rda")
+  announce_snapshot_file("spaceTimeGroups_feedingEdgesPolygon_data.Rda")
+  expect_snapshot_file("spaceTimeGroups_feedingEdgesPolygon_data.Rda")
 
   # # test no roostPolygon filtering ## NOTE: looks like it's taking too long
   #
   # flight_points <- data_to_points_helper(dataset = cleaned_data, roostPolygons = roostPolygons, roostBuffer = roostBuffer, speedThreshLower = 5, speedThreshUpper = NULL, daytimeOnly = daytimeOnly)    # convert cleaned data to points (steps taken in getEdges)
   # feeding_points <- data_to_points_helper(dataset = cleaned_data, roostPolygons = roostPolygons, roostBuffer = roostBuffer, speedThreshLower = NULL, speedThreshUpper = 5, daytimeOnly = daytimeOnly)
   #
-  # spaceTimeGroups_flightSRInoPolygon_testing_data <- vultureUtils::spaceTimeGroups(dataset = flight_points,
+  # spaceTimeGroups_flightSRInoPolygon_data <- vultureUtils::spaceTimeGroups(dataset = flight_points,
   #                                                                                distThreshold = dist_flight,
   #                                                                                consecThreshold = consecThreshold,
   #                                                                                timeThreshold = timeThreshold,
   #                                                                                sri = TRUE,
   #                                                                                idCol = idCol)
-  # save(spaceTimeGroups_flightSRInoPolygon_testing_data,file=test_path("testdata", "spaceTimeGroups_flightSRInoPolygon_testing_data.Rda"))
-  # announce_snapshot_file("spaceTimeGroups_flightSRInoPolygon_target_data.Rda")
-  # expect_snapshot_file(test_path("testdata", "spaceTimeGroups_flightSRInoPolygon_testing_data.Rda"), "spaceTimeGroups_flightSRInoPolygon_target_data.Rda")
+  # withr::local_file("spaceTimeGroups_flightSRInoPolygon_data.Rda")
+  # save(spaceTimeGroups_flightSRInoPolygon_data,file="spaceTimeGroups_flightSRInoPolygon_data.Rda")
+  # announce_snapshot_file("spaceTimeGroups_flightSRInoPolygon_data.Rda")
+  # expect_snapshot_file("spaceTimeGroups_flightSRInoPolygon_data.Rda")
   #
-  # spaceTimeGroups_flightEdgesnoPolygon_testing_data <- vultureUtils::spaceTimeGroups(dataset = flight_points,
+  # spaceTimeGroups_flightEdgesnoPolygon_data <- vultureUtils::spaceTimeGroups(dataset = flight_points,
   #                                                                                  distThreshold = dist_flight,
   #                                                                                  consecThreshold = consecThreshold,
   #                                                                                  timeThreshold = timeThreshold,
   #                                                                                  sri = FALSE,
   #                                                                                  idCol = idCol)
-  # save(spaceTimeGroups_flightEdgesnoPolygon_testing_data,file=test_path("testdata", "spaceTimeGroups_flightEdgesnoPolygon_testing_data.Rda"))
-  # announce_snapshot_file("spaceTimeGroups_flightEdgesnoPolygon_target_data.Rda")
-  # expect_snapshot_file(test_path("testdata", "spaceTimeGroups_flightEdgesnoPolygon_testing_data.Rda"), "spaceTimeGroups_flightEdgesnoPolygon_target_data.Rda")
+  # withr::local_file("spaceTimeGroups_flightEdgesnoPolygon_data.Rda")
+  # save(spaceTimeGroups_flightEdgesnoPolygon_data,file="spaceTimeGroups_flightEdgesnoPolygon_data.Rda")
+  # announce_snapshot_file("spaceTimeGroups_flightEdgesnoPolygon_data.Rda")
+  # expect_snapshot_file("spaceTimeGroups_flightEdgesnoPolygon_data.Rda")
   #
-  # spaceTimeGroups_feedingSRInoPolygon_testing_data <- vultureUtils::spaceTimeGroups(dataset = feeding_points,
+  # spaceTimeGroups_feedingSRInoPolygon_data <- vultureUtils::spaceTimeGroups(dataset = feeding_points,
   #                                                                                 distThreshold = dist_feeding,
   #                                                                                 consecThreshold = consecThreshold,
   #                                                                                 timeThreshold = timeThreshold,
   #                                                                                 sri = TRUE,
   #                                                                                 idCol = idCol)
-  # save(spaceTimeGroups_feedingSRInoPolygon_testing_data,file=test_path("testdata", "spaceTimeGroups_feedingSRInoPolygon_testing_data.Rda"))
-  # announce_snapshot_file("spaceTimeGroups_feedingSRInoPolygon_target_data.Rda")
-  # expect_snapshot_file(test_path("testdata", "spaceTimeGroups_feedingSRInoPolygon_testing_data.Rda"), "spaceTimeGroups_feedingSRInoPolygon_target_data.Rda")
+  # withr::local_file("spaceTimeGroups_feedingSRInoPolygon_data.Rda")
+  # save(spaceTimeGroups_feedingSRInoPolygon_data,file="spaceTimeGroups_feedingSRInoPolygon_data.Rda")
+  # announce_snapshot_file("spaceTimeGroups_feedingSRInoPolygon_data.Rda")
+  # expect_snapshot_file("spaceTimeGroups_feedingSRInoPolygon_data.Rda")
   #
-  # spaceTimeGroups_feedingEdgesnoPolygon_testing_data <- vultureUtils::spaceTimeGroups(dataset = feeding_points,
+  # spaceTimeGroups_feedingEdgesnoPolygon_data <- vultureUtils::spaceTimeGroups(dataset = feeding_points,
   #                                                                                   distThreshold = dist_feeding,
   #                                                                                   consecThreshold = consecThreshold,
   #                                                                                   timeThreshold = timeThreshold,
   #                                                                                   sri = FALSE,
   #                                                                                   idCol = idCol)
-  # save(spaceTimeGroups_feedingEdgesnoPolygon_testing_data,file=test_path("testdata", "spaceTimeGroups_feedingEdgesnoPolygon_testing_data.Rda"))
-  # announce_snapshot_file("spaceTimeGroups_feedingEdgesnoPolygon_target_data.Rda")
-  # expect_snapshot_file(test_path("testdata", "spaceTimeGroups_feedingEdgesnoPolygon_testing_data.Rda"), "spaceTimeGroups_feedingEdgesnoPolygon_target_data.Rda")
+  # withr::local_file("spaceTimeGroups_feedingEdgesnoPolygon_data.Rda")
+  # save(spaceTimeGroups_feedingEdgesnoPolygon_data,file="spaceTimeGroups_feedingEdgesnoPolygon_data.Rda")
+  # announce_snapshot_file("spaceTimeGroups_feedingEdgesnoPolygon_data.Rda")
+  # expect_snapshot_file("spaceTimeGroups_feedingEdgesnoPolygon_data.Rda")
 })
 # NOTE: fillNA defaults to FALSE but is never used. It is reassigned as TRUE during spatsoc usage, except in getRoostEdges
 # NOTE: error with data.table::setDT "All formats failed to parse. No formats found."
 test_that("consecEdges check", {
-  base::load(test_path("_snaps", "mainFunctions", "cleanData_target_data.Rda"))
-  cleaned_data <- cleanData_testing_data
+  base::load(test_path("_snaps", "mainFunctions", "cleanData_data.Rda"))
+  cleaned_data <- cleanData_data
   roostPolygons <- sf::st_read(test_path("testdata", "roosts50_kde95_cutOffRegion.kml"))
   roostBuffer <- 50
   daytimeOnly <- T
@@ -444,20 +454,22 @@ test_that("consecEdges check", {
                                                crsToTransform = crsToTransform, timestampCol = timestampCol, timeThreshold = timeThreshold,
                                                idCol = idCol, latCol = latCol, longCol = longCol, returnDist = returnDist, fillNA = fillNA)[[1]]
 
-  consecEdges_flightPolygon_testing_data <- vultureUtils::consecEdges(edgeList = flight_edgelist, consecThreshold = consecThreshold)
-  save(consecEdges_flightPolygon_testing_data,file=test_path("testdata", "consecEdges_flightPolygon_testing_data.Rda"))
-  announce_snapshot_file("consecEdges_flightPolygon_target_data.Rda")
-  expect_snapshot_file(test_path("testdata", "consecEdges_flightPolygon_testing_data.Rda"), "consecEdges_flightPolygon_target_data.Rda")
+  consecEdges_flightPolygon_data <- vultureUtils::consecEdges(edgeList = flight_edgelist, consecThreshold = consecThreshold)
+  withr::local_file("consecEdges_flightPolygon_data.Rda")
+  save(consecEdges_flightPolygon_data,file="consecEdges_flightPolygon_data.Rda")
+  announce_snapshot_file("consecEdges_flightPolygon_data.Rda")
+  expect_snapshot_file("consecEdges_flightPolygon_data.Rda")
 
-  consecEdges_feedingPolygon_testing_data <- vultureUtils::consecEdges(edgeList = feeding_edgelist, consecThreshold = consecThreshold)
-  save(consecEdges_feedingPolygon_testing_data,file=test_path("testdata", "consecEdges_feedingPolygon_testing_data.Rda"))
-  announce_snapshot_file("consecEdges_feedingPolygon_target_data.Rda")
-  expect_snapshot_file(test_path("testdata", "consecEdges_feedingPolygon_testing_data.Rda"), "consecEdges_feedingPolygon_target_data.Rda")
+  consecEdges_feedingPolygon_data <- vultureUtils::consecEdges(edgeList = feeding_edgelist, consecThreshold = consecThreshold)
+  withr::local_file("consecEdges_feedingPolygon_data.Rda")
+  save(consecEdges_feedingPolygon_data,file="consecEdges_feedingPolygon_data.Rda")
+  announce_snapshot_file("consecEdges_feedingPolygon_data.Rda")
+  expect_snapshot_file("consecEdges_feedingPolygon_data.Rda")
 })
 
 test_that("calcSRI check", {
-  base::load(test_path("_snaps", "mainFunctions", "cleanData_target_data.Rda"))
-  cleaned_data <- cleanData_testing_data
+  base::load(test_path("_snaps", "mainFunctions", "cleanData_data.Rda"))
+  cleaned_data <- cleanData_data
   roostPolygons <- sf::st_read(test_path("testdata", "roosts50_kde95_cutOffRegion.kml"))
   roostBuffer <- 50
   daytimeOnly <- T
@@ -491,10 +503,10 @@ test_that("calcSRI check", {
   feeding_dataset <- feeding_data[[2]]
   feeding_timegroup_data <- feeding_data[[3]]
 
-  base::load(test_path("_snaps", "supportingFunctions", "consecEdges_flightPolygon_target_data.Rda"))    # retrieve tested edgelist from consecEdges
-  flight_edges <- consecEdges_flightPolygon_testing_data
-  base::load(test_path("_snaps", "supportingFunctions", "consecEdges_feedingPolygon_target_data.Rda"))
-  feeding_edges <- consecEdges_feedingPolygon_testing_data
+  base::load(test_path("_snaps", "supportingFunctions", "consecEdges_flightPolygon_data.Rda"))    # retrieve tested edgelist from consecEdges
+  flight_edges <- consecEdges_flightPolygon_data
+  base::load(test_path("_snaps", "supportingFunctions", "consecEdges_feedingPolygon_data.Rda"))
+  feeding_edges <- consecEdges_feedingPolygon_data
 
   calcSRI_flight_edges <- parameter_calcSRI_helper(dataset = flight_dataset, edgesFiltered = flight_edges, timegroupData = flight_timegroup_data,  # finish data modification from spaceTimeGroups before call to calcSRI
                                                      idCol = idCol, latCol = latCol, longCol = longCol)
@@ -502,13 +514,15 @@ test_that("calcSRI check", {
   calcSRI_feeding_edges <- parameter_calcSRI_helper(dataset = feeding_dataset, edgesFiltered = feeding_edges, timegroupData = feeding_timegroup_data,
                                                      idCol = idCol, latCol = latCol, longCol = longCol)
 
-  calcSRI_flight_testing_data <- vultureUtils::calcSRI(dataset = flight_dataset, edges = calcSRI_flight_edges, idCol = idCol)
-  save(calcSRI_flight_testing_data,file=test_path("testdata", "calcSRI_flight_testing_data.Rda"))
-  announce_snapshot_file("calcSRI_flight_target_data.Rda")
-  expect_snapshot_file(test_path("testdata", "calcSRI_flight_testing_data.Rda"), "calcSRI_flight_target_data.Rda")
+  calcSRI_flight_data <- vultureUtils::calcSRI(dataset = flight_dataset, edges = calcSRI_flight_edges, idCol = idCol)
+  withr::local_file("calcSRI_flight_data.Rda")
+  save(calcSRI_flight_data,file="calcSRI_flight_data.Rda")
+  announce_snapshot_file("calcSRI_flight_data.Rda")
+  expect_snapshot_file("calcSRI_flight_data.Rda")
 
-  calcSRI_feeding_testing_data <- vultureUtils::calcSRI(dataset = feeding_dataset, edges = calcSRI_feeding_edges, idCol = idCol)
-  save(calcSRI_feeding_testing_data,file=test_path("testdata", "calcSRI_feeding_testing_data.Rda"))
-  announce_snapshot_file("calcSRI_feeding_target_data.Rda")
-  expect_snapshot_file(test_path("testdata", "calcSRI_feeding_testing_data.Rda"), "calcSRI_feeding_target_data.Rda")
+  calcSRI_feeding_data <- vultureUtils::calcSRI(dataset = feeding_dataset, edges = calcSRI_feeding_edges, idCol = idCol)
+  withr::local_file("calcSRI_feeding_data.Rda")
+  save(calcSRI_feeding_data,file="calcSRI_feeding_data.Rda")
+  announce_snapshot_file("calcSRI_feeding_data.Rda")
+  expect_snapshot_file("calcSRI_feeding_data.Rda")
 })
