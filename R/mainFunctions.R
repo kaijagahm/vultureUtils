@@ -864,26 +864,6 @@ get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", 
     id.df$sunrise <- suncalc::getSunlightTimes(data = data, keep = c("sunrise"))$sunrise
     id.df$sunset <- suncalc::getSunlightTimes(data = data, keep = c("sunset"))$sunset
 
-    # # Calculate the time of sunrise and sunset for the locations
-    # crds <- matrix(c(id.df[[x]],
-    #                  id.df[[y]]),
-    #                nrow = nrow(id.df),
-    #                ncol = 2)
-    #
-    # id.df$sunrise <- maptools::sunriset(crds,
-    #                                     id.df[[timestamp]],
-    #                                     proj4string =
-    #                                       sp::CRS("+proj=longlat +datum=WGS84"),
-    #                                     direction = "sunrise",
-    #                                     POSIXct.out = TRUE)$time
-    #
-    # id.df$sunset <- maptools::sunriset(crds,
-    #                                    id.df[[timestamp]],
-    #                                    proj4string =
-    #                                      sp::CRS("+proj=longlat +datum=WGS84"),
-    #                                    direction = "sunset",
-    #                                    POSIXct.out = TRUE)$time
-
     # Set the twilight
     id.df$sunrise_twilight <- id.df$sunrise + twilight_secs
     id.df$sunset_twilight <- id.df$sunset - twilight_secs

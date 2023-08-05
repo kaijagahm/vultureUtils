@@ -74,10 +74,7 @@ test_that("calcSpeeds check", {
   e <- calcSpeeds(df = test_data, grpCol = "tag_id", longCol = 'location_long.1', latCol = 'location_lat.1')
   e <- e[, c('tag_id', 'timestamp', 'location_long.1', 'location_lat.1', 'lead_hour_diff_sec'
              ,'lag_hour_diff_sec', 'lead_dist_m', 'lag_dist_m', 'lead_speed_m_s', 'lag_speed_m_s')]
-<<<<<<< HEAD
-  e %>% print(width=Inf)
-=======
->>>>>>> 5433d06d1e367813397afa1fa0bd76edcda87b36
+
   expected_lead_speed <- 59 # speed check
   expected_lag_speed <- -1
 
