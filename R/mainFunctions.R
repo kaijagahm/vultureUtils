@@ -335,7 +335,7 @@ getEdges <- function(dataset, roostPolygons = NULL, roostBuffer, consecThreshold
   checkmate::assertDataFrame(dataset)
   checkmate::assertSubset("sf", class(dataset))
   checkmate::assertClass(roostPolygons, "sf", null.ok = TRUE)
-  checkmate::assertNumeric(roostBuffer, len = 1)
+  checkmate::assertNumeric(roostBuffer, len = 1, null.ok = TRUE)
   checkmate::assertNumeric(consecThreshold, len = 1)
   checkmate::assertNumeric(distThreshold, len = 1)
   checkmate::assertNumeric(speedThreshUpper, len = 1, null.ok = TRUE)
@@ -376,8 +376,10 @@ getEdges <- function(dataset, roostPolygons = NULL, roostBuffer, consecThreshold
   # If roost polygons were provided, use them to filter out data
   if(!is.null(roostPolygons)){
     # Buffer the roost polygons
-    roostPolygons <- convertAndBuffer(roostPolygons, dist = roostBuffer)
 
+    if(!is.null(roostBuffer)){
+      roostPolygons <- convertAndBuffer(roostPolygons, dist = roostBuffer)
+    }
     # Exclude any points that fall within a (buffered) roost polygon
     points <- filteredData[lengths(sf::st_intersects(filteredData, roostPolygons)) == 0,]
   }else{
