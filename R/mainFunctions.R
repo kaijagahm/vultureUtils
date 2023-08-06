@@ -327,9 +327,10 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
 #' @param daytimeOnly T/F, whether to restrict interactions to daytime only. Default is T.
 #' @param return One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist. Also includes timegroup information, which SRI cannot do. One row in this data frame represents a single edge in a single timegroup.); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)
 #' @param getLocs Whether or not to return locations where the interactions happened (for edge list only, doesn't make sense for SRI). Default is FALSE. If getLocs is set to TRUE when return = "sri", a message will tell the user that no locations can be returned for SRI.
+#' @param speedCol Name of the column containing ground speed values. Default is "ground_speed".
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the id of the first individual in this edge, and `ID2` is the id of the second individual in this edge.
 #' @export
-getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distThreshold, speedThreshUpper, speedThreshLower, timeThreshold = "10 minutes", idCol = "Nili_id", quiet = T, includeAllVertices = F, daytimeOnly = T, return = "edges", getLocs = FALSE){
+getEdges <- function(dataset, roostPolygons = NULL, roostBuffer, consecThreshold, distThreshold, speedThreshUpper, speedThreshLower, timeThreshold = "10 minutes", idCol = "Nili_id", quiet = T, includeAllVertices = F, daytimeOnly = T, return = "edges", getLocs = FALSE, speedCol = "ground_speed"){
   # Argument checks
   checkmate::assertDataFrame(dataset)
   checkmate::assertSubset("sf", class(dataset))
@@ -343,13 +344,18 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
   checkmate::assertLogical(daytimeOnly, len = 1)
   checkmate::assertSubset(return, choices = c("edges", "sri", "both"),
                           empty.ok = FALSE)
-  checkmate::assertSubset("ground_speed", names(dataset)) # necessary for filterLocs.
   checkmate::assertSubset("timestamp", names(dataset)) # for sunrise/sunset calculations.
   checkmate::assertSubset("dateOnly", names(dataset)) # for sunrise/sunset calculations
   checkmate::assertSubset("location_lat", names(dataset)) # passed to spaceTimeGroups. XXX fix with GH#58
   checkmate::assertSubset("location_long", names(dataset)) # passed to spaceTimeGroups. XXX fix with GH#58
   checkmate::assertSubset(idCol, names(dataset)) # passed to spaceTimeGroups.
   checkmate::assertLogical(getLocs, len = 1)
+
+  # Only require ground_speed column when filtering by speed
+  if(!is.null(c(speedThreshLower, speedThreshUpper))){
+    checkmate::assertSubset(speedCol, names(dataset)) # necessary for filterLocs.
+  }
+
 
   # Message about getLocs and sri
   if(getLocs & return == "sri"){
@@ -365,7 +371,7 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
   # Restrict interactions based on ground speed
   filteredData <- vultureUtils::filterLocs(df = dataset,
                                            speedThreshUpper = speedThreshUpper,
-                                           speedThreshLower = speedThreshLower)
+                                           speedThreshLower = speedThreshLower, speedCol = speedCol)
 
   # If roost polygons were provided, use them to filter out data
   if(!is.null(roostPolygons)){

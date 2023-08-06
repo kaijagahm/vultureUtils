@@ -1,4 +1,3 @@
-# TODO: testing data organization, turn testing files into temp files, have target files be the only permanent files (testthat keeps newly generated testing files when diff)
 test_that("cleanData snapshot test", {
   base::load(test_path("testdata", "month_data.Rda"))
   data <- month_data
