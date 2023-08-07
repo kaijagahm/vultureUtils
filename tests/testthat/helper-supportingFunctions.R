@@ -1,23 +1,19 @@
 data_to_points_helper <- function(dataset, roostPolygons, roostBuffer = 50, speedThreshLower, speedThreshUpper, daytimeOnly = T){
-
   ## FILTER THE POINTS
   # Restrict interactions based on ground speed
   filteredData <- vultureUtils::filterLocs(df = dataset,
                                            speedThreshUpper = speedThreshUpper,
                                            speedThreshLower = speedThreshLower)
-
   # If roost polygons were provided, use them to filter out data
   if(!is.null(roostPolygons)){
     # Buffer the roost polygons
     roostPolygons <- convertAndBuffer(roostPolygons, dist = roostBuffer)
-
     # Exclude any points that fall within a (buffered) roost polygon
     points <- filteredData[lengths(sf::st_intersects(filteredData, roostPolygons)) == 0,]
   }else{
     message("No roost polygons provided; points will not be filtered by spatial intersection.")
     points <- filteredData
   }
-
   # Restrict based on daylight
   if(daytimeOnly){
     times <- suncalc::getSunlightTimes(date = unique(lubridate::date(points$timestamp)), lat = 31.434306, lon = 34.991889,
@@ -88,7 +84,7 @@ points_to_edgelist_helper <- function(dataset, distThreshold, crsToSet = "WGS84"
                      maxTimestamp = max(.data[[timestampCol]], na.rm = T))
 
   # Retain timestamps for each point, with timegroup information appending. This will be joined back at the end, to fix #43 and make individual points traceable.
-  timestamps <- dataset[,c(timestampCol, idCol, "timegroup")]
+  # timestamps <- dataset[,c(timestampCol, idCol, "timegroup")]
 
   # Generate edge lists by timegroup
   edges <- spatsoc::edge_dist(DT = dataset, threshold = distThreshold, id = idCol,
@@ -106,7 +102,6 @@ parameter_calcSRI_helper <- function(dataset, edgesFiltered, timegroupData, idCo
   # Join to the timegroup data
   edgesFiltered <- edgesFiltered %>%
     dplyr::left_join(timegroupData, by = "timegroup")
-
   # Compute interaction locations
   ## get locations of each individual at each time group
   locs <- dataset %>%
@@ -114,13 +109,11 @@ parameter_calcSRI_helper <- function(dataset, edgesFiltered, timegroupData, idCo
     dplyr::select(tidyselect::all_of(c(idCol, "timegroup", latCol, longCol))) %>%
     dplyr::distinct() %>%
     dplyr::mutate(across(tidyselect::all_of(c(latCol, longCol)), as.numeric))
-
   # In case there is more than one point per individual per timegroup, get the mean.
   meanLocs <- locs %>%
     dplyr::group_by(across(all_of(c(idCol, "timegroup")))) %>%
     dplyr::summarize(mnLat = mean(.data[[latCol]], na.rm = T),
                      mnLong = mean(.data[[longCol]], na.rm = T))
-
   ef <- edgesFiltered %>%
     dplyr::left_join(meanLocs, by = c("ID1" = idCol, "timegroup")) %>%
     dplyr::rename("latID1" = mnLat, "longID1" = mnLong) %>%
@@ -128,10 +121,9 @@ parameter_calcSRI_helper <- function(dataset, edgesFiltered, timegroupData, idCo
     dplyr::rename("latID2" = mnLat, "longID2" = mnLong) %>%
     dplyr::mutate(interactionLat = (latID1 + latID2)/2,
                   interactionLong = (longID1 + longID2)/2)
-
   if(!(nrow(ef) == nrow(edgesFiltered))){
     stop("wrong number of rows") # XXX need a better way of preventing and handling this error.
   }
   edgesFiltered <- ef
-  return(list(dataset, ef))
+  return(ef)
 }

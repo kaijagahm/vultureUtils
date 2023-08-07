@@ -86,7 +86,6 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
 #' @param latCol The name of the column in the dataset containing latitude values. Defaults to "location_lat.1". Passed to `vultureUtils::maskData()`.
 #' @param dateCol The name of the column in the dataset containing dates. Defaults to "dateOnly". Passed to `vultureUtils::mostlyInMask()`.
 #' @param idCol The name of the column in the dataset containing vulture ID's. Defaults to "Nili_id" (assuming you have joined the Nili_ids from the who's who table).
-#' @param removeVars Whether or not to remove unnecessary variables. Default is T.
 #' @param reMask Whether or not to re-mask after removing individuals that spend less than `inMaskThreshold` in the mask area. Default is T.
 #' @param quiet Whether to silence the message that happens when doing spatial joins. Default is T.
 #' @param ... additional arguments to be passed to any of several functions: `vultureUtils::removeUnnecessaryVars()` (`addlVars`, `keepVars`);
@@ -328,14 +327,15 @@ cleanData <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", long
 #' @param daytimeOnly T/F, whether to restrict interactions to daytime only. Default is T.
 #' @param return One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist. Also includes timegroup information, which SRI cannot do. One row in this data frame represents a single edge in a single timegroup.); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)
 #' @param getLocs Whether or not to return locations where the interactions happened (for edge list only, doesn't make sense for SRI). Default is FALSE. If getLocs is set to TRUE when return = "sri", a message will tell the user that no locations can be returned for SRI.
+#' @param speedCol Name of the column containing ground speed values. Default is "ground_speed".
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the id of the first individual in this edge, and `ID2` is the id of the second individual in this edge.
 #' @export
-getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distThreshold, speedThreshUpper, speedThreshLower, timeThreshold = "10 minutes", idCol = "Nili_id", quiet = T, includeAllVertices = F, daytimeOnly = T, return = "edges", getLocs = FALSE){
+getEdges <- function(dataset, roostPolygons = NULL, roostBuffer, consecThreshold, distThreshold, speedThreshUpper, speedThreshLower, timeThreshold = "10 minutes", idCol = "Nili_id", quiet = T, includeAllVertices = F, daytimeOnly = T, return = "edges", getLocs = FALSE, speedCol = "ground_speed"){
   # Argument checks
   checkmate::assertDataFrame(dataset)
   checkmate::assertSubset("sf", class(dataset))
   checkmate::assertClass(roostPolygons, "sf", null.ok = TRUE)
-  checkmate::assertNumeric(roostBuffer, len = 1)
+  checkmate::assertNumeric(roostBuffer, len = 1, null.ok = TRUE)
   checkmate::assertNumeric(consecThreshold, len = 1)
   checkmate::assertNumeric(distThreshold, len = 1)
   checkmate::assertNumeric(speedThreshUpper, len = 1, null.ok = TRUE)
@@ -344,13 +344,18 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
   checkmate::assertLogical(daytimeOnly, len = 1)
   checkmate::assertSubset(return, choices = c("edges", "sri", "both"),
                           empty.ok = FALSE)
-  checkmate::assertSubset("ground_speed", names(dataset)) # necessary for filterLocs.
   checkmate::assertSubset("timestamp", names(dataset)) # for sunrise/sunset calculations.
   checkmate::assertSubset("dateOnly", names(dataset)) # for sunrise/sunset calculations
   checkmate::assertSubset("location_lat", names(dataset)) # passed to spaceTimeGroups. XXX fix with GH#58
   checkmate::assertSubset("location_long", names(dataset)) # passed to spaceTimeGroups. XXX fix with GH#58
   checkmate::assertSubset(idCol, names(dataset)) # passed to spaceTimeGroups.
   checkmate::assertLogical(getLocs, len = 1)
+
+  # Only require ground_speed column when filtering by speed
+  if(!is.null(c(speedThreshLower, speedThreshUpper))){
+    checkmate::assertSubset(speedCol, names(dataset)) # necessary for filterLocs.
+  }
+
 
   # Message about getLocs and sri
   if(getLocs & return == "sri"){
@@ -366,13 +371,15 @@ getEdges <- function(dataset, roostPolygons, roostBuffer, consecThreshold, distT
   # Restrict interactions based on ground speed
   filteredData <- vultureUtils::filterLocs(df = dataset,
                                            speedThreshUpper = speedThreshUpper,
-                                           speedThreshLower = speedThreshLower)
+                                           speedThreshLower = speedThreshLower, speedCol = speedCol)
 
   # If roost polygons were provided, use them to filter out data
   if(!is.null(roostPolygons)){
     # Buffer the roost polygons
-    roostPolygons <- convertAndBuffer(roostPolygons, dist = roostBuffer)
 
+    if(!is.null(roostBuffer)){
+      roostPolygons <- convertAndBuffer(roostPolygons, dist = roostBuffer)
+    }
     # Exclude any points that fall within a (buffered) roost polygon
     points <- filteredData[lengths(sf::st_intersects(filteredData, roostPolygons)) == 0,]
   }else{
@@ -857,25 +864,13 @@ get_roosts_df <- function(df, id = "local_identifier", timestamp = "timestamp", 
     id.df$dist_km <- distances
     id.df$dist_km[id.df$day_diff != 1] <- NA
 
-    # Calculate the time of sunrise and sunset for the locations
-    crds <- matrix(c(id.df[[x]],
-                     id.df[[y]]),
-                   nrow = nrow(id.df),
-                   ncol = 2)
+    # Ryan's Code: I think maptools::sunriset can be replaced with suncalc::getSunlightTimes since its used in other places
+    # SEE: https://cran.r-project.org/web/packages/suncalc/ https://cran.r-project.org/web/packages/suncalc/suncalc.pdf
 
-    id.df$sunrise <- maptools::sunriset(crds,
-                                        id.df[[timestamp]],
-                                        proj4string =
-                                          sp::CRS("+proj=longlat +datum=WGS84"),
-                                        direction = "sunrise",
-                                        POSIXct.out = TRUE)$time
+    data <- data.frame(date = as.Date(id.df[[timestamp]]), lat = id.df[[y]], lon = id.df[[x]])
 
-    id.df$sunset <- maptools::sunriset(crds,
-                                       id.df[[timestamp]],
-                                       proj4string =
-                                         sp::CRS("+proj=longlat +datum=WGS84"),
-                                       direction = "sunset",
-                                       POSIXct.out = TRUE)$time
+    id.df$sunrise <- suncalc::getSunlightTimes(data = data, keep = c("sunrise"))$sunrise
+    id.df$sunset <- suncalc::getSunlightTimes(data = data, keep = c("sunset"))$sunset
 
     # Set the twilight
     id.df$sunrise_twilight <- id.df$sunrise + twilight_secs
