@@ -81,7 +81,17 @@ test_that("calcSpeeds check", {
   expect_true(round(e[2, 'lead_speed_m_s'], digits = 0) == expected_lead_speed)
   expect_true(round(e[2, 'lag_speed_m_s'], digits = 0) == expected_lag_speed)
 
-  ## TODO: third outlier check with day/night
+  ## TODO: third outlier check with day/nightfi
+
+  ## test non-numeric long/lat
+
+  bad_long_data <- test_data
+  bad_lat_data <- test_data
+  bad_long_data[, 'location_long.1'] <- "trash"
+  bad_lat_data[, 'location_lat.1'] <- "trash"
+
+  expect_error(calcSpeeds(df = bad_data, grpCol = "tag_id", longCol = 'location_long.1', latCol = 'location_lat.1'))
+  epect_error(calcSpeeds(df = bad_data, grpCol = "tag_id", longCol = 'location_long.1', latCol = 'location_lat.1'))
 })
 
 test_that("calcSpeedsVert check", {

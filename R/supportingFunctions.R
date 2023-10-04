@@ -470,6 +470,11 @@ calcSRI <- function(dataset, edges, idCol = "Nili_id", timegroupCol = "timegroup
 #' @return A data frame with speeds added
 #' @export
 calcSpeeds <- function(df, grpCol, longCol, latCol){
+  checkmate::assertCharacter(longCol, len = 1)
+  checkmate::assertCharacter(latCol, len = 1)
+  checkmate::assertSubset(x = c(longCol, latCol), choices = names(df))
+  checkmate::assertClass(df %>% dplyr::pull({{longCol}}), "numeric")
+  checkmate::assertClass(df %>% dplyr::pull({{latCol}}), "numeric")
   out <- df %>%
     dplyr::group_by(.data[[grpCol]]) %>%
     dplyr::arrange(timestamp) %>%
