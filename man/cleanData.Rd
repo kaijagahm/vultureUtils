@@ -6,16 +6,12 @@
 \usage{
 cleanData(
   dataset,
+  inMaskFilter = F,
   mask,
-  inMaskThreshold = 0.33,
-  crs = "WGS84",
   longCol = "location_long.1",
   latCol = "location_lat.1",
-  dateCol = "dateOnly",
   idCol = "Nili_id",
   removeVars = T,
-  reMask = T,
-  quiet = T,
   report = T,
   ...
 )
@@ -23,25 +19,17 @@ cleanData(
 \arguments{
 \item{dataset}{The GPS dataset to be used to create the edge list. Must contain columns specified by `longCol`, `latCol`, and `dateCol` args. Must also contain columns "gps_time_to_fix", "heading", "gps_satellite_count", and "ground_speed" because data cleaning is based on this info. Note that because of how the masking is conducted in `mostlyInMask`, the data is grouped into single days. As a result, `dataset` must contain at least 1 day's worth of data in order for the output of this function to have any rows.}
 
+\item{inMaskFilter}{Whether or not to use in mask filtering. Default is F}
+
 \item{mask}{The object to use to mask the data. Passed to `vultureUtils::maskData()`. Must be an sf object.}
-
-\item{inMaskThreshold}{Proportion of an individual's days tracked that must fall within the mask. Default is 0.33 (one third of days tracked). Passed to `vultureUtils::mostlyInMask()`. Must be numeric.}
-
-\item{crs}{Coordinate Reference System to check for and transform to, for both the GPS data and the mask. Default is "WGS84". This value is passed to `vultureUtils::maskData()`. Must be a valid CRS or character string coercible to CRS.}
 
 \item{longCol}{The name of the column in the dataset containing longitude values. Defaults to "location_long.1". Passed to `vultureUtils::maskData()`.}
 
 \item{latCol}{The name of the column in the dataset containing latitude values. Defaults to "location_lat.1". Passed to `vultureUtils::maskData()`.}
 
-\item{dateCol}{The name of the column in the dataset containing dates. Defaults to "dateOnly". Passed to `vultureUtils::mostlyInMask()`.}
-
 \item{idCol}{The name of the column in the dataset containing vulture ID's. Defaults to "Nili_id" (assuming you have joined the Nili_ids from the who's who table).}
 
-\item{removeVars}{Whether or not to remove unnecessary variables. Default is T.}
-
-\item{reMask}{Whether or not to re-mask after removing individuals that spend less than `inMaskThreshold` in the mask area. Default is T.}
-
-\item{quiet}{Whether to silence the message that happens when doing spatial joins. Default is T.}
+\item{removeVars}{Whether or not to remove unnecessary variables from movebank download. Default is T.}
 
 \item{report}{Default TRUE. Whether to print a report of how many rows/individuals were removed in each of the data cleaning steps.}
 

@@ -6,7 +6,7 @@
 \usage{
 getEdges(
   dataset,
-  roostPolygons,
+  roostPolygons = NULL,
   roostBuffer,
   consecThreshold,
   distThreshold,
@@ -18,7 +18,8 @@ getEdges(
   includeAllVertices = F,
   daytimeOnly = T,
   return = "edges",
-  getLocs = FALSE
+  getLocs = FALSE,
+  speedCol = "ground_speed"
 )
 }
 \arguments{
@@ -49,6 +50,8 @@ getEdges(
 \item{return}{One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist. Also includes timegroup information, which SRI cannot do. One row in this data frame represents a single edge in a single timegroup.); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)}
 
 \item{getLocs}{Whether or not to return locations where the interactions happened (for edge list only, doesn't make sense for SRI). Default is FALSE. If getLocs is set to TRUE when return = "sri", a message will tell the user that no locations can be returned for SRI.}
+
+\item{speedCol}{Name of the column containing ground speed values. Default is "ground_speed".}
 }
 \value{
 An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the id of the first individual in this edge, and `ID2` is the id of the second individual in this edge.
