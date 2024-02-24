@@ -91,7 +91,7 @@ test_that("calcSpeeds check", {
   bad_lat_data[, 'location_lat.1'] <- "trash"
 
   expect_error(calcSpeeds(df = bad_data, grpCol = "tag_id", longCol = 'location_long.1', latCol = 'location_lat.1'))
-  epect_error(calcSpeeds(df = bad_data, grpCol = "tag_id", longCol = 'location_long.1', latCol = 'location_lat.1'))
+  expect_error(calcSpeeds(df = bad_data, grpCol = "tag_id", longCol = 'location_long.1', latCol = 'location_lat.1'))
 })
 
 test_that("calcSpeedsVert check", {
