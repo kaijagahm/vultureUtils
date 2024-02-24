@@ -103,30 +103,30 @@ cleanData <- function(dataset, inMaskFilter = F, mask, longCol = "location_long.
   checkmate::assertClass(dataset$timestamp, "POSIXct")
 
   # For checking as we go along and getting a report: a little function to calculate rows, columns, and individuals.
-  init <- getStats(dataset) # get an initial baseline from the input data.
+  init <- getStats(dataset, idCol) # get an initial baseline from the input data.
 
   # Basic data quality filters ----------------------------------------------
   # Remove outlier points based on zeroes (Marta's code)
   dataset <- vultureUtils::tempHeightSpeedFilter(dataset)
-  outliers <- getStats(dataset) # AAA
+  outliers <- getStats(dataset, idCol) # AAA
 
   # filter out bad gps data
   dataset <- vultureUtils::gpsTimeFilter(dataset, maxTime = 89)
-  badTimeToFix <- getStats(dataset) # AAA
+  badTimeToFix <- getStats(dataset, idCol) # AAA
 
   # filter out bad heading data
   dataset <- vultureUtils::headingFilter(dataset)
-  badHeading <- getStats(dataset) # AAA
+  badHeading <- getStats(dataset, idCol) # AAA
 
   # only take locs that have at least 3 satellites
   dataset <- vultureUtils::satelliteFilter(dataset, minSatellites = 3)
-  badSatellites <- getStats(dataset) # AAA
+  badSatellites <- getStats(dataset, idCol) # AAA
 
   # SPIKY SPEEDS
   values <- vultureUtils::spikySpeedsFilter(dataset, idCol=idCol, longCol=longCol, latCol=latCol)
   dataset <- values[[1]]
   spikySpeeds <- values[[2]]
-  nightDistance <- getStats(dataset) # AAA
+  nightDistance <- getStats(dataset, idCol) # AAA
 
   # remove unrealistic "spiky" altitude values (XXX TO DO)
   values <- vultureUtils::spikyAltitudesFilter(dataset, idCol=idCol)
@@ -147,7 +147,7 @@ cleanData <- function(dataset, inMaskFilter = F, mask, longCol = "location_long.
     firstMask <- values[[2]]
     secondMask <- values[[3]]
   }
-  final <- getStats(dataset)
+  final <- getStats(dataset, idCol)
 
 
   if(report){
