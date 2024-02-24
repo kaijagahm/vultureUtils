@@ -124,14 +124,14 @@ cleanData <- function(dataset, inMaskFilter = F, mask, longCol = "location_long.
 
   # SPIKY SPEEDS
   values <- vultureUtils::spikySpeedsFilter(dataset, idCol=idCol, longCol=longCol, latCol=latCol)
-  dataset <- values[[1]]
-  spikySpeeds <- values[[2]]
+  dataset <- values$dataset
+  spikySpeeds <- values$spikySpeeds
   nightDistance <- getStats(dataset, idCol) # AAA
 
   # remove unrealistic "spiky" altitude values (XXX TO DO)
   values <- vultureUtils::spikyAltitudesFilter(dataset, idCol=idCol)
-  dataset <- values[[1]]
-  nAltitudesToNA <- values[[2]]
+  dataset <- values$dataset
+  nAltitudesToNA <- values$nAltitudesToNA
 
   # Remove unnecessary variables, if desired. ---------------------------
   if(removeVars == T){
@@ -143,9 +143,9 @@ cleanData <- function(dataset, inMaskFilter = F, mask, longCol = "location_long.
   # Filter to in-mask threshold -----------------------------------------
   if(inMaskFilter){
     values <- vultureUtils::inMaskFilter(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", longCol = longCol, latCol = latCol, dateCol = "dateOnly", idCol = idCol, reMask = T, quiet = T)
-    dataset <- values[[1]]
-    firstMask <- values[[2]]
-    secondMask <- values[[3]]
+    dataset <- values$dataset
+    firstMask <- values$firstMask
+    secondMask <- values$secondMask
   }
   final <- getStats(dataset, idCol)
 

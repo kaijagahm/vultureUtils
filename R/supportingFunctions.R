@@ -90,7 +90,7 @@ spikySpeedsFilter <- function(dataset, idCol, longCol, latCol){
   df3 <- df2 %>%
     dplyr::filter(lead_speed_m_s <= 50)
   # This also does not get rid of all the outliers... But most of them are at night, which because of the reduced schedule, does not seem like such a large speed (many hours divided by a few kms)
-  spikySpeeds <- getStats(df3) # AAA
+  spikySpeeds <- getStats(df3, idCol) # AAA
 
   # So now we have to calculate if the fix is during the day or the night.
   times <- suncalc::getSunlightTimes(date = unique(lubridate::date(df3$timestamp)),
@@ -119,7 +119,7 @@ spikySpeedsFilter <- function(dataset, idCol, longCol, latCol){
     dplyr::select(-c("lead_hour_diff_sec", "lag_hour_diff_sec", "lead_dist_m",
                      "lag_dist_m", "lead_speed_m_s", "lag_speed_m_s"))
   dataset <- df5
-  list(dataset, spikySpeeds)
+  list("dataset"=dataset, "spikySpeeds"=spikySpeeds)
 }
 
 #' Spiky Altitudes Filter
@@ -162,7 +162,7 @@ spikyAltitudesFilter <- function(dataset, idCol){
     dplyr::select(-c("lead_hour_diff_sec", "lag_hour_diff_sec", "lead_dist_mV",
                      "lag_dist_mV", "lead_speed_m_s", "lag_speed_m_s"))
   nAltitudesToNA <- sum(is.na(dfAlt$height_above_msl)) - sum(is.na(dataset$height_above_msl)) # AAA--how many are NA now, minus the ones that were NA before.
-  list(dfAlt, nAltitudesToNA)
+  list("dataset"=dfAlt, "nAltitudesToNA"=nAltitudesToNA)
 }
 
 #' In Mask Filter
@@ -218,7 +218,7 @@ inMaskFilter <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", l
     # remove the individuals
     dataset <- dataset %>%
       dplyr::filter(.data[[idCol]] %in% longEnoughIndivs)
-    firstMask <- getStats(dataset)
+    firstMask <- getStats(dataset, idCol)
   }else{
     firstMask <- c("rows" = NA, "cols" = NA, "indivs" = NA) # AAA
   }
@@ -237,13 +237,13 @@ inMaskFilter <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", l
                                               latCol = latCol,
                                               crs = crs)
     }
-    secondMask <- getStats(cleanedInMask) # AAA
+    secondMask <- getStats(cleanedInMask, idCol) # AAA
     out <- cleanedInMask
   }else{
     secondMask <- c("rows" = NA, "cols" = NA, "indivs" = NA) # AAA
     out <- dataset
   }
-  list(out, firstMask, secondMask)
+  list("dataset"=out, "firstMask"=firstMask, "secondMask"=secondMask)
 }
 
 
