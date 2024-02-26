@@ -6,22 +6,29 @@
 \usage{
 cleanData(
   dataset,
-  inMaskFilter = F,
-  mask,
+  mask = NULL,
+  jamMask = NULL,
+  gpsMaxTime = -1,
+  precise = F,
   longCol = "location_long.1",
   latCol = "location_lat.1",
   idCol = "Nili_id",
   removeVars = T,
   report = T,
+  gpsJam = T,
   ...
 )
 }
 \arguments{
 \item{dataset}{The GPS dataset to be used to create the edge list. Must contain columns specified by `longCol`, `latCol`, and `dateCol` args. Must also contain columns "gps_time_to_fix", "heading", "gps_satellite_count", and "ground_speed" because data cleaning is based on this info. Note that because of how the masking is conducted in `mostlyInMask`, the data is grouped into single days. As a result, `dataset` must contain at least 1 day's worth of data in order for the output of this function to have any rows.}
 
-\item{inMaskFilter}{Whether or not to use in mask filtering. Default is F}
-
 \item{mask}{The object to use to mask the data. Passed to `vultureUtils::maskData()`. Must be an sf object.}
+
+\item{jamMask}{The object used to mask jammed GPS data. Passed to `vultureUtils::maskData()`. Must be an sf object.}
+
+\item{gpsMaxTime}{Max time for gps to communicate with satellites. If less than 0, do not filter based on max time. Default is -1.}
+
+\item{precise}{Higher quality filter (satellites > 4 and hdop < 5). Default is F.}
 
 \item{longCol}{The name of the column in the dataset containing longitude values. Defaults to "location_long.1". Passed to `vultureUtils::maskData()`.}
 

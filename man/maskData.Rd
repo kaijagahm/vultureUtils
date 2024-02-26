@@ -9,7 +9,8 @@ maskData(
   mask,
   longCol = "location_long",
   latCol = "location_lat",
-  crsToSet = "WGS84"
+  crsToSet = "WGS84",
+  op = sf::st_intersects
 )
 }
 \arguments{

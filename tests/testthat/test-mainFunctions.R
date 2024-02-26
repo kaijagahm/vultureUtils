@@ -2,7 +2,8 @@ test_that("cleanData snapshot test", {
   base::load(test_path("testdata", "month_data.Rda"))
   data <- month_data
   mask <- sf::st_read(test_path("testdata", "CutOffRegion.kml"))
-  cleanData_data <- vultureUtils::cleanData(data, inMaskFilter=T, mask=mask, idCol = "tag_id")
+  jamMask <- sf::st_read(test_path("testdata", "GPS_jamming.kml"))
+  cleanData_data <- vultureUtils::cleanData(data, idCol = "tag_id")
   withr::local_file("cleanData_data.Rda")
   save(cleanData_data,file="cleanData_data.Rda")
   announce_snapshot_file("cleanData_data.Rda")

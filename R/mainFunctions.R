@@ -79,8 +79,10 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
 #'
 #' This function takes in a raw dataset downloaded from movebank, masks it, and performs basic data cleaning. The output from this function feeds directly into `vultureUtils::spaceTimeGroups()`. Steps: 1. Using the `mask` object, get a list of the individuals in `dataset` that spend at least `inMaskThreshold` proportion of their time inside the mask area. 2. Restrict `dataset` to only these individuals. 3. Re-apply the mask to restrict the remaining points to those that fall within `mask`.
 #' @param dataset The GPS dataset to be used to create the edge list. Must contain columns specified by `longCol`, `latCol`, and `dateCol` args. Must also contain columns "gps_time_to_fix", "heading", "gps_satellite_count", and "ground_speed" because data cleaning is based on this info. Note that because of how the masking is conducted in `mostlyInMask`, the data is grouped into single days. As a result, `dataset` must contain at least 1 day's worth of data in order for the output of this function to have any rows.
-#' @param inMaskFilter Whether or not to use in mask filtering. Default is F
 #' @param mask The object to use to mask the data. Passed to `vultureUtils::maskData()`. Must be an sf object.
+#' @param jamMask The object used to mask jammed GPS data. Passed to `vultureUtils::maskData()`. Must be an sf object.
+#' @param gpsMaxTime Max time for gps to communicate with satellites. If less than 0, do not filter based on max time. Default is -1.
+#' @param precise Higher quality filter (satellites > 4 and hdop < 5). Default is F.
 #' @param removeVars Whether or not to remove unnecessary variables from movebank download. Default is T.
 #' @param longCol The name of the column in the dataset containing longitude values. Defaults to "location_long.1". Passed to `vultureUtils::maskData()`.
 #' @param latCol The name of the column in the dataset containing latitude values. Defaults to "location_lat.1". Passed to `vultureUtils::maskData()`.
@@ -89,7 +91,7 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
 #' @param report Default TRUE. Whether to print a report of how many rows/individuals were removed in each of the data cleaning steps.
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the id of the first individual in this edge, and `ID2` is the id of the second individual in this edge.
 #' @export
-cleanData <- function(dataset, inMaskFilter = F, mask, longCol = "location_long.1", latCol = "location_lat.1", idCol = "Nili_id", removeVars = T, report = T, ...){
+cleanData <- function(dataset, mask = NULL, jamMask = NULL, gpsMaxTime = -1, precise = F, longCol = "location_long.1", latCol = "location_lat.1", idCol = "Nili_id", removeVars = T, report = T, gpsJam = T, ...){
   # Argument checks
   checkmate::assertDataFrame(dataset)
   checkmate::assertCharacter(longCol, len = 1)
@@ -103,30 +105,65 @@ cleanData <- function(dataset, inMaskFilter = F, mask, longCol = "location_long.
   checkmate::assertClass(dataset$timestamp, "POSIXct")
 
   # For checking as we go along and getting a report: a little function to calculate rows, columns, and individuals.
+  filterNames <- c("Input data")
+  reportData <- data.frame()
   init <- getStats(dataset, idCol) # get an initial baseline from the input data.
+  reportData <- dplyr::bind_rows(reportData, init)
+
+  # GPS jamming filter ---------
+  if(!is.null(jamMask)){
+    sf::sf_use_s2(F) # Doesn't work otherwise ??? AAA
+    dataset <- vultureUtils::maskData(dataset = dataset, mask = jamMask, longCol = longCol, latCol = latCol, crsToSet = "WGS84", op = sf::st_disjoint)
+    sf::sf_use_s2(T)
+    jammed <- getStats(dataset, idCol)
+    reportData <- dplyr::bind_rows(reportData, jammed)
+    filterNames <- append(filterNames, "Removed jammed GPS points")
+  }
 
   # Basic data quality filters ----------------------------------------------
   # Remove outlier points based on zeroes (Marta's code)
   dataset <- vultureUtils::tempHeightSpeedFilter(dataset)
   outliers <- getStats(dataset, idCol) # AAA
+  reportData <- dplyr::bind_rows(reportData, outliers)
+  filterNames <- append(filterNames, "Removed outliers with zeroes in three columns")
 
   # filter out bad gps data
-  dataset <- vultureUtils::gpsTimeFilter(dataset, maxTime = 89)
-  badTimeToFix <- getStats(dataset, idCol) # AAA
-
+  if(gpsMaxTime > 0){
+    dataset <- vultureUtils::gpsTimeFilter(dataset, maxTime = 89)
+    badTimeToFix <- getStats(dataset, idCol) # AAA
+    reportData <- dplyr::bind_rows(reportData, badTimeToFix)
+    filterNames <- append(filterNames, "Removed points that took too long to get GPS fix")
+  }
   # filter out bad heading data
   dataset <- vultureUtils::headingFilter(dataset)
   badHeading <- getStats(dataset, idCol) # AAA
+  reportData <- dplyr::bind_rows(reportData, badHeading)
+  filterNames <- append(filterNames, "Removed points with invalid heading data")
 
   # only take locs that have at least 3 satellites
   dataset <- vultureUtils::satelliteFilter(dataset, minSatellites = 3)
   badSatellites <- getStats(dataset, idCol) # AAA
+  reportData <- dplyr::bind_rows(reportData, badSatellites)
+  filterNames <- append(filterNames, "Removed points with too few satellites")
+
+  # precise filter: remove points with < 4 satellites and gps_hdop > 5
+  if(precise){
+    dataset <- vultureUtils::preciseFilter(dataset)
+    lowQualityPoints <- getStats(dataset, idCol) # AAA
+    reportData <- dplyr::bind_rows(reportData, lowQualityPoints)
+    filterNames <- append(filterNames, "Removed points with < 4 satellites and hdop > 5")
+  }
 
   # SPIKY SPEEDS
   values <- vultureUtils::spikySpeedsFilter(dataset, idCol=idCol, longCol=longCol, latCol=latCol)
   dataset <- values$dataset
   spikySpeeds <- values$spikySpeeds
   nightDistance <- getStats(dataset, idCol) # AAA
+
+  reportData <- dplyr::bind_rows(reportData, spikySpeeds)
+  reportData <- dplyr::bind_rows(reportData, nightDistance)
+  filterNames <- append(filterNames, "Removed spiky speeds")
+  filterNames <- append(filterNames, "Removed points that moved too far at night")
 
   # remove unrealistic "spiky" altitude values (XXX TO DO)
   values <- vultureUtils::spikyAltitudesFilter(dataset, idCol=idCol)
@@ -141,34 +178,24 @@ cleanData <- function(dataset, inMaskFilter = F, mask, longCol = "location_long.
   }
 
   # Filter to in-mask threshold -----------------------------------------
-  if(inMaskFilter){
+  if(!is.null(mask)){
     values <- vultureUtils::inMaskFilter(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", longCol = longCol, latCol = latCol, dateCol = "dateOnly", idCol = idCol, reMask = T, quiet = T)
     dataset <- values$dataset
     firstMask <- values$firstMask
     secondMask <- values$secondMask
+    filterNames <- append(filterNames, "First mask")
+    filterNames <- append(filterNames, "Second mask")
+    reportData <- dplyr::bind_rows(reportData, firstMask)
+    reportData <- dplyr::bind_rows(reportData, secondMask)
   }
   final <- getStats(dataset, idCol)
+  reportData <- dplyr::bind_rows(reportData, final)
+  filterNames <- append(filterNames, "Final")
 
 
   if(report){
-    steps = c("Input data",
-              "Removed outliers with zeroes in three columns",
-              "Removed points that took too long to get GPS fix",
-              "Removed points with invalid heading data",
-              "Removed points with too few satellites",
-              "Removed spiky speeds",
-              "Removed points that moved too far at night",
-              "First mask",
-              "Second mask",
-              "Final")
-    if(inMaskFilter){
-      pre <- dplyr::bind_rows(init, outliers, badTimeToFix, badHeading, badSatellites, spikySpeeds, nightDistance, firstMask, secondMask, final)
-    }
-    else{
-      pre <- dplyr::bind_rows(init, outliers, badTimeToFix, badHeading, badSatellites, spikySpeeds, nightDistance, final)
-      steps = steps[!steps %in% c("First mask","Second mask")]
-    }
-    df <- pre %>%
+    steps = filterNames
+    df <- reportData %>%
       dplyr::mutate(step = steps) %>%
       dplyr::relocate(step) %>%
       dplyr::mutate(rowsLost = dplyr::lag(rows) - rows,

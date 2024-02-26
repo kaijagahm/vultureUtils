@@ -62,6 +62,16 @@ satelliteFilter <- function(dataset, minSatellites = 3){
   dataset %>% dplyr::filter(.data$gps_satellite_count >= minSatellites) # must have at least 3 satellites in order to triangulate.
 }
 
+#' Precise Filter
+#'
+#' This function takes in a dataset and removes outliers with columns: gps_satellite_count < 4 and gps_hdop > 5
+#' @param dataset A dataset with columns names: gps_satellite_count, gps_hdop
+#' @return A dataset with outliers removed
+#' @export
+preciseFilter <- function(dataset){
+  dataset %>% dplyr::filter(.data$gps_satellite_count > 4 & .data$gps_hdop < 5) # must have at least 4 satellites and gps_hdop < 5
+}
+
 #' Spiky Speeds Filter
 #'
 #' This function takes in a dataset and removes points based on distance traveled between two points.
@@ -322,7 +332,7 @@ calcSpeedsVert <- function(df, grpCol, altCol, speedCol){
 #' @param crsToSet If `dataset` is not already an sf object, a character string to be passed to `st_set_crs()`). One of (i) character: a string accepted by GDAL, (ii) integer, a valid EPSG value (numeric), or (iii) an object of class crs. Default is "WGS84".
 #' @return A masked data set.
 #' @export
-maskData <- function(dataset, mask, longCol = "location_long", latCol = "location_lat", crsToSet = "WGS84"){
+maskData <- function(dataset, mask, longCol = "location_long", latCol = "location_lat", crsToSet = "WGS84", op = sf::st_intersects){
   # argument checks
   checkmate::assertClass(mask, "sf")
   checkmate::assertDataFrame(dataset)
@@ -346,9 +356,8 @@ maskData <- function(dataset, mask, longCol = "location_long", latCol = "locatio
   if(!same){
     dataset_sf <- sf::st_transform(dataset_sf, crs = sf::st_crs(mask))
   }
-
   # mask the dataset
-  masked <- dataset_sf[mask, , op = sf::st_intersects] # XXX i think i can speed this up if i I just use st_intersects directly, maybe?
+  masked <- dataset_sf[mask, , op = op] # XXX i think i can speed this up if i I just use st_intersects directly, maybe?
 
   # return the masked dataset
   return(masked)

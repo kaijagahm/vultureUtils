@@ -41,4 +41,7 @@ inMaskFilter(
 \description{
 This function filters out individuals that have a percentage of points outside of the mask. The percentage is given by
 inMaskThreshold. Optionally, points falling outside the mask can also be removed with reMask set to true.
+Steps: 1. Using the `mask` object, get a list of the individuals in `dataset` that spend at least `inMaskThreshold`
+proportion of their time inside the mask area. 2. Restrict `dataset` to only these individuals. 3. Re-apply the mask to
+restrict the remaining points to those that fall within `mask`.
 }
