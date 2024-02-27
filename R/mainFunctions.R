@@ -129,7 +129,7 @@ cleanData <- function(dataset, mask = NULL, jamMask = NULL, gpsMaxTime = -1, pre
 
   # filter out bad gps data
   if(gpsMaxTime > 0){
-    dataset <- vultureUtils::gpsTimeFilter(dataset, maxTime = 89)
+    dataset <- vultureUtils::gpsTimeFilter(dataset, maxTime = gpsMaxTime)
     badTimeToFix <- getStats(dataset, idCol) # AAA
     reportData <- dplyr::bind_rows(reportData, badTimeToFix)
     filterNames <- append(filterNames, "Removed points that took too long to get GPS fix")
@@ -177,21 +177,9 @@ cleanData <- function(dataset, mask = NULL, jamMask = NULL, gpsMaxTime = -1, pre
     dataset <- varsRemoved
   }
 
-  # Filter to in-mask threshold -----------------------------------------
-  if(!is.null(mask)){
-    values <- vultureUtils::inMaskFilter(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", longCol = longCol, latCol = latCol, dateCol = "dateOnly", idCol = idCol, reMask = T, quiet = T)
-    dataset <- values$dataset
-    firstMask <- values$firstMask
-    secondMask <- values$secondMask
-    filterNames <- append(filterNames, "First mask")
-    filterNames <- append(filterNames, "Second mask")
-    reportData <- dplyr::bind_rows(reportData, firstMask)
-    reportData <- dplyr::bind_rows(reportData, secondMask)
-  }
   final <- getStats(dataset, idCol)
   reportData <- dplyr::bind_rows(reportData, final)
   filterNames <- append(filterNames, "Final")
-
 
   if(report){
     steps = filterNames
@@ -205,6 +193,87 @@ cleanData <- function(dataset, mask = NULL, jamMask = NULL, gpsMaxTime = -1, pre
   out <- dataset
   return(out %>%
            dplyr::ungroup())
+}
+
+#' In Mask Filter
+#'
+#' This function filters out individuals that have a percentage of points outside of the mask. The percentage is given by
+#' inMaskThreshold. Optionally, points falling outside the mask can also be removed with reMask set to true.
+#' Steps: 1. Using the `mask` object, get a list of the individuals in `dataset` that spend at least `inMaskThreshold`
+#' proportion of their time inside the mask area. 2. Restrict `dataset` to only these individuals. 3. Re-apply the mask to
+#' restrict the remaining points to those that fall within `mask`.
+#' @param dataset A dataset with columns: longCol, latCol, dateCol, idCol
+#' @param mask The object to use to mask the data. Passed to `vultureUtils::maskData()`. Must be an sf object.
+#' @param inMaskThreshold Proportion of an individual's days tracked that must fall within the mask. Default is 0.33 (one third of days tracked). If a number >1 is supplied, will be interpreted as number of days that fall in the mask. Passed to `vultureUtils::mostlyInMask()`. Must be numeric.
+#' @param crs Coordinate Reference System to check for and transform to, for both the GPS data and the mask. Default is "WGS84". This value is passed to `vultureUtils::maskData()`. Must be a valid CRS or character string coercible to CRS.
+#' @param longCol The name of the column in the dataset containing longitude values. Defaults to "location_long.1". Passed to `vultureUtils::maskData()`.
+#' @param latCol The name of the column in the dataset containing latitude values. Defaults to "location_lat.1". Passed to `vultureUtils::maskData()`.
+#' @param dateCol The name of the column in the dataset containing dates. Defaults to "dateOnly". Passed to `vultureUtils::mostlyInMask()`.
+#' @param idCol The name of the column in the dataset containing vulture ID's. Defaults to "Nili_id" (assuming you have joined the Nili_ids from the who's who table).
+#' @param reMask Whether or not to re-mask after removing individuals that spend less than `inMaskThreshold` in the mask area. Default is T.
+#' @param quiet Whether to silence the message that happens when doing spatial joins. Default is T.
+#' @export
+inMaskFilter <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", longCol = "location_long.1", latCol = "location_lat.1", dateCol = "dateOnly", idCol = "Nili_id", reMask = T, quiet = T){
+  # Filter to in-mask threshold
+  # If an inMaskThreshold is given (it usually is), then filter to only the individuals that spend at least the threshold proportion of their days within the mask. Otherwise, just pass the dataset through unfiltered. # filter INDIVIDUALS:
+  checkmate::assertClass(mask, "sf", null.ok = TRUE)
+  checkmate::assertNumeric(inMaskThreshold, len = 1, null.ok = TRUE)
+  checkmate::assertCharacter(dateCol, len = 1)
+  if(!is.null(inMaskThreshold)){
+    # Select only points that fall in the mask
+    if(quiet == TRUE){
+      inMask <- suppressMessages(vultureUtils::maskData(dataset = dataset, mask = mask, longCol = longCol,
+                                                        latCol = latCol, crs = crs))
+    }else{
+      inMask <- vultureUtils::maskData(dataset = dataset, mask = mask, longCol = longCol,
+                                       latCol = latCol, crs = crs)
+    }
+
+    # Remove vultures that have less than `inMaskThreshold` of their duration recorded inside the mask.
+    if(quiet == TRUE){
+      longEnoughIndivs <- suppressMessages(vultureUtils::mostlyInMask(dataset = dataset,
+                                                                      maskedDataset = inMask,
+                                                                      thresh = inMaskThreshold,
+                                                                      dateCol = dateCol,
+                                                                      idCol = idCol))
+    }else{
+      longEnoughIndivs <- vultureUtils::mostlyInMask(dataset = dataset,
+                                                     maskedDataset = inMask,
+                                                     thresh = inMaskThreshold,
+                                                     dateCol = dateCol,
+                                                     idCol = idCol)
+    }
+    # tally up how many individuals are getting removed
+
+    # remove the individuals
+    dataset <- dataset %>%
+      dplyr::filter(.data[[idCol]] %in% longEnoughIndivs)
+    firstMask <- getStats(dataset, idCol)
+  }else{
+    firstMask <- c("rows" = NA, "cols" = NA, "indivs" = NA) # AAA
+  }
+
+
+  # Mask again to remove out-of-mask POINTS, if desired
+  if(reMask == T){
+    if(quiet == TRUE){
+      cleanedInMask <- suppressMessages(vultureUtils::maskData(dataset = dataset, mask = mask,
+                                                               longCol = longCol,
+                                                               latCol = latCol,
+                                                               crs = crs))
+    }else{
+      cleanedInMask <- vultureUtils::maskData(dataset = dataset, mask = mask,
+                                              longCol = longCol,
+                                              latCol = latCol,
+                                              crs = crs)
+    }
+    secondMask <- getStats(cleanedInMask, idCol) # AAA
+    out <- cleanedInMask
+  }else{
+    secondMask <- c("rows" = NA, "cols" = NA, "indivs" = NA) # AAA
+    out <- dataset
+  }
+  list("dataset"=out, "firstMask"=firstMask, "secondMask"=secondMask)
 }
 
 #' Create an edge list (flexible; must insert parameters.)
