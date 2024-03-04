@@ -113,8 +113,11 @@ cleanData <- function(dataset, mask = NULL, jamMask = NULL, gpsMaxTime = -1, pre
   # GPS jamming filter ---------
   if(!is.null(jamMask)){
     sf::sf_use_s2(F) # Doesn't work otherwise ??? AAA
-    dataset <- vultureUtils::maskData(dataset = dataset, mask = jamMask, longCol = longCol, latCol = latCol, crsToSet = "WGS84", op = sf::st_disjoint)
+    jamMask <- sf::st_make_valid(jamMask)
+    jamMask <- sf::st_crop(jamMask, xmin = 31.29387, ymin = 29.99595, xmax = 35.67448, ymax = 33.82497)
     sf::sf_use_s2(T)
+    dataset <- vultureUtils::maskData(dataset = dataset, mask = jamMask, longCol = longCol, latCol = latCol, crsToSet = "WGS84", op = sf::st_disjoint)
+
     jammed <- getStats(dataset, idCol)
     reportData <- dplyr::bind_rows(reportData, jammed)
     filterNames <- append(filterNames, "Removed jammed GPS points")
