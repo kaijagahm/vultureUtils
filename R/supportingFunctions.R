@@ -1,5 +1,244 @@
 # Supporting functions (called by main functions)
 if(getRversion() >= "2.15.1")  utils::globalVariables(".") # this supposedly helps deal with some of the data masking issues with dplyr/tidyverse syntax.
+## cleanData Helpers-----------
+#' Get Stats
+#'
+#' This function takes in a data frame with rows representing data points and returns the number of rows, columns and
+#' individuals in the data frame.
+#' @param df Any data frame with IDs
+#' @param idCol The name of the column in the dataset containing vulture ID's. Defaults to "Nili_id" (assuming you have joined the Nili_ids from the who's who table).
+#' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the id of the first individual in this edge, and `ID2` is the id of the second individual in this edge.
+#' @export
+getStats <- function(df, idCol = "Nili_id"){
+  rows <- nrow(df)
+  cols <- ncol(df)
+  indivs <- length(unique(df[[idCol]]))
+  return(c("rows" = rows, "cols" = cols, "indivs" = indivs))
+}
+#' Temperature, barometric height, and ground speed filter
+#'
+#' This function takes in a dataset and removes outliers with columns: external_temperature, barometric_height, and
+#' ground_speed equal to zero or NA.
+#' @param dataset A dataset with columns names: external_temperature, barometric_height, and ground_speed
+#' @return A dataset with outliers removed
+#' @export
+tempHeightSpeedFilter <- function(dataset){
+  dataset <- dataset %>%
+    dplyr::mutate(outlier = ifelse(.data$external_temperature == 0 & .data$barometric_height == 0 & .data$ground_speed == 0, 1, 0))
+  dataset %>%
+    dplyr::filter(is.na(outlier) | outlier == 0) %>%
+    dplyr::select(-"outlier")
+}
+
+#' GPS time to fix filter
+#'
+#' This function takes in a dataset and removes outliers with columns: gps_time_to_fix > threshold
+#' @param dataset A dataset with columns names: gps_time_to_fix
+#' @param maxTime Max time for gps time fix, default is 89
+#' @return A dataset with outliers removed
+#' @export
+gpsTimeFilter <- function(dataset, maxTime = 89){
+  dataset %>% dplyr::filter(.data$gps_time_to_fix <= maxTime)
+}
+
+#' Heading Filter
+#'
+#' This function takes in a dataset and removes outliers with columns: heading < 0 or heading > 360
+#' @param dataset A dataset with columns names: heading
+#' @return A dataset with outliers removed
+#' @export
+headingFilter <- function(dataset){
+  dataset %>% dplyr::filter(.data$heading <= 360 & .data$heading >= 0) # only reasonable headings, between 0 and 360.
+}
+
+#' Satellite Filter
+#'
+#' This function takes in a dataset and removes outliers with columns: gps_satellite_count < minSatellites
+#' @param dataset A dataset with columns names: heading
+#' @param minSatellites Minimum number of satellites required, default is 3
+#' @return A dataset with outliers removed
+#' @export
+satelliteFilter <- function(dataset, minSatellites = 3){
+  dataset %>% dplyr::filter(.data$gps_satellite_count >= minSatellites) # must have at least 3 satellites in order to triangulate.
+}
+
+#' Precise Filter
+#'
+#' This function takes in a dataset and removes outliers with columns: gps_satellite_count < 4 and gps_hdop > 5
+#' @param dataset A dataset with columns names: gps_satellite_count, gps_hdop
+#' @return A dataset with outliers removed
+#' @export
+preciseFilter <- function(dataset){
+  dataset %>% dplyr::filter(.data$gps_satellite_count > 4 & .data$gps_hdop < 5) # must have at least 4 satellites and gps_hdop < 5
+}
+
+#' Spiky Speeds Filter
+#'
+#' This function takes in a dataset and removes points based on distance traveled between two points.
+#' This is done by comparing speeds calculated from latitude and longitude values to known speed thresholds.
+#' Additionally, the distance between points are compared at night to remove outliers.
+#' @param dataset A dataset with columns: idCol, longCol, latCol
+#' @param idCol The name of the column in the dataset containing vulture ID's. Defaults to "Nili_id" (assuming you have joined the Nili_ids from the who's who table).
+#' @param longCol The name of the column in the dataset containing longitude values. Defaults to "location_long.1".
+#' @param latCol The name of the column in the dataset containing latitude values. Defaults to "location_lat.1".
+#' @return A dataset with outliers removed
+#' @export
+spikySpeedsFilter <- function(dataset, idCol, longCol, latCol){
+  # remove unrealistic "spiky" speeds (based on Marta's code)
+  df <- vultureUtils::calcSpeeds(dataset, grpCol = idCol, longCol = longCol, latCol = latCol)
+
+  ## Remove those that are for sure outliers: lead + lag > 180km/h
+  df2 <- df %>%
+    dplyr::filter(lead_speed_m_s <= 50 & abs(lag_speed_m_s) <= 50) %>%
+    dplyr::select(-c("lead_hour_diff_sec", "lead_dist_m", "lead_speed_m_s",
+                     "lag_hour_diff_sec", "lag_dist_m", "lag_speed_m_s"))
+
+  ## Re-calculate speeds (because we removed some observations before)
+  df2 <- vultureUtils::calcSpeeds(df2, grpCol = idCol, longCol = longCol, latCol = latCol)
+
+  ## unfortunately the previous step did not get rid of all the outliers. So we'll use only the lead to remove some more outliers.
+  df3 <- df2 %>%
+    dplyr::filter(lead_speed_m_s <= 50)
+  # This also does not get rid of all the outliers... But most of them are at night, which because of the reduced schedule, does not seem like such a large speed (many hours divided by a few kms)
+  spikySpeeds <- getStats(df3, idCol) # AAA
+
+  # So now we have to calculate if the fix is during the day or the night.
+  times <- suncalc::getSunlightTimes(date = unique(lubridate::date(df3$timestamp)),
+                                     lat = 31.434306, lon = 34.991889,
+                                     keep = c("sunrise", "sunset")) %>%
+    dplyr::select("dateOnly" = date, sunrise, sunset)
+
+  df4 <- df3 %>%
+    dplyr::mutate(dateOnly = lubridate::ymd(dateOnly)) %>%
+    dplyr::left_join(times, by = "dateOnly") %>%
+    dplyr::mutate(daylight = ifelse(timestamp >= sunrise & timestamp <= sunset, "day", "night")) %>%
+    dplyr::select(-c(sunrise, sunset))
+
+  # re-calculate speeds again
+  df4 <- vultureUtils::calcSpeeds(df4, grpCol = idCol, longCol = longCol, latCol = latCol)
+
+  # Exclude if during the night the distance between two locations are more than 10km apart
+  df5 <- df4 %>%
+    dplyr::mutate(day_diff = as.numeric(difftime(dplyr::lead(lubridate::date(timestamp)),
+                                                 lubridate::date(timestamp), units = "days")),
+                  night_outlier = ifelse(daylight == "night" &
+                                           day_diff %in% c(0, 1) &
+                                           dplyr::lead(daylight) == "night" &
+                                           lead_dist_m > 10000, T, F)) %>%
+    dplyr::filter(!night_outlier) %>%
+    dplyr::select(-c("lead_hour_diff_sec", "lag_hour_diff_sec", "lead_dist_m",
+                     "lag_dist_m", "lead_speed_m_s", "lag_speed_m_s"))
+  dataset <- df5
+  list("dataset"=dataset, "spikySpeeds"=spikySpeeds)
+}
+
+#' Spiky Altitudes Filter
+#'
+#' This function takes in a dataset and removes points based on distance traveled between two points.
+#' This is done by comparing speeds calculated from latitude and longitude values to known speed thresholds.
+#' Additionally, the distance between points are compared at night to remove outliers.
+#' @param dataset A dataset with columns: idCol
+#' @param idCol The name of the column in the dataset containing vulture ID's. Defaults to "Nili_id" (assuming you have joined the Nili_ids from the who's who table).
+#' @return A dataset with outliers removed
+#' @export
+spikyAltitudesFilter <- function(dataset, idCol){
+  ## calculate altitude "speeds"
+  dfAlt <- vultureUtils::calcSpeedsVert(df = dataset, grpCol = idCol, altCol = "height_above_msl")
+
+  # XXX plots to justify cutoff values. Seems like if we cut both off around 2, we should be ok.
+  # dfAlt %>%
+  #   filter(ground_speed >= 5) %>%
+  #   ggplot(aes(x = abs(lead_speed_m_s)))+
+  #   geom_histogram()+
+  #   theme_classic()
+  # dfAlt %>%
+  #   filter(ground_speed >= 5) %>%
+  #   ggplot(aes(x = abs(lag_speed_m_s)))+
+  #   geom_histogram()+
+  #   theme_classic()
+  #
+  # dfAlt %>%
+  #   mutate(col = ifelse(abs(lead_speed_m_s) > 2 & abs(lag_speed_m_s) > 2, "a", "b")) %>%
+  #   filter(ground_speed >= 5) %>%
+  #   ggplot(aes(x = abs(lead_speed_m_s), y = abs(lag_speed_m_s)))+
+  #   geom_point(aes(col = col))+
+  #   scale_color_manual(values = c("red", "black"))+
+  #   theme_classic()
+
+  # rough filtering
+  dfAlt$height_above_msl[abs(dfAlt$lead_speed_m_s) > 2 |
+                           abs(dfAlt$lag_speed_m_s) > 2] <- NA
+  dfAlt <- dfAlt %>%
+    dplyr::select(-c("lead_hour_diff_sec", "lag_hour_diff_sec", "lead_dist_mV",
+                     "lag_dist_mV", "lead_speed_m_s", "lag_speed_m_s"))
+  nAltitudesToNA <- sum(is.na(dfAlt$height_above_msl)) - sum(is.na(dataset$height_above_msl)) # AAA--how many are NA now, minus the ones that were NA before.
+  list("dataset"=dfAlt, "nAltitudesToNA"=nAltitudesToNA)
+}
+
+#' Calculate speeds
+#'
+#' Calculates speeds, an operation that needs to happen several times in Marta's data cleaning code
+#'
+#' @param df a data frame
+#' @param grpCol column to group by
+#' @param longCol column containing longitudes
+#' @param latCol column containing latitudes
+#' @return A data frame with speeds added
+#' @export
+calcSpeeds <- function(df, grpCol, longCol, latCol){
+  checkmate::assertCharacter(longCol, len = 1)
+  checkmate::assertCharacter(latCol, len = 1)
+  checkmate::assertSubset(x = c(longCol, latCol), choices = names(df))
+  checkmate::assertClass(df %>% dplyr::pull({{longCol}}), "numeric")
+  checkmate::assertClass(df %>% dplyr::pull({{latCol}}), "numeric")
+  out <- df %>%
+    dplyr::group_by(.data[[grpCol]]) %>%
+    dplyr::arrange(timestamp) %>%
+    dplyr::mutate(lead_hour_diff_sec = round(as.numeric(difftime(dplyr::lead(timestamp),
+                                                                 timestamp, units = "secs")), 3),
+                  lead_hour_diff_sec = ifelse(lead_hour_diff_sec == 0, 0.01, lead_hour_diff_sec),
+                  lag_hour_diff_sec = round(as.numeric(difftime(dplyr::lag(timestamp),
+                                                                timestamp, units = "secs")), 3),
+                  lag_hour_diff_sec = ifelse(lag_hour_diff_sec == 0, 0.01, lag_hour_diff_sec),
+                  lead_dist_m = round(geosphere::distGeo(p1 = cbind(dplyr::lead(.data[[longCol]]),
+                                                                    dplyr::lead(.data[[latCol]])),
+                                                         p2 = cbind(.data[[longCol]], .data[[latCol]])), 3),
+                  lag_dist_m = round(geosphere::distGeo(p1 = cbind(dplyr::lag(.data[[longCol]]),
+                                                                   dplyr::lag(.data[[latCol]])),
+                                                        p2 = cbind(.data[[longCol]], .data[[latCol]])), 3),
+                  lead_speed_m_s = round(lead_dist_m / lead_hour_diff_sec, 2),
+                  lag_speed_m_s = round(lag_dist_m / lag_hour_diff_sec, 2),) %>%
+    dplyr::ungroup()
+  return(out)
+}
+
+#' Calculate vertical speeds (altitude)
+#'
+#' Calculates vertical "speeds", an operation that needs to happen several times in order to clean the altitude values
+#'
+#' @param df a data frame
+#' @param grpCol column to group by
+#' @param altCol column containing altitude values
+#' @param speedCol column giving ground speed, so we can restrict this to flight only
+#' @return A data frame with speeds added
+#' @export
+calcSpeedsVert <- function(df, grpCol, altCol, speedCol){
+  out <- df %>%
+    dplyr::group_by(.data[[grpCol]]) %>%
+    dplyr::arrange(timestamp) %>%
+    dplyr::mutate(lead_hour_diff_sec = round(as.numeric(difftime(dplyr::lead(timestamp),
+                                                                 timestamp, units = "secs")), 3),
+                  lead_hour_diff_sec = ifelse(lead_hour_diff_sec == 0, 0.01, lead_hour_diff_sec),
+                  lag_hour_diff_sec = round(as.numeric(difftime(dplyr::lag(timestamp),
+                                                                timestamp, units = "secs")), 3),
+                  lag_hour_diff_sec = ifelse(lag_hour_diff_sec == 0, 0.01, lag_hour_diff_sec),
+                  lead_dist_mV = round(dplyr::lead(.data[[altCol]]) - .data[[altCol]], 3),
+                  lag_dist_mV = round(dplyr::lag(.data[[altCol]]) - .data[[altCol]], 3),
+                  lead_speed_m_s = round(lead_dist_mV / lead_hour_diff_sec, 2),
+                  lag_speed_m_s = round(lag_dist_mV / lag_hour_diff_sec, 2),) %>%
+    dplyr::ungroup() %>%
+    return(out)
+}
 
 #' Mask dataset
 #'
@@ -9,9 +248,10 @@ if(getRversion() >= "2.15.1")  utils::globalVariables(".") # this supposedly hel
 #' @param longCol the name of the column in the dataset containing longitude (or x coordinate) values
 #' @param latCol the name of the column in the dataset containing latitude (or y coordinate) values
 #' @param crsToSet If `dataset` is not already an sf object, a character string to be passed to `st_set_crs()`). One of (i) character: a string accepted by GDAL, (ii) integer, a valid EPSG value (numeric), or (iii) an object of class crs. Default is "WGS84".
+#' @param op Operation to use with mask. Default is st_intersects, returning points in dataset that lie in mask.
 #' @return A masked data set.
 #' @export
-maskData <- function(dataset, mask, longCol = "location_long", latCol = "location_lat", crsToSet = "WGS84"){
+maskData <- function(dataset, mask, longCol = "location_long", latCol = "location_lat", crsToSet = "WGS84", op = sf::st_intersects){
   # argument checks
   checkmate::assertClass(mask, "sf")
   checkmate::assertDataFrame(dataset)
@@ -35,9 +275,8 @@ maskData <- function(dataset, mask, longCol = "location_long", latCol = "locatio
   if(!same){
     dataset_sf <- sf::st_transform(dataset_sf, crs = sf::st_crs(mask))
   }
-
   # mask the dataset
-  masked <- dataset_sf[mask, , op = sf::st_intersects] # XXX i think i can speed this up if i I just use st_intersects directly, maybe?
+  masked <- dataset_sf[mask, , op = op] # XXX i think i can speed this up if i I just use st_intersects directly, maybe?
 
   # return the masked dataset
   return(masked)
@@ -137,6 +376,8 @@ removeUnnecessaryVars <- function(dataset, addlVars = NULL, keepVars = NULL){
     dplyr::select(-tidyselect::any_of(toRemove))
   return(newDataset)
 }
+
+## getEdges helpers--------
 
 #' Filter locs
 #'
@@ -457,64 +698,4 @@ calcSRI <- function(dataset, edges, idCol = "Nili_id", timegroupCol = "timegroup
   duration <- difftime(end, start, units = "secs")
   cat(paste0("SRI computation completed in ", duration, " seconds."))
   return(dfSRI)
-}
-
-#' Calculate speeds
-#'
-#' Calculates speeds, an operation that needs to happen several times in Marta's data cleaning code
-#'
-#' @param df a data frame
-#' @param grpCol column to group by
-#' @param longCol column containing longitudes
-#' @param latCol column containing latitudes
-#' @return A data frame with speeds added
-#' @export
-calcSpeeds <- function(df, grpCol, longCol, latCol){
-  out <- df %>%
-    dplyr::group_by(.data[[grpCol]]) %>%
-    dplyr::arrange(timestamp) %>%
-    dplyr::mutate(lead_hour_diff_sec = round(as.numeric(difftime(dplyr::lead(timestamp),
-                                                                 timestamp, units = "secs")), 3),
-                  lead_hour_diff_sec = ifelse(lead_hour_diff_sec == 0, 0.01, lead_hour_diff_sec),
-                  lag_hour_diff_sec = round(as.numeric(difftime(dplyr::lag(timestamp),
-                                                                timestamp, units = "secs")), 3),
-                  lag_hour_diff_sec = ifelse(lag_hour_diff_sec == 0, 0.01, lag_hour_diff_sec),
-                  lead_dist_m = round(geosphere::distGeo(p1 = cbind(dplyr::lead(.data[[longCol]]),
-                                                                    dplyr::lead(.data[[latCol]])),
-                                                         p2 = cbind(.data[[longCol]], .data[[latCol]])), 3),
-                  lag_dist_m = round(geosphere::distGeo(p1 = cbind(dplyr::lag(.data[[longCol]]),
-                                                                   dplyr::lag(.data[[latCol]])),
-                                                        p2 = cbind(.data[[longCol]], .data[[latCol]])), 3),
-                  lead_speed_m_s = round(lead_dist_m / lead_hour_diff_sec, 2),
-                  lag_speed_m_s = round(lag_dist_m / lag_hour_diff_sec, 2),) %>%
-    dplyr::ungroup()
-  return(out)
-}
-
-#' Calculate vertical speeds (altitude)
-#'
-#' Calculates vertical "speeds", an operation that needs to happen several times in order to clean the altitude values
-#'
-#' @param df a data frame
-#' @param grpCol column to group by
-#' @param altCol column containing altitude values
-#' @param speedCol column giving ground speed, so we can restrict this to flight only
-#' @return A data frame with speeds added
-#' @export
-calcSpeedsVert <- function(df, grpCol, altCol, speedCol){
-  out <- df %>%
-    dplyr::group_by(.data[[grpCol]]) %>%
-    dplyr::arrange(timestamp) %>%
-    dplyr::mutate(lead_hour_diff_sec = round(as.numeric(difftime(dplyr::lead(timestamp),
-                                                                 timestamp, units = "secs")), 3),
-                  lead_hour_diff_sec = ifelse(lead_hour_diff_sec == 0, 0.01, lead_hour_diff_sec),
-                  lag_hour_diff_sec = round(as.numeric(difftime(dplyr::lag(timestamp),
-                                                                timestamp, units = "secs")), 3),
-                  lag_hour_diff_sec = ifelse(lag_hour_diff_sec == 0, 0.01, lag_hour_diff_sec),
-                  lead_dist_mV = round(dplyr::lead(.data[[altCol]]) - .data[[altCol]], 3),
-                  lag_dist_mV = round(dplyr::lag(.data[[altCol]]) - .data[[altCol]], 3),
-                  lead_speed_m_s = round(lead_dist_mV / lead_hour_diff_sec, 2),
-                  lag_speed_m_s = round(lag_dist_mV / lag_hour_diff_sec, 2),) %>%
-    dplyr::ungroup() %>%
-    return(out)
 }

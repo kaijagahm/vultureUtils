@@ -6,17 +6,16 @@
 \usage{
 cleanData(
   dataset,
-  mask,
-  inMaskThreshold = 0.33,
-  crs = "WGS84",
+  mask = NULL,
+  jamMask = NULL,
+  gpsMaxTime = -1,
+  precise = F,
   longCol = "location_long.1",
   latCol = "location_lat.1",
-  dateCol = "dateOnly",
   idCol = "Nili_id",
   removeVars = T,
-  reMask = T,
-  quiet = T,
   report = T,
+  gpsJam = T,
   ...
 )
 }
@@ -25,23 +24,19 @@ cleanData(
 
 \item{mask}{The object to use to mask the data. Passed to `vultureUtils::maskData()`. Must be an sf object.}
 
-\item{inMaskThreshold}{Proportion of an individual's days tracked that must fall within the mask. Default is 0.33 (one third of days tracked). Passed to `vultureUtils::mostlyInMask()`. Must be numeric.}
+\item{jamMask}{The object used to mask jammed GPS data. Passed to `vultureUtils::maskData()`. Must be an sf object.}
 
-\item{crs}{Coordinate Reference System to check for and transform to, for both the GPS data and the mask. Default is "WGS84". This value is passed to `vultureUtils::maskData()`. Must be a valid CRS or character string coercible to CRS.}
+\item{gpsMaxTime}{Max time for gps to communicate with satellites. If less than 0, do not filter based on max time. Default is -1.}
+
+\item{precise}{Higher quality filter (satellites > 4 and hdop < 5). Default is F.}
 
 \item{longCol}{The name of the column in the dataset containing longitude values. Defaults to "location_long.1". Passed to `vultureUtils::maskData()`.}
 
 \item{latCol}{The name of the column in the dataset containing latitude values. Defaults to "location_lat.1". Passed to `vultureUtils::maskData()`.}
 
-\item{dateCol}{The name of the column in the dataset containing dates. Defaults to "dateOnly". Passed to `vultureUtils::mostlyInMask()`.}
-
 \item{idCol}{The name of the column in the dataset containing vulture ID's. Defaults to "Nili_id" (assuming you have joined the Nili_ids from the who's who table).}
 
-\item{removeVars}{Whether or not to remove unnecessary variables. Default is T.}
-
-\item{reMask}{Whether or not to re-mask after removing individuals that spend less than `inMaskThreshold` in the mask area. Default is T.}
-
-\item{quiet}{Whether to silence the message that happens when doing spatial joins. Default is T.}
+\item{removeVars}{Whether or not to remove unnecessary variables from movebank download. Default is T.}
 
 \item{report}{Default TRUE. Whether to print a report of how many rows/individuals were removed in each of the data cleaning steps.}
 

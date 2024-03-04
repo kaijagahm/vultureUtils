@@ -16,7 +16,8 @@ getRoostEdges(
   roostCol = "roostID",
   crsToSet = "WGS84",
   crsToTransform = 32636,
-  return = "edges"
+  return = "edges",
+  getLocs = FALSE
 )
 }
 \arguments{
@@ -43,6 +44,8 @@ getRoostEdges(
 \item{crsToTransform}{CRS to transform the `dataset` to. Default is "32636" for ITM.}
 
 \item{return}{One of "edges" (default, returns an edgelist, would need to be used in conjunction with includeAllVertices = T in order to include all individuals, since otherwise they wouldn't be included in the edgelist); "sri" (returns a data frame with three columns, ID1, ID2, and sri. Includes pairs whose SRI values are 0, which means it includes all individuals and renders includeAllVertices obsolete.); and "both" (returns a list with two components: "edges" and "sri" as described above.)}
+
+\item{getLocs}{Whether or not to return locations where the interactions happened (for edge list only, doesn't make sense for SRI). Default is FALSE. If getLocs is set to TRUE when return = "sri", a message will tell the user that no locations can be returned for SRI.}
 }
 \description{
 Function to create an edgelist based on roost locations. Two modes: either create a straightforward distance-based network based on a distance threshold (analogous to getFeedingEdges and getFlightEdges, except that there's only one point per individual per night); or create a shared-roost network based on roost polygon assignment.

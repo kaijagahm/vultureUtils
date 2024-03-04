@@ -9,7 +9,8 @@ maskData(
   mask,
   longCol = "location_long",
   latCol = "location_lat",
-  crsToSet = "WGS84"
+  crsToSet = "WGS84",
+  op = sf::st_intersects
 )
 }
 \arguments{
@@ -22,6 +23,8 @@ maskData(
 \item{latCol}{the name of the column in the dataset containing latitude (or y coordinate) values}
 
 \item{crsToSet}{If `dataset` is not already an sf object, a character string to be passed to `st_set_crs()`). One of (i) character: a string accepted by GDAL, (ii) integer, a valid EPSG value (numeric), or (iii) an object of class crs. Default is "WGS84".}
+
+\item{op}{Operation to use with mask. Default is st_intersects, returning points in dataset that lie in mask.}
 }
 \value{
 A masked data set.

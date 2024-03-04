@@ -17,7 +17,7 @@ mostlyInMask(
 
 \item{maskedDataset}{the dataset after being masked to Israel (output of maskIsrael function)}
 
-\item{thresh}{proportion (between 0 and 1) of a vulture's total tracked days that it spent in Israel}
+\item{thresh}{proportion (between 0 and 1) of a vulture's total tracked days that it spent in the mask, or number of days the vulture must spend in the mask (values > 1)}
 
 \item{dateCol}{the name of the column containing dates (must be the same in `dataset` and `maskedDataset`). Defaults to "dateOnly".}
 
