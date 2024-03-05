@@ -248,10 +248,10 @@ calcSpeedsVert <- function(df, grpCol, altCol, speedCol){
 #' @param longCol the name of the column in the dataset containing longitude (or x coordinate) values
 #' @param latCol the name of the column in the dataset containing latitude (or y coordinate) values
 #' @param crsToSet If `dataset` is not already an sf object, a character string to be passed to `st_set_crs()`). One of (i) character: a string accepted by GDAL, (ii) integer, a valid EPSG value (numeric), or (iii) an object of class crs. Default is "WGS84".
-#' @param op Operation to use with mask. Default is st_intersects, returning points in dataset that lie in mask.
+#' @param op Operation to use with mask. Default is "intersects", returning points in dataset that lie in mask. Can also be "difference", to return points in dataset that lie outside of mask.
 #' @return A masked data set.
 #' @export
-maskData <- function(dataset, mask, longCol = "location_long", latCol = "location_lat", crsToSet = "WGS84", op = sf::st_intersects){
+maskData <- function(dataset, mask, longCol = "location_long", latCol = "location_lat", crsToSet = "WGS84", op = "intersect"){
   # argument checks
   checkmate::assertClass(mask, "sf")
   checkmate::assertDataFrame(dataset)
@@ -276,7 +276,10 @@ maskData <- function(dataset, mask, longCol = "location_long", latCol = "locatio
     dataset_sf <- sf::st_transform(dataset_sf, crs = sf::st_crs(mask))
   }
   # mask the dataset
-  masked <- dataset_sf[mask, , op = op] # XXX i think i can speed this up if i I just use st_intersects directly, maybe?
+  if(op == "intersect")
+    masked <- dataset_sf[mask, , op = sf::st_intersects] # XXX i think i can speed this up if i I just use st_intersects directly, maybe?
+  else if(op == "difference")
+    masked <- dataset_sf[lengths(st_intersects(dataset_sf, jamMask)) == 0, ]
 
   # return the masked dataset
   return(masked)

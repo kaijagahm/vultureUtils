@@ -6,8 +6,6 @@
 \usage{
 cleanData(
   dataset,
-  mask = NULL,
-  jamMask = NULL,
   gpsMaxTime = -1,
   precise = F,
   longCol = "location_long.1",
@@ -15,24 +13,19 @@ cleanData(
   idCol = "Nili_id",
   removeVars = T,
   report = T,
-  gpsJam = T,
   ...
 )
 }
 \arguments{
-\item{dataset}{The GPS dataset to be used to create the edge list. Must contain columns specified by `longCol`, `latCol`, and `dateCol` args. Must also contain columns "gps_time_to_fix", "heading", "gps_satellite_count", and "ground_speed" because data cleaning is based on this info. Note that because of how the masking is conducted in `mostlyInMask`, the data is grouped into single days. As a result, `dataset` must contain at least 1 day's worth of data in order for the output of this function to have any rows.}
-
-\item{mask}{The object to use to mask the data. Passed to `vultureUtils::maskData()`. Must be an sf object.}
-
-\item{jamMask}{The object used to mask jammed GPS data. Passed to `vultureUtils::maskData()`. Must be an sf object.}
+\item{dataset}{The GPS dataset to be used to create the edge list. Must contain columns specified by `longCol`, `latCol`, and `dateCol` args. Must also contain columns "gps_time_to_fix", "heading", "gps_satellite_count", and "ground_speed" because data cleaning is based on this info.}
 
 \item{gpsMaxTime}{Max time for gps to communicate with satellites. If less than 0, do not filter based on max time. Default is -1.}
 
 \item{precise}{Higher quality filter (satellites > 4 and hdop < 5). Default is F.}
 
-\item{longCol}{The name of the column in the dataset containing longitude values. Defaults to "location_long.1". Passed to `vultureUtils::maskData()`.}
+\item{longCol}{The name of the column in the dataset containing longitude values. Defaults to "location_long.1".}
 
-\item{latCol}{The name of the column in the dataset containing latitude values. Defaults to "location_lat.1". Passed to `vultureUtils::maskData()`.}
+\item{latCol}{The name of the column in the dataset containing latitude values. Defaults to "location_lat.1".}
 
 \item{idCol}{The name of the column in the dataset containing vulture ID's. Defaults to "Nili_id" (assuming you have joined the Nili_ids from the who's who table).}
 
@@ -46,5 +39,5 @@ cleanData(
 An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the id of the first individual in this edge, and `ID2` is the id of the second individual in this edge.
 }
 \description{
-This function takes in a raw dataset downloaded from movebank, masks it, and performs basic data cleaning. The output from this function feeds directly into `vultureUtils::spaceTimeGroups()`. Steps: 1. Using the `mask` object, get a list of the individuals in `dataset` that spend at least `inMaskThreshold` proportion of their time inside the mask area. 2. Restrict `dataset` to only these individuals. 3. Re-apply the mask to restrict the remaining points to those that fall within `mask`.
+This function takes in a raw dataset downloaded from movebank, masks it, and performs basic data cleaning. The output from this function feeds directly into `vultureUtils::spaceTimeGroups()`.
 }
