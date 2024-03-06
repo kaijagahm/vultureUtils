@@ -279,7 +279,7 @@ maskData <- function(dataset, mask, longCol = "location_long", latCol = "locatio
   if(op == "intersect")
     masked <- dataset_sf[mask, , op = sf::st_intersects] # XXX i think i can speed this up if i I just use st_intersects directly, maybe?
   else if(op == "difference")
-    masked <- dataset_sf[lengths(st_intersects(dataset_sf, jamMask)) == 0, ]
+    masked <- dataset_sf[lengths(sf::st_intersects(dataset_sf, mask)) == 0, ]
 
   # return the masked dataset
   return(masked)
