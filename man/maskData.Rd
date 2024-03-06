@@ -10,7 +10,7 @@ maskData(
   longCol = "location_long",
   latCol = "location_lat",
   crsToSet = "WGS84",
-  op = sf::st_intersects
+  op = "intersect"
 )
 }
 \arguments{
@@ -24,7 +24,7 @@ maskData(
 
 \item{crsToSet}{If `dataset` is not already an sf object, a character string to be passed to `st_set_crs()`). One of (i) character: a string accepted by GDAL, (ii) integer, a valid EPSG value (numeric), or (iii) an object of class crs. Default is "WGS84".}
 
-\item{op}{Operation to use with mask. Default is st_intersects, returning points in dataset that lie in mask.}
+\item{op}{Operation to use with mask. Default is "intersects", returning points in dataset that lie in mask. Can also be "difference", to return points in dataset that lie outside of mask.}
 }
 \value{
 A masked data set.

@@ -75,23 +75,23 @@ downloadVultures <- function(loginObject, extraSensors = F, removeDup = T,
 }
 
 
+
+
 #' Clean data
 #'
-#' This function takes in a raw dataset downloaded from movebank, masks it, and performs basic data cleaning. The output from this function feeds directly into `vultureUtils::spaceTimeGroups()`. Steps: 1. Using the `mask` object, get a list of the individuals in `dataset` that spend at least `inMaskThreshold` proportion of their time inside the mask area. 2. Restrict `dataset` to only these individuals. 3. Re-apply the mask to restrict the remaining points to those that fall within `mask`.
-#' @param dataset The GPS dataset to be used to create the edge list. Must contain columns specified by `longCol`, `latCol`, and `dateCol` args. Must also contain columns "gps_time_to_fix", "heading", "gps_satellite_count", and "ground_speed" because data cleaning is based on this info. Note that because of how the masking is conducted in `mostlyInMask`, the data is grouped into single days. As a result, `dataset` must contain at least 1 day's worth of data in order for the output of this function to have any rows.
-#' @param mask The object to use to mask the data. Passed to `vultureUtils::maskData()`. Must be an sf object.
-#' @param jamMask The object used to mask jammed GPS data. Passed to `vultureUtils::maskData()`. Must be an sf object.
+#' This function takes in a raw dataset downloaded from movebank, masks it, and performs basic data cleaning. The output from this function feeds directly into `vultureUtils::spaceTimeGroups()`.
+#' @param dataset The GPS dataset to be used to create the edge list. Must contain columns specified by `longCol`, `latCol`, and `dateCol` args. Must also contain columns "gps_time_to_fix", "heading", "gps_satellite_count", and "ground_speed" because data cleaning is based on this info.
 #' @param gpsMaxTime Max time for gps to communicate with satellites. If less than 0, do not filter based on max time. Default is -1.
 #' @param precise Higher quality filter (satellites > 4 and hdop < 5). Default is F.
 #' @param removeVars Whether or not to remove unnecessary variables from movebank download. Default is T.
-#' @param longCol The name of the column in the dataset containing longitude values. Defaults to "location_long.1". Passed to `vultureUtils::maskData()`.
-#' @param latCol The name of the column in the dataset containing latitude values. Defaults to "location_lat.1". Passed to `vultureUtils::maskData()`.
+#' @param longCol The name of the column in the dataset containing longitude values. Defaults to "location_long.1".
+#' @param latCol The name of the column in the dataset containing latitude values. Defaults to "location_lat.1".
 #' @param idCol The name of the column in the dataset containing vulture ID's. Defaults to "Nili_id" (assuming you have joined the Nili_ids from the who's who table).
 #' @param ... additional arguments to be passed to any of several functions: `vultureUtils::removeUnnecessaryVars()` (`addlVars`, `keepVars`);
 #' @param report Default TRUE. Whether to print a report of how many rows/individuals were removed in each of the data cleaning steps.
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the id of the first individual in this edge, and `ID2` is the id of the second individual in this edge.
 #' @export
-cleanData <- function(dataset, mask = NULL, jamMask = NULL, gpsMaxTime = -1, precise = F, longCol = "location_long.1", latCol = "location_lat.1", idCol = "Nili_id", removeVars = T, report = T, gpsJam = T, ...){
+cleanData <- function(dataset, gpsMaxTime = -1, precise = F, longCol = "location_long.1", latCol = "location_lat.1", idCol = "Nili_id", removeVars = T, report = T, ...){
   # Argument checks
   checkmate::assertDataFrame(dataset)
   checkmate::assertCharacter(longCol, len = 1)
@@ -109,19 +109,6 @@ cleanData <- function(dataset, mask = NULL, jamMask = NULL, gpsMaxTime = -1, pre
   reportData <- data.frame()
   init <- getStats(dataset, idCol) # get an initial baseline from the input data.
   reportData <- dplyr::bind_rows(reportData, init)
-
-  # GPS jamming filter ---------
-  if(!is.null(jamMask)){
-    sf::sf_use_s2(F) # Doesn't work otherwise ??? AAA
-    jamMask <- sf::st_make_valid(jamMask)
-    jamMask <- sf::st_crop(jamMask, xmin = 31.29387, ymin = 29.99595, xmax = 35.67448, ymax = 33.82497)
-    sf::sf_use_s2(T)
-    dataset <- vultureUtils::maskData(dataset = dataset, mask = jamMask, longCol = longCol, latCol = latCol, crsToSet = "WGS84", op = sf::st_disjoint)
-
-    jammed <- getStats(dataset, idCol)
-    reportData <- dplyr::bind_rows(reportData, jammed)
-    filterNames <- append(filterNames, "Removed jammed GPS points")
-  }
 
   # Basic data quality filters ----------------------------------------------
   # Remove outlier points based on zeroes (Marta's code)
@@ -185,7 +172,7 @@ cleanData <- function(dataset, mask = NULL, jamMask = NULL, gpsMaxTime = -1, pre
   filterNames <- append(filterNames, "Final")
 
   if(report){
-    steps = filterNames
+    steps <- filterNames
     df <- reportData %>%
       dplyr::mutate(step = steps) %>%
       dplyr::relocate(step) %>%
@@ -277,6 +264,24 @@ inMaskFilter <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", l
     out <- dataset
   }
   list("dataset"=out, "firstMask"=firstMask, "secondMask"=secondMask)
+}
+#' GPS jamming filter
+#'
+#' This function takes in a dataset and removes points that lie within mask, given that mask is an sf object containing
+#' polygons where GPS points are shifted to after jamming.
+#' @param dataset A dataset with columns: longCol, latCol, idCol
+#' @param mask The object to use to mask the data. Must be an sf object.
+#' @param longCol The name of the column in the dataset containing longitude values. Defaults to "location_long.1". Passed to `vultureUtils::maskData()`.
+#' @param latCol The name of the column in the dataset containing latitude values. Defaults to "location_lat.1". Passed to `vultureUtils::maskData()`.
+#' @param idCol The name of the column in the dataset containing vulture ID's. Defaults to "Nili_id" (assuming you have joined the Nili_ids from the who's who table).
+#' @export
+gpsJamFilter <- function(dataset, mask, longCol = "location_long.1", latCol = "location_lat.1", idCol = "Nili_id"){
+  before <- getStats(dataset, idCol)
+  dataset <- vultureUtils::maskData(dataset = dataset, mask = mask, longCol = longCol, latCol = latCol, crsToSet = "WGS84", op = "difference")
+  after <- getStats(dataset, idCol)
+  lost <- before - after
+  # print(lost)
+  dataset
 }
 
 #' Create an edge list (flexible; must insert parameters.)
