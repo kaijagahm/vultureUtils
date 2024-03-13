@@ -6,7 +6,7 @@
 \usage{
 gpsJamFilter(
   dataset,
-  mask = NULL,
+  mask,
   longCol = "location_long.1",
   latCol = "location_lat.1",
   idCol = "Nili_id"
@@ -15,7 +15,7 @@ gpsJamFilter(
 \arguments{
 \item{dataset}{A dataset with columns: longCol, latCol, idCol}
 
-\item{mask}{The mask to remove GPS jammed points. If NULL (default), will use internal stored polygons (`jamPolygon` inside sysdata.Rda). If not null, must be an sf object with appropriate crs.}
+\item{mask}{The mask to remove GPS jammed points. Must be an sf object with appropriate crs.}
 
 \item{longCol}{The name of the column in the dataset containing longitude values. Defaults to "location_long.1". Passed to `vultureUtils::maskData()`.}
 

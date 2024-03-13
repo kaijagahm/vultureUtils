@@ -271,17 +271,13 @@ inMaskFilter <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", l
 #' This function takes in a dataset and removes points that lie within mask, given that mask is an sf object containing
 #' polygons where GPS points are shifted to after jamming.
 #' @param dataset A dataset with columns: longCol, latCol, idCol
-#' @param mask The mask to remove GPS jammed points. If NULL (default), will use internal stored polygons (`jamPolygon` inside sysdata.Rda). If not null, must be an sf object with appropriate crs.
+#' @param mask The mask to remove GPS jammed points. Must be an sf object with appropriate crs.
 #' @param longCol The name of the column in the dataset containing longitude values. Defaults to "location_long.1". Passed to `vultureUtils::maskData()`.
 #' @param latCol The name of the column in the dataset containing latitude values. Defaults to "location_lat.1". Passed to `vultureUtils::maskData()`.
 #' @param idCol The name of the column in the dataset containing vulture ID's. Defaults to "Nili_id" (assuming you have joined the Nili_ids from the who's who table).
 #' @return A dataset with GPS jammed points removed
 #' @export
-gpsJamFilter <- function(dataset, mask = NULL, longCol = "location_long.1", latCol = "location_lat.1", idCol = "Nili_id"){
-  if(is.null(mask)){
-    message("Using default GPS jamming mask\n")
-    mask <- jamPolygons
-  }
+gpsJamFilter <- function(dataset, mask, longCol = "location_long.1", latCol = "location_lat.1", idCol = "Nili_id"){
   before <- getStats(dataset, idCol)
   dataset <- vultureUtils::maskData(dataset = dataset, mask = mask, longCol = longCol, latCol = latCol, crsToSet = "WGS84", op = "difference")
   after <- getStats(dataset, idCol)
