@@ -20,6 +20,13 @@ library(here)
 library(readxl)
 ```
 
+## Load files that we'll need for the data cleaning process
+
+```{r}
+ww <- read_excel(here("inst/extdata/whoswho_vultures_20240109_new.xlsx"))
+periods_to_remove <- readxl::read_excel(here("inst/extdata/whoswho_vultures_20240109_new.xlsx"), sheet = "periods_to_remove")
+```
+
 ## Authenticate to Movebank
 
 ```{r}
@@ -32,9 +39,9 @@ rm(pw)
 ## Download data
 
 ```{r}
-# Set min and max date that you want to download (the example downloads 1 week of data from December 2023)
-minDate <- "2023-12-01 00:00"
-maxDate <- "2023-12-07 00:00"
+# Set min and max date that you want to download (the example downloads 1 week of data)
+minDate <- "2023-08-01 00:00"
+maxDate <- "2023-08-07 00:00"
 
 mydata <- downloadVultures(loginObject = MB.LoginObject,
                            removeDup = T, 
@@ -45,8 +52,8 @@ mydata <- downloadVultures(loginObject = MB.LoginObject,
 ```
 
 ## Join `Nili_id`s
+
 ```{r}
-ww <- read_excel(here("inst/extdata/whoswho_vultures_20240109_new.xlsx"))
 ww_tojoin <- ww %>% 
   dplyr::select(Nili_id, Movebank_id) %>% 
   dplyr::distinct() # pull out just the names columns, nothing else, and remove any duplicates
@@ -58,16 +65,14 @@ mydata <- dplyr::left_join(mydata, ww_tojoin,
 
 ## Remove invalid periods
 ```{r}
-ptr <- readxl::read_excel(here("inst/extdata/whoswho_vultures_20240109_new.xlsx"), sheet = "periods_to_remove")
-removed_periods <- removeInvalidPeriods(dataset = mydata, periodsToRemove = ptr)
+removed_periods <- removeInvalidPeriods(dataset = mydata, periodsToRemove = periods_to_remove)
 dim(mydata)
 dim(removed_periods) # didn't actually remove any, probably because the who's who doesn't include any very recent periods to remove.
 ```
 
 ## Remove GPS jamming
 ```{r}
-jamPolygons <- sf::st_read(here("inst/extdata/GPS_jamming_3.kml"))
-removed_jammed <- gpsJamFilter(dataset = removed_periods, mask = jamPolygons)
+removed_jammed <- gpsJamFilter(dataset = removed_periods)
 dim(removed_jammed) # removed a fair bit
 dim(removed_periods)
 ```
@@ -98,6 +103,10 @@ dim(cleaned_precise) # removes more
 
 ## Remove time spent in capture cages
 ```{r}
-
+capture_sites <- read.csv(here("inst/extdata/capture_sites.csv"))
+carmel <- read.csv(here("inst/extdata/all_captures_carmel_2010-2021.csv"))
+a <- removeCaptures(data = cleaned, captureSites = capture_sites, AllCarmelDates = carmel, distance = 500, idCol = "Nili_id")
+dim(a)
+dim(cleaned)
 ```
 
