@@ -1,0 +1,113 @@
+---
+title: "data-prep"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{data-prep}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(vultureUtils)
+library(here)
+library(readxl)
+```
+
+## Load files that we'll need for the data cleaning process
+
+```{r}
+ww <- read_excel(here("inst/extdata/whoswho_vultures_20240109_new.xlsx"))
+periods_to_remove <- readxl::read_excel(here("inst/extdata/whoswho_vultures_20240109_new.xlsx"), sheet = "periods_to_remove")
+capture_sites <- read.csv(here("inst/extdata/capture_sites.csv"))
+carmel <- read.csv(here("inst/extdata/all_captures_carmel_2010-2021.csv"))
+```
+
+## Authenticate to Movebank
+
+```{r}
+load(here("movebankCredentials/pw.Rda"))
+MB.LoginObject <- move::movebankLogin(username = "kaijagahm",
+                                      password = pw)
+rm(pw)
+```
+
+## Download data
+
+```{r}
+# Set min and max date that you want to download (the example downloads 1 week of data)
+minDate <- "2023-08-01 00:00"
+maxDate <- "2023-08-07 00:00"
+
+mydata <- downloadVultures(loginObject = MB.LoginObject,
+                           removeDup = T, 
+                           dfConvert = T, 
+                           quiet = T, 
+                           dateTimeStartUTC = minDate,
+                           dateTimeEndUTC = maxDate)
+```
+
+## Join `Nili_id`s
+
+```{r}
+ww_tojoin <- ww %>% 
+  dplyr::select(Nili_id, Movebank_id) %>% 
+  dplyr::distinct() # pull out just the names columns, nothing else, and remove any duplicates
+
+# join by movebank ID
+mydata <- dplyr::left_join(mydata, ww_tojoin, 
+                        by = c("local_identifier" = "Movebank_id"))
+```
+
+## Remove invalid periods
+```{r}
+# This function requires you to load the periods_to_remove file separately (see top of vignette)
+removed_periods <- removeInvalidPeriods(dataset = mydata, periodsToRemove = periods_to_remove)
+dim(mydata)
+dim(removed_periods) # didn't actually remove any, probably because the who's who doesn't include any very recent periods to remove.
+```
+
+## Remove GPS jamming
+```{r}
+removed_jammed <- gpsJamFilter(dataset = removed_periods) # By default, this uses the polygon mask stored internally in the package. Alternatively, you could pass it your own mask, by setting the `mask` argument to something other than `NULL`. See ?gpsJamFilter.
+dim(removed_jammed) # removed a fair bit
+dim(removed_periods)
+```
+
+## Data cleaning
+```{r}
+# With less precise filters
+cleaned <- cleanData(dataset = removed_jammed,
+                     precise = F,
+                     longCol = "location_long",
+                     latCol = "location_lat",
+                     idCol = "Nili_id",
+                     report = F)
+
+# With more precise filters
+?cleanData
+cleaned_precise <- cleanData(dataset = removed_jammed,
+                     precise = T,
+                     longCol = "location_long",
+                     latCol = "location_lat",
+                     idCol = "Nili_id",
+                     report = F)
+
+dim(removed_jammed) # initial number of rows
+dim(cleaned) # removes some
+dim(cleaned_precise) # removes more
+```
+
+## Remove time spent in capture cages
+```{r}
+a <- removeCaptures(data = cleaned, captureSites = capture_sites, AllCarmelDates = carmel, distance = 500, idCol = "Nili_id")
+dim(a)
+dim(cleaned)
+```
+

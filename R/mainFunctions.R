@@ -202,6 +202,7 @@ cleanData <- function(dataset, gpsMaxTime = -1, precise = F, longCol = "location
 #' @param idCol The name of the column in the dataset containing vulture ID's. Defaults to "Nili_id" (assuming you have joined the Nili_ids from the who's who table).
 #' @param reMask Whether or not to re-mask after removing individuals that spend less than `inMaskThreshold` in the mask area. Default is T.
 #' @param quiet Whether to silence the message that happens when doing spatial joins. Default is T.
+#' @return a masked dataset
 #' @export
 inMaskFilter <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", longCol = "location_long.1", latCol = "location_lat.1", dateCol = "dateOnly", idCol = "Nili_id", reMask = T, quiet = T){
   # Filter to in-mask threshold
@@ -270,18 +271,153 @@ inMaskFilter <- function(dataset, mask, inMaskThreshold = 0.33, crs = "WGS84", l
 #' This function takes in a dataset and removes points that lie within mask, given that mask is an sf object containing
 #' polygons where GPS points are shifted to after jamming.
 #' @param dataset A dataset with columns: longCol, latCol, idCol
-#' @param mask The object to use to mask the data. Must be an sf object.
+#' @param mask The mask to remove GPS jammed points. If NULL (default), will use internal stored polygons (`jamPolygon` inside sysdata.Rda). If not null, must be an sf object with appropriate crs.
 #' @param longCol The name of the column in the dataset containing longitude values. Defaults to "location_long.1". Passed to `vultureUtils::maskData()`.
 #' @param latCol The name of the column in the dataset containing latitude values. Defaults to "location_lat.1". Passed to `vultureUtils::maskData()`.
 #' @param idCol The name of the column in the dataset containing vulture ID's. Defaults to "Nili_id" (assuming you have joined the Nili_ids from the who's who table).
+#' @return A dataset with GPS jammed points removed
 #' @export
-gpsJamFilter <- function(dataset, mask, longCol = "location_long.1", latCol = "location_lat.1", idCol = "Nili_id"){
+gpsJamFilter <- function(dataset, mask = NULL, longCol = "location_long.1", latCol = "location_lat.1", idCol = "Nili_id"){
+  if(is.null(mask)){
+    message("Using default GPS jamming mask\n")
+    mask <- jamPolygons
+  }
   before <- getStats(dataset, idCol)
   dataset <- vultureUtils::maskData(dataset = dataset, mask = mask, longCol = longCol, latCol = latCol, crsToSet = "WGS84", op = "difference")
   after <- getStats(dataset, idCol)
   lost <- before - after
   # print(lost)
   dataset
+}
+#' Remove Invalid Periods
+#'
+#' This function takes in a dataset of vultures and removes data points which contain known invalid periods (hospital etc.) for individuals.
+#' Note that it is important that the periodsToRemove is provided after being read in as a data.frame as it is necessary for this function to work.
+#' @param dataset A dataset
+#' @param periodsToRemove A data frame of vulture names and information about each vulture. IMPORTANT: read in with readxl::read_excel("/pathtowhoswho", sheet = "periods_to_remove")
+#' @return A dataset with invalid periods removed
+#' @export
+removeInvalidPeriods <- function(dataset, periodsToRemove){
+  checkmate::assertSubset("remove_start", names(periodsToRemove))
+  checkmate::assertSubset("remove_end", names(periodsToRemove))
+  checkmate::assertSubset("Nili_id", names(periodsToRemove))
+  checkmate::assertSubset("location_long", names(dataset))
+  checkmate::assertSubset("location_lat", names(dataset))
+  checkmate::assertSubset("Nili_id", names(dataset))
+
+  periods_to_remove <- periodsToRemove %>%
+    dplyr::select(Nili_id, remove_start, remove_end) %>%
+    dplyr::mutate(dplyr::across(contains("remove"), lubridate::ymd)) %>%
+    dplyr::filter(!is.na(remove_end)) %>%
+    # The following steps generate a sequence of days between the start and end date, so we can then join them to the original data
+    dplyr::group_by(Nili_id) %>%
+    dplyr::mutate(dateOnly = purrr::map2(remove_start, remove_end, seq, by = "1 day")) %>%
+    tidyr::unnest(cols = c(dateOnly)) %>%
+    dplyr::select(Nili_id, dateOnly) %>%
+    dplyr::mutate(remove = T)
+
+  removal_annotated <- dataset %>%
+    dplyr::mutate(dateOnly = lubridate::date(timestamp)) %>%
+    dplyr::left_join(periods_to_remove, by = c("Nili_id", "dateOnly"))
+
+  removed_periods <- removal_annotated %>%
+    dplyr::filter(is.na(remove)) %>%
+    sf::st_as_sf(coords = c("location_long", "location_lat"), crs = "WGS84", remove = F)
+  removed_periods
+}
+
+
+#' Remove Capture Cage periods
+#'
+#' This function takes in a dataset of vultures and removes data points which contain known times the individual was in a capture cage.
+#' Note that it is important that the roosts, captureSites, and AllCarmelDates is provided after being read in as a data.frame as it is necessary for this function to work.
+#' @param dataset A dataset
+#' @param captureSites A data frame of capture sites
+#' @param AllCarmelDates A data frame of dates containing captures in Carmel
+#' @param idCol Name of the column in the data containing individual IDs. Default is Nili_id. Used for getting roosts.
+#' @param start.day When combined with `start.month`, starting date of the capture period. Default is 1.
+#' @param start.month Starting month of the capture period. Default is August.
+#' @param end.day When combined with `end.month`, ending date of the capture period. Default is 30.
+#' @param end.month Ending month of the capture period. Default is November.
+#' @return A dataset with capture cage periods removed
+#' @export
+removeCaptures <- function(data, captureSites, AllCarmelDates, distance = 500, idCol = "Nili_id", start.day = 1, start.month = 8, end.day = 30, end.month = 11){
+  # Identify the period of time during which the capture sites are open (when we need to do this exclusion)
+  # character string for reporting out the roosting period
+  period <- paste(start.day, format(ISOdate(2004,1:12,1),"%B")[start.month], "-", end.day, format(ISOdate(2004,1:12,1),"%B")[end.month], sep = " ")
+
+  roosts <- vultureUtils::get_roosts_df(data, id = "Nili_id")
+
+  # Get roosts that fall in the capture period
+  sub.roosts <- roosts %>%
+    dplyr::mutate(start_date = lubridate::dmy(paste(start.day, start.month,
+                                                    lubridate::year(date), sep = "-")),
+                  end_date = lubridate::dmy(paste(end.day, end.month,
+                                                  lubridate::year(date), sep = "-"))) %>%
+    dplyr::filter(date >= start_date & date <= end_date)
+
+  if(nrow(sub.roosts) > 0){
+    # Calculate the roost distance to each of the capture cages. If it is less than 500m, keep that line.
+    crds <- matrix(c(sub.roosts$location_long, sub.roosts$location_lat),
+                   nrow = nrow(sub.roosts), ncol = 2) # roost locs as simple lat/long coords
+    distanceMat <- matrix(ncol = nrow(captureSites),
+                          nrow = nrow(crds))
+    colnames(distanceMat) <-  unique(captureSites$name)
+
+    for(i in 1:nrow(crds)){
+      distanceMat[i,] <- round(geosphere::distm(crds[i,],
+                                                captureSites[,c(3,2)]), 2)
+    }
+    closestCaptureSite <- colnames(distanceMat)[apply(distanceMat, 1, which.min)] # ID of closest capture site
+    closestCaptureDist <- apply(distanceMat, 1, min) # distance from closest capture site
+
+    sub.roosts <- cbind(sub.roosts, closestCaptureSite, closestCaptureDist)
+    sub.roosts$captured <- ifelse(sub.roosts$closestCaptureDist <= distance, T, F)
+    sub.captured.dates <- sub.roosts %>%
+      dplyr::filter(captured) %>%
+      dplyr::select(Nili_id, date, closestCaptureSite,
+                    closestCaptureDist, captured)
+
+    ## For Carmel--different protocol.
+    sub.captured.no.carmel <- subset(sub.captured.dates, closestCaptureSite != "Carmel")
+    sub.captured.carmel <- subset(sub.captured.dates, closestCaptureSite == "Carmel")
+
+    AllCarmelDates$Date <- as.Date(AllCarmelDates$Date, format = "%d/%m/%Y")
+
+    AllCarmelDates.1 <- data.frame(Date = as.Date(paste(AllCarmelDates$Date-1)))
+    AllCarmelDates.2 <- data.frame(Date = as.Date(paste(AllCarmelDates$Date-2)))
+    AllCarmelDates.3 <- data.frame(Date = as.Date(paste(AllCarmelDates$Date-3)))
+
+    AllCarmelDates.all <- rbind(AllCarmelDates, AllCarmelDates.1, AllCarmelDates.2, AllCarmelDates.3)
+
+    sub.captured.carmel <- sub.captured.carmel %>%
+      dplyr::mutate(known_capture = ifelse(date %in% AllCarmelDates.all$Date, 1, 0),
+                    captured = ifelse(known_capture == 1 & closestCaptureDist <= 50, T, F)) %>%
+      dplyr::filter(captured) %>%
+      dplyr::select(-c(known_capture))
+
+    sub.captured.dates <- rbind(sub.captured.no.carmel, sub.captured.carmel)
+
+    # We also need to exclude the day after the bird was captured
+    sub.captured.dates.1 <- sub.captured.dates
+    sub.captured.dates.1$date <- sub.captured.dates.1$date+1
+
+    sub.captured.dates <- rbind(sub.captured.dates, sub.captured.dates.1)
+    sub.captured.dates <- sub.captured.dates %>%
+      dplyr::distinct(Nili_id, date, .keep_all = T)
+
+    # It all looks ok, so we can subset the dataset to exclude the capture dates
+    removed_captures <- data %>%
+      dplyr::left_join(sub.captured.dates, by = c("Nili_id", "dateOnly" = "date"))
+    nrow(data) == nrow(removed_captures) # should be TRUE. NOW we can filter.
+    out <- removed_captures %>%
+      dplyr::filter(!captured |is.na(captured)) # remove the individual*days when they were captured
+  }else{
+    message(paste0("No roosts detected within the capture period: ", period, ". Did not remove any data."))
+    out <- data
+  }
+
+  return(data)
 }
 
 #' Create an edge list (flexible; must insert parameters.)

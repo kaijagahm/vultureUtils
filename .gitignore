@@ -14,3 +14,5 @@ chatGPT.R
 setup.R
 elviraData/
 script_example.R
+inst/
+vignettes/data-prep.Rmd

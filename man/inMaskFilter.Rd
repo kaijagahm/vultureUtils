@@ -38,6 +38,9 @@ inMaskFilter(
 
 \item{quiet}{Whether to silence the message that happens when doing spatial joins. Default is T.}
 }
+\value{
+a masked dataset
+}
 \description{
 This function filters out individuals that have a percentage of points outside of the mask. The percentage is given by
 inMaskThreshold. Optionally, points falling outside the mask can also be removed with reMask set to true.
