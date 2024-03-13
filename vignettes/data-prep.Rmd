@@ -64,4 +64,40 @@ dim(mydata)
 dim(removed_periods) # didn't actually remove any, probably because the who's who doesn't include any very recent periods to remove.
 ```
 
-##
+## Remove GPS jamming
+```{r}
+jamPolygons <- sf::st_read(here("inst/extdata/GPS_jamming_3.kml"))
+removed_jammed <- gpsJamFilter(dataset = removed_periods, mask = jamPolygons)
+dim(removed_jammed) # removed a fair bit
+dim(removed_periods)
+```
+
+## Data cleaning
+```{r}
+# With less precise filters
+cleaned <- cleanData(dataset = removed_jammed,
+                     precise = F,
+                     longCol = "location_long",
+                     latCol = "location_lat",
+                     idCol = "Nili_id",
+                     report = F)
+
+# With more precise filters
+?cleanData
+cleaned_precise <- cleanData(dataset = removed_jammed,
+                     precise = T,
+                     longCol = "location_long",
+                     latCol = "location_lat",
+                     idCol = "Nili_id",
+                     report = F)
+
+dim(removed_jammed) # initial number of rows
+dim(cleaned) # removes some
+dim(cleaned_precise) # removes more
+```
+
+## Remove time spent in capture cages
+```{r}
+
+```
+
