@@ -23,6 +23,9 @@ gpsJamFilter(
 
 \item{idCol}{The name of the column in the dataset containing vulture ID's. Defaults to "Nili_id" (assuming you have joined the Nili_ids from the who's who table).}
 }
+\value{
+A dataset with GPS jammed points removed
+}
 \description{
 This function takes in a dataset and removes points that lie within mask, given that mask is an sf object containing
 polygons where GPS points are shifted to after jamming.
