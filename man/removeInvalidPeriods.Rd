@@ -9,7 +9,7 @@ removeInvalidPeriods(dataset, periodsToRemove)
 \arguments{
 \item{dataset}{A dataset}
 
-\item{periodsToRemove}{A data frame of vulture names and information about each vulture. IMPORTANT: read in with read_excel("/pathtowhoswho", sheet = "periods_to_remove")}
+\item{periodsToRemove}{A data frame of vulture names and information about each vulture. IMPORTANT: read in with readxl::read_excel("/pathtowhoswho", sheet = "periods_to_remove")}
 }
 \value{
 A dataset with invalid periods removed

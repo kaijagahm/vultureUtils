@@ -290,7 +290,7 @@ gpsJamFilter <- function(dataset, mask, longCol = "location_long.1", latCol = "l
 #' This function takes in a dataset of vultures and removes data points which contain known invalid periods (hospital etc.) for individuals.
 #' Note that it is important that the periodsToRemove is provided after being read in as a data.frame as it is necessary for this function to work.
 #' @param dataset A dataset
-#' @param periodsToRemove A data frame of vulture names and information about each vulture. IMPORTANT: read in with read_excel("/pathtowhoswho", sheet = "periods_to_remove")
+#' @param periodsToRemove A data frame of vulture names and information about each vulture. IMPORTANT: read in with readxl::read_excel("/pathtowhoswho", sheet = "periods_to_remove")
 #' @return A dataset with invalid periods removed
 #' @export
 removeInvalidPeriods <- function(dataset, periodsToRemove){
@@ -302,22 +302,22 @@ removeInvalidPeriods <- function(dataset, periodsToRemove){
   checkmate::assertSubset("Nili_id", names(dataset))
 
   periods_to_remove <- periodsToRemove %>%
-    select(Nili_id, remove_start, remove_end) %>%
-    mutate(across(contains("remove"), lubridate::ymd)) %>%
-    filter(!is.na(remove_end)) %>%
+    dplyr::select(Nili_id, remove_start, remove_end) %>%
+    dplyr::mutate(dplyr::across(contains("remove"), lubridate::ymd)) %>%
+    dplyr::filter(!is.na(remove_end)) %>%
     # The following steps generate a sequence of days between the start and end date, so we can then join them to the original data
-    group_by(Nili_id) %>%
-    mutate(dateOnly = map2(remove_start, remove_end, seq, by = "1 day")) %>%
-    unnest(cols = c(dateOnly)) %>%
-    select(Nili_id, dateOnly) %>%
-    mutate(remove = T)
+    dplyr::group_by(Nili_id) %>%
+    dplyr::mutate(dateOnly = purrr::map2(remove_start, remove_end, seq, by = "1 day")) %>%
+    tidyr::unnest(cols = c(dateOnly)) %>%
+    dplyr::select(Nili_id, dateOnly) %>%
+    dplyr::mutate(remove = T)
 
   removal_annotated <- dataset %>%
-    mutate(dateOnly = lubridate::date(timestamp)) %>%
-    left_join(periods_to_remove, by = c("Nili_id", "dateOnly"))
+    dplyr::mutate(dateOnly = lubridate::date(timestamp)) %>%
+    dplyr::left_join(periods_to_remove, by = c("Nili_id", "dateOnly"))
 
   removed_periods <- removal_annotated %>%
-    filter(is.na(remove)) %>%
+    dplyr::filter(is.na(remove)) %>%
     sf::st_as_sf(coords = c("location_long", "location_lat"), crs = "WGS84", remove = F)
   removed_periods
 }
