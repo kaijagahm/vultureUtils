@@ -368,7 +368,7 @@ removeUnnecessaryVars <- function(dataset, addlVars = NULL, keepVars = NULL){
                 "tag_voltage","algorithm_marked_outlier","argos_altitude","argos_best_level","argos_lc","argos_iq",
                 "argos_gdop","argos_error_radius","argos_calcul_freq","timestamps","height_raw",
                 "barometric_pressure","barometric_height","battery_charging_current","eobs_activity","manually_marked_outlier",
-                "eobs_activity_samples", "acceleration_raw_y", "battery_charge_percent", "data_decoding_software","gps_vdop","height_above_ellipsoid",
+                "eobs_activity_samples", "acceleration_raw_y", "data_decoding_software","gps_vdop","height_above_ellipsoid",
                 'acceleration_raw_x','acceleration_raw_z',"acceleration_raw_z","eobs_horizontal_accuracy_estimate","eobs_speed_accuracy_estimate")
 
   # get rid of any vars we'd like to keep
