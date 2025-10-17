@@ -584,6 +584,172 @@ spaceTimeGroups <- function(dataset, distThreshold, consecThreshold = 2, crsToSe
   return(outList)
 }
 
+spaceTimeGroups_EDB <- function(dataset,
+                            sriDenominatorDataset,
+                            distThreshold,
+                            pairs_all,
+                            pairs_dataset,
+                            consecThreshold = 2,
+                            crsToSet = "WGS84",
+                            crsToTransform = 32636,
+                            timestampCol = "timestamp",
+                            timeThreshold = "10 minutes",
+                            idCol = "Nili_id",
+                            latCol = "location_lat",
+                            longCol = "location_long",
+                            returnDist = TRUE,
+                            fillNA = FALSE,
+                            sri = T,
+                            timegroupData){
+  #-----------------------------
+  #CHECK AND PREPARE sf OBJECT
+  #-----------------------------
+
+  if ("sf" %in% class(dataset)) {            #If input is already an sf object
+    if (is.na(sf::st_crs(dataset))) {        #But CRS is missing
+      message(paste0("`dataset` is already an sf object but has no CRS. Setting CRS to ", crsToSet, "."))
+      dataset <- sf::st_set_crs(dataset, crsToSet)  #Assign CRS
+    }
+  } else if (is.data.frame(dataset)) {       #If input is a regular data frame
+    checkmate::assertChoice(latCol, names(dataset))  #Ensure lat column exists
+    checkmate::assertChoice(longCol, names(dataset)) #Ensure long column exists
+
+    if (nrow(dataset) == 0) {
+      stop("Dataset passed to spaceTimeGroups has 0 rows. Cannot proceed with grouping.")
+    }
+
+    #Convert to sf object using coordinates
+    dataset <- dataset %>%
+      sf::st_as_sf(coords = c(.data[[longCol]], .data[[latCol]]), remove = FALSE) %>%
+      sf::st_set_crs(crsToSet)   #Assign CRS
+  } else {
+    stop("`dataset` must be a data frame or an sf object.")
+  }
+
+  #-----------------------------
+  #TRANSFORM TO UTM & EXTRACT COORDS
+  #-----------------------------
+  dataset <- dataset %>% sf::st_transform(crsToTransform)  #Convert CRS to meters
+  dataset$utmE <- purrr::map_dbl(dataset$geometry, 1)      #Extract UTM Easting
+  dataset$utmN <- purrr::map_dbl(dataset$geometry, 2)      #Extract UTM Northing
+  dataset <- sf::st_drop_geometry(dataset)                 #Remove geometry for spatsoc compatibility
+
+  #-----------------------------
+  #BUILD INITIAL EDGE LIST (per timegroup)
+  #-----------------------------
+  edges <- spatsoc::edge_dist(DT = dataset,
+                              threshold = distThreshold,
+                              id = idCol,
+                              coords = c("utmE", "utmN"),
+                              timegroup = "timegroup",
+                              returnDist = returnDist,
+                              fillNA = TRUE)
+
+  #-----------------------------
+  #REMOVE SELF-LOOPS AND DUPLICATES
+  #-----------------------------
+  edges_without_duplicate <- edges %>%
+    dplyr::filter(is.na(ID1) | is.na(ID2) | as.character(ID1) < as.character(ID2))
+
+  #-----------------------------
+  #FILTER EDGES BY CONSECUTIVE APPEARANCES
+  #-----------------------------
+  edgesFiltered <- consecEdges(edgeList = edges_without_duplicate,
+                               consecThreshold = consecThreshold) %>%
+    dplyr::ungroup()
+
+  #-----------------------------
+  #HANDLE EMPTY RESULT (no valid interactions)
+  #-----------------------------
+  if (nrow(edgesFiltered) == 0) {
+    warning("After edgesFiltered, the dataset had 0 rows.")
+
+    #Prepare output dataframes with NA or 0 SRI
+    pairs_dataset_no_interaction <- pairs_dataset
+    colnames(pairs_dataset_no_interaction)[3] <- "pair_no_interaction"   #Rename 3rd column
+
+    pairs_dataset_season <- pairs_all               #Copy full season pairs
+
+    if (!"edges" %in% names(pairs_dataset_season)) {                     #Add edges column if missing
+      pairs_dataset_season$edges <- NA
+    }
+
+    #Set SRI = 0 for pairs with no interaction
+    matching_indices <- pairs_dataset_season$pair %in% pairs_dataset_no_interaction$pair_no_interaction
+    pairs_dataset_season$sri[matching_indices] <- 0
+
+    #Return empty but valid output
+    return(list(
+      "edges" = data.frame(
+        ID1   = pairs_dataset_season$ID1,
+        ID2   = pairs_dataset_season$ID2,
+        edges = pairs_dataset_season$edges
+      ),
+      "sri" = data.frame(
+        ID1 = pairs_dataset_season$ID1,
+        ID2 = pairs_dataset_season$ID2,
+        sri = pairs_dataset_season$sri
+      )
+    ))
+  }
+
+  #-----------------------------
+  #ALCULATE INTERACTION LOCATIONS
+  #-----------------------------
+  locs <- dataset %>%
+    tibble::as_tibble() %>%
+    dplyr::select(tidyselect::all_of(c(idCol, "timegroup", latCol, longCol))) %>%
+    dplyr::distinct() %>%
+    dplyr::mutate(across(tidyselect::all_of(c(latCol, longCol)), as.numeric))
+
+  #Take mean lat/long if multiple records per individual/timegroup
+  meanLocs <- locs %>%
+    dplyr::group_by(across(all_of(c(idCol, "timegroup")))) %>%
+    dplyr::summarize(mnLat = mean(.data[[latCol]], na.rm = TRUE),
+                     mnLong = mean(.data[[longCol]], na.rm = TRUE))
+
+  #Join mean locations for ID1 and ID2 in edges
+  ef <- edgesFiltered %>%
+    dplyr::left_join(meanLocs, by = c("ID1" = idCol, "timegroup")) %>%
+    dplyr::rename("latID1" = mnLat, "longID1" = mnLong) %>%
+    dplyr::left_join(meanLocs, by = c("ID2" = idCol, "timegroup")) %>%
+    dplyr::rename("latID2" = mnLat, "longID2" = mnLong) %>%
+    dplyr::mutate(interactionLat = (latID1 + latID2)/2,
+                  interactionLong = (longID1 + longID2)/2)
+
+  #Ensure row counts match
+  if (nrow(ef) != nrow(edgesFiltered)) {
+    stop("wrong number of rows")
+  }
+
+  edgesFiltered <- ef
+
+  #-----------------------------
+  #OPTIONAL: CALCULATE SRI
+  #-----------------------------
+  if (sri) {
+    if (nrow(edgesFiltered) > 0) {
+      dfSRI <- calcSRI_EDB(dataset = sriDenominatorDataset,
+                       edges = edgesFiltered,
+                       pairs_all = pairs_all,
+                       idCol = idCol)
+    } else {
+      warning("No edges to calculate SRI on.")
+      dfSRI <- data.frame(ID1 = character(), ID2 = character(), sri = numeric())
+    }
+
+    outList <- list("edges" = edgesFiltered, "sri" = dfSRI)
+
+  } else {
+    outList <- list("edges" = edgesFiltered)
+  }
+
+  #-----------------------------
+  #RETURN OUTPUT
+  #-----------------------------
+  return(outList)
+}
+
 #' Filter edge list to exclude too few consecutive occurrences
 #'
 #' This function takes an edge list and removes edges that don't occur in at least `consecThreshold` consecutive time groups. It expects an edge list containing *ONE-WAY* edges (i.e. with self edges already removed, and with duplicates not included--already reduced to A-B only, not A-B and B-A). If the edge list contains duplicate edges (A-B and B-A), they will be treated as if they were separate edges. Data must already include `timegroup`s.
@@ -701,4 +867,160 @@ calcSRI <- function(dataset, edges, idCol = "Nili_id", timegroupCol = "timegroup
   duration <- difftime(end, start, units = "secs")
   cat(paste0("SRI computation completed in ", duration, " seconds."))
   return(dfSRI)
+}
+
+calcSRI_EDB <- function(dataset,
+                    edges,
+                    pairs_all,
+                    idCol = "Nili_id",
+                    timegroupCol = "timegroup"){
+  #---------------------------------------------
+  #Notify user that computation is starting
+  #---------------------------------------------
+  cat("\nComputing SRI... this may take a while if your dataset is large.\n")
+  start <- Sys.time()  #track start time
+
+  #---------------------------------------------
+  #INPUT VALIDATION
+  #---------------------------------------------
+  checkmate::assertSubset(timegroupCol, names(dataset))  #ensure timegroupCol exists
+  checkmate::assertSubset(idCol, names(dataset))         #ensure idCol exists
+  checkmate::assertDataFrame(dataset)                    #check dataset is dataframe
+  checkmate::assertDataFrame(edges)                      #check edges is dataframe
+
+  edges <- dplyr::as_tibble(edges)  #ensure edges is tibble for dplyr
+
+  #---------------------------------------------
+  #Create list of individuals per timegroup
+  #(for info; not directly used in loop later)
+  #---------------------------------------------
+  timegroupsList <- dataset %>%
+    dplyr::select(tidyselect::all_of(c(timegroupCol, idCol))) %>%  #keep ID and timegroup cols
+    dplyr::mutate({{idCol}} := as.character(.data[[idCol]])) %>%   #convert ID col to character
+    dplyr::distinct() %>%                                          #remove duplicate rows
+    dplyr::group_by(.data[[timegroupCol]]) %>%                     #group by timegroup
+    dplyr::group_split() %>%                                       #split into list of dfs per timegroup
+    purrr::map(~.x[[idCol]])                                       #map to vector of IDs per timegroup
+
+  #---------------------------------------------
+  #Get unique set of timegroups
+  #---------------------------------------------
+  timegroups <- unique(dataset[[timegroupCol]])
+
+  #---------------------------------------------
+  #Extract relevant columns from allPairs
+  # (existing list of ID1, ID2, optional pre-SRI)
+  #---------------------------------------------
+  allPairs_day_sri <- pairs_all %>%
+    dplyr::select(ID1, ID2, sri)
+
+  #---------------------------------------------
+  #Create wide format matrix:
+  #  rows = timegroups, cols = individuals
+  #  TRUE if present, FALSE otherwise
+  #---------------------------------------------
+  datasetWide <- dataset %>%
+    sf::st_drop_geometry() %>%  #drop spatial geometry if exists
+    dplyr::select(tidyselect::all_of(c(timegroupCol, idCol))) %>%  #keep ID and timegroup cols
+    dplyr::distinct() %>%
+    dplyr::mutate(val = TRUE) %>%  #add flag val = TRUE
+    tidyr::pivot_wider(id_cols = tidyselect::all_of(timegroupCol),
+                       names_from = tidyselect::all_of(idCol),
+                       values_from = "val", values_fill = FALSE)  #pivot wide
+
+  #---------------------------------------------
+  #Prepare edge list: ensure ID1, ID2 columns
+  #---------------------------------------------
+  allPairs_edges <- as.data.frame(edges)  #convert edges to dataframe
+  allPairs_edges <- as.data.frame(cbind(edges$ID1, edges$ID2))  #keep ID1, ID2
+  colnames(allPairs_edges) <- c("ID1", "ID2")  #set column names
+
+  #---------------------------------------------
+  #Merge edges and allPairs to get full dyad list
+  #  keep unique rows only
+  #---------------------------------------------
+  merged_df_allPairs <- bind_rows(allPairs_day_sri, allPairs_edges) %>%
+    dplyr::distinct(ID1, ID2, .keep_all = TRUE)
+
+
+  #---------------------------------------------
+  #Get list of valid IDs (colnames from datasetWide except timegroup)
+  #---------------------------------------------
+  ids_datasetWide <- colnames(datasetWide)[-1]  #remove timegroup col
+
+  #---------------------------------------------
+  #Initialize output dataframe (copy merged list)
+  #---------------------------------------------
+  dfSRI <- merged_df_allPairs
+
+  #---------------------------------------------
+  #LOOP over dyads to calculate SRI
+  #---------------------------------------------
+  #Loop through each row of dfSRI to calculate/update the sri column
+  for(k in seq_len(nrow(dfSRI))) {
+    a <- dfSRI$ID1[k]  #Extract ID1 for the k-th row
+    b <- dfSRI$ID2[k]  #Extract ID2 for the k-th row
+
+    #Check if either ID is missing
+    if(is.na(a) || is.na(b)) {
+      dfSRI$sri[k] <- NA  #Set sri to NA if either ID is missing
+      next  #Skip to the next iteration
+    }
+
+    #Check if either ID is not found in the list of valid IDs
+    if(!(a %in% ids_datasetWide) || !(b %in% ids_datasetWide)) {
+      dfSRI$sri[k] <- NA  #Optional: set to NA if IDs not found
+      next  #Skip to the next iteration
+    }
+
+    #Extract columns corresponding to a and b from datasetWide
+    colA <- datasetWide[, a, drop = FALSE]  #Get column a
+    colB <- datasetWide[, b, drop = FALSE]  #Get column b
+
+    #Count the number of rows where both columns are TRUE (logical AND)
+    nBoth <- sum(colA & colB, na.rm = TRUE)
+
+    #--- Count number of unique co-occurrences in edges ---
+    #Subset edges to rows where IDs match either a or b in ID1/ID2 columns
+    #Then count unique occurrences across timegroupCol
+    x <- nrow(unique(edges[edges$ID1 %in% c(a, b) & edges$ID2 %in% c(a, b), timegroupCol]))
+
+    #--- Compute yab ---
+    #yab = number of joint occurrences in datasetWide minus number of co-occurrences recorded in edges
+    yab <- nBoth - x
+
+    #--- Individual occurrence counts ---
+    #Total number of TRUE (or 1) values for each individual ID, ignoring NAs
+    ya <- sum(colA, na.rm = TRUE)
+    yb <- sum(colB, na.rm = TRUE)
+
+    #--- SRI calculation ---
+    #Calculate the Simple Ratio Index (SRI) using the formula:
+    sri <- x / (x + yab + ya + yb)
+
+    #If SRI is infinite (e.g., division by zero), set it to 0
+    if (is.infinite(sri)) {
+      sri <- 0
+    }
+
+    #--- Save result ---
+    #Store the calculated SRI value back into the dfSRI data frame
+    dfSRI$sri[k] <- sri
+  }
+
+  #---------------------------------------------
+  #(Optional: preview first rows)
+  #---------------------------------------------
+  head(dfSRI)
+
+  # complete the time message
+  end <- Sys.time()
+  duration <- difftime(end, start, units = "secs")
+  cat(paste0("SRI computation completed in ", duration, " seconds.\n"))
+
+  if (nrow(dfSRI) == 0) {
+    message("Warning: `calcSRI()` returned an empty dataframe. Check dataset and edge list.")
+  }
+  return(dfSRI)
+
 }
