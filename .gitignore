@@ -16,3 +16,4 @@ elviraData/
 script_example.R
 inst/
 vignettes/data-prep.Rmd
+tests/testDataKaija/
