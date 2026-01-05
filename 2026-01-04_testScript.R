@@ -697,27 +697,16 @@ calcSRI_EDB <- function(dataset,
   checkmate::assertSubset(idCol, names(dataset))         #ensure idCol exists
   checkmate::assertDataFrame(dataset)                    #check dataset is dataframe
   checkmate::assertDataFrame(edges)                      #check edges is dataframe
-
   edges <- dplyr::as_tibble(edges)  #ensure edges is tibble for dplyr
 
-  #---------------------------------------------
-  #Get unique set of timegroups
-  #---------------------------------------------
-  timegroups <- unique(dataset[[timegroupCol]])
-
-  #---------------------------------------------
-  #Extract relevant columns from allPairs
-  # (existing list of ID1, ID2, optional pre-SRI)
-  #---------------------------------------------
+  #Extract relevant columns from allPairs (existing list of ID1, ID2, optional pre-SRI)
   allPairs_day_sri <- allPairs_entire_season_output %>%
     dplyr::select(ID1, ID2, sri)
   # 20260104: I do not understand what this "optional pre-SRI" thing is doing. Is there ever a situation where allPairs_entire_season_output would have SRI values? Need to go back to when that was created and check.
 
-  #---------------------------------------------
   #Create wide format matrix:
   #  rows = timegroups, cols = individuals
   #  TRUE if present, FALSE otherwise
-  #---------------------------------------------
   datasetWide <- dataset %>%
     sf::st_drop_geometry() %>%  #drop spatial geometry if exists
     dplyr::select(tidyselect::all_of(c(timegroupCol, idCol))) %>%  #keep ID and timegroup cols
