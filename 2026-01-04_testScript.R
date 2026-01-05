@@ -688,33 +688,17 @@ calcSRI_EDB <- function(dataset,
                     allPairs_entire_season_output,
                     idCol = "Nili_id",
                     timegroupCol = "timegroup"){
-  #---------------------------------------------
-  #Notify user that computation is starting
-  #---------------------------------------------
+
   cat("\nComputing SRI... this may take a while if your dataset is large.\n")
   start <- Sys.time()  #track start time
 
-  #---------------------------------------------
-  #INPUT VALIDATION
-  #---------------------------------------------
+  # Validation
   checkmate::assertSubset(timegroupCol, names(dataset))  #ensure timegroupCol exists
   checkmate::assertSubset(idCol, names(dataset))         #ensure idCol exists
   checkmate::assertDataFrame(dataset)                    #check dataset is dataframe
   checkmate::assertDataFrame(edges)                      #check edges is dataframe
 
   edges <- dplyr::as_tibble(edges)  #ensure edges is tibble for dplyr
-
-  #---------------------------------------------
-  #Create list of individuals per timegroup
-  #(for info; not directly used in loop later)
-  #---------------------------------------------
-  timegroupsList <- dataset %>%
-    dplyr::select(tidyselect::all_of(c(timegroupCol, idCol))) %>%  #keep ID and timegroup cols
-    dplyr::mutate({{idCol}} := as.character(.data[[idCol]])) %>%   #convert ID col to character
-    dplyr::distinct() %>%                                          #remove duplicate rows
-    dplyr::group_by(.data[[timegroupCol]]) %>%                     #group by timegroup
-    dplyr::group_split() %>%                                       #split into list of dfs per timegroup
-    purrr::map(~.x[[idCol]])                                       #map to vector of IDs per timegroup
 
   #---------------------------------------------
   #Get unique set of timegroups
