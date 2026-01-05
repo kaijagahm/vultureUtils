@@ -11,8 +11,16 @@ dates <- unique(test$dateOnly)
 smallertest <- test[test$dateOnly %in% dates[1:2],]
 dim(smallertest)
 
+#--------
+# Some code from Elvira's script to satisfy the getEdges_EDB function, which isn't entirealy working/self-contained.
+rp <- sf::st_read("tests/testthat/testdata/roosts50_kde95_cutOffRegion.kml") # needs to have roosts passed to it, because the default is not NULL
+
+all_Nili_ids <- as.character(unique(test$Nili_id))
+allPairs_entire_season <- expand.grid(ID1 = all_Nili_ids, ID2 = all_Nili_ids, stringsAsFactors = FALSE)
+ap <- allPairs_entire_season
+
 getEdges_EDB <- function(dataset,
-                     roostPolygons = roostPolygons,
+                     roostPolygons = roostPolygons, # 20260104: this part of the function def throws an error. Need to have an object called "roostPolygons" created globally if not otherwise specifying. For now, going to read in the roost polygons and call it "rp".
                      roostBuffer,
                      consecThreshold,
                      distThreshold,
@@ -26,7 +34,9 @@ getEdges_EDB <- function(dataset,
                      return = "sri",
                      getLocs = FALSE,
                      speedCol = "ground_speed",
-                     timestampCol = "timestamp"){
+                     timestampCol = "timestamp",
+                     allPairs_entire_season = allPairs_entire_season # 20260104: I added this argument because it was otherwise just drawing from the global environment.
+                     ){
 
   #------------------------------------------------------------
   #SAVE RAW DATASET COPY
@@ -179,7 +189,6 @@ getEdges_EDB <- function(dataset,
     dplyr::filter(ID1 != ID2) %>%
     dplyr::mutate(sri = ifelse(pair %in% allPairs_day$pair, NA, NA))
 
-
   #------------------------------------------------------------
   #HANDLE EMPTY DATA AFTER FILTERING
   #------------------------------------------------------------
@@ -204,7 +213,7 @@ getEdges_EDB <- function(dataset,
 
 
   #------------------------------------------------------------
-  #CALL spaceTimeGroups() FUNCTION
+  #CALL spaceTimeGroups() FUNCTION # 20260104 KG this now calls spaceTimeGroups_EDB instead
   #- return either edges or SRI
   #------------------------------------------------------------
   if(nrow(filteredData) != 0){
@@ -213,7 +222,8 @@ getEdges_EDB <- function(dataset,
     if(return == "edges"){ #if SRI is not needed, we can save time by not computing it.
       if(quiet){
         ###EDGES ONLY, QUIET
-        out <- suppressMessages(suppressWarnings(spaceTimeGroups(dataset = filteredData,
+        # 20260104: KG renamed function call here from spaceTimeGroups to spaceTimeGroups_EDB
+        out <- suppressMessages(suppressWarnings(spaceTimeGroups_EDB(dataset = filteredData,
                                                                  sriDenominatorDataset = dataset_denominator, #XXX added this
                                                                  distThreshold = distThreshold,
                                                                  allPairs_entire_season_output= allPairs_entire_season_output,
@@ -225,8 +235,9 @@ getEdges_EDB <- function(dataset,
                                                                  timegroupData = timegroupData)))
       }else{
         ###EDGES ONLY, WARNINGS
+        # 20260104: KG renamed function call here from spaceTimeGroups to spaceTimeGroups_EDB
         #compute edges without suppressing warnings
-        out <- spaceTimeGroups(dataset = filteredData,
+        out <- spaceTimeGroups_EDB(dataset = filteredData,
                                sriDenominatorDataset = dataset_denominator, #XXX added this
                                distThreshold = distThreshold,
                                allPairs_entire_season_output= allPairs_entire_season_output,
@@ -241,8 +252,9 @@ getEdges_EDB <- function(dataset,
     }else if(return %in% c("sri", "both")){ #otherwise we need to compute SRI.
       if(quiet){
         ###EDGES AND SRI, QUIET
+        # 20260104: KG renamed function call here from spaceTimeGroups to spaceTimeGroups_EDB
         #suppress warnings while computing edges and SRI, returning a list of edges+sri
-        out <- suppressMessages(suppressWarnings(spaceTimeGroups(dataset = filteredData,
+        out <- suppressMessages(suppressWarnings(spaceTimeGroups_EDB(dataset = filteredData,
                                                                  sriDenominatorDataset = dataset_denominator, #XXX added this
                                                                  distThreshold = distThreshold,
                                                                  allPairs_entire_season_output= allPairs_entire_season_output,
@@ -257,8 +269,9 @@ getEdges_EDB <- function(dataset,
         }
       }else{
         ###EDGES AND SRI, WARNINGS
+        # 20260104: KG renamed function call here from spaceTimeGroups to spaceTimeGroups_EDB
         #compute edges and SRI without suppressing warnings, returning a list of edges+sri
-        out <- spaceTimeGroups(dataset = filteredData,
+        out <- spaceTimeGroups_EDB(dataset = filteredData,
                                sriDenominatorDataset = dataset_denominator, #XXX added this
                                distThreshold = distThreshold,
                                allPairs_entire_season_output= allPairs_entire_season_output,
@@ -304,6 +317,24 @@ getEdges_EDB <- function(dataset,
   return(toReturn)
 }
 
+# 20260104 parameter def block for testing-------
+dataset <- test
+roostPolygons = rp
+roostBuffer = 1000
+consecThreshold = 1
+distThreshold = 1000
+speedThreshUpper = NULL
+speedThreshLower = 5
+timeThreshold = "10 minutes"
+idCol = "Nili_id"
+quiet = T
+includeAllVertices = F
+daytimeOnly = T
+return = "sri"
+getLocs = FALSE
+speedCol = "ground_speed"
+# 20260104 \parameter def block for testing-------
+
 getEdges <- function(dataset, roostPolygons = NULL, roostBuffer, consecThreshold, distThreshold, speedThreshUpper, speedThreshLower, timeThreshold = "10 minutes", idCol = "Nili_id", quiet = T, includeAllVertices = F, daytimeOnly = T, return = "edges", getLocs = FALSE, speedCol = "ground_speed"){
   # Argument checks
   checkmate::assertDataFrame(dataset)
@@ -329,7 +360,6 @@ getEdges <- function(dataset, roostPolygons = NULL, roostBuffer, consecThreshold
   if(!is.null(c(speedThreshLower, speedThreshUpper))){
     checkmate::assertSubset(speedCol, names(dataset)) # necessary for filterLocs.
   }
-
 
   # Message about getLocs and sri
   if(getLocs & return == "sri"){
@@ -543,6 +573,8 @@ spaceTimeGroups_EDB <- function(dataset,
                               timegroup = "timegroup",
                               returnDist = returnDist,
                               fillNA = TRUE)
+  # 20260104 KG: After this step, there will be some NAs in ID2. This is because the argument `fillNA = TRUE` fills in rows for individuals that were not within the threshold distance of any other individuals within the given timegroup.
+  # The problem seems to be that these are carrying forward into the sri calculation in a way that doesn't make sense...
 
   #-----------------------------
   #REMOVE SELF-LOOPS AND DUPLICATES
@@ -628,7 +660,8 @@ spaceTimeGroups_EDB <- function(dataset,
   #-----------------------------
   if (sri) {
     if (nrow(edgesFiltered) > 0) {
-      dfSRI <- calcSRI(dataset = sriDenominatorDataset,  #Uses day-filtered dataset for denominator
+      # 20260104 KG: changed function call to "calcSRI_EDB" from "calcSRI"
+      dfSRI <- calcSRI_EDB(dataset = sriDenominatorDataset,  #Uses day-filtered dataset for denominator
                        edges = edgesFiltered,
                        allPairs_entire_season_output = allPairs_entire_season_output,
                        idCol = idCol)
@@ -649,8 +682,165 @@ spaceTimeGroups_EDB <- function(dataset,
   return(outList)
 }
 
-orig_test <- getEdges(test, roostBuffer = 1000, consecThreshold = 1, distThreshold = 1000, speedThreshUpper = NULL, speedThreshLower = 5)
-edb_test <- getEdges_EDB(test, roostBuffer = 1000, consecThreshold = 1, distThreshold = 1000, speedThreshUpper = NULL, speedThreshLower = 5) # promise already under evaluation
+# 20260104 KG: pasted this in from feeding_and_flight_functions, and renamed calcSRI_EDB from calcSRI.
+calcSRI_EDB <- function(dataset,
+                    edges,
+                    allPairs_entire_season_output,
+                    idCol = "Nili_id",
+                    timegroupCol = "timegroup"){
+  #---------------------------------------------
+  #Notify user that computation is starting
+  #---------------------------------------------
+  cat("\nComputing SRI... this may take a while if your dataset is large.\n")
+  start <- Sys.time()  #track start time
+
+  #---------------------------------------------
+  #INPUT VALIDATION
+  #---------------------------------------------
+  checkmate::assertSubset(timegroupCol, names(dataset))  #ensure timegroupCol exists
+  checkmate::assertSubset(idCol, names(dataset))         #ensure idCol exists
+  checkmate::assertDataFrame(dataset)                    #check dataset is dataframe
+  checkmate::assertDataFrame(edges)                      #check edges is dataframe
+
+  edges <- dplyr::as_tibble(edges)  #ensure edges is tibble for dplyr
+
+  #---------------------------------------------
+  #Create list of individuals per timegroup
+  #(for info; not directly used in loop later)
+  #---------------------------------------------
+  timegroupsList <- dataset %>%
+    dplyr::select(tidyselect::all_of(c(timegroupCol, idCol))) %>%  #keep ID and timegroup cols
+    dplyr::mutate({{idCol}} := as.character(.data[[idCol]])) %>%   #convert ID col to character
+    dplyr::distinct() %>%                                          #remove duplicate rows
+    dplyr::group_by(.data[[timegroupCol]]) %>%                     #group by timegroup
+    dplyr::group_split() %>%                                       #split into list of dfs per timegroup
+    purrr::map(~.x[[idCol]])                                       #map to vector of IDs per timegroup
+
+  #---------------------------------------------
+  #Get unique set of timegroups
+  #---------------------------------------------
+  timegroups <- unique(dataset[[timegroupCol]])
+
+  #---------------------------------------------
+  #Extract relevant columns from allPairs
+  # (existing list of ID1, ID2, optional pre-SRI)
+  #---------------------------------------------
+  allPairs_day_sri <- allPairs_entire_season_output %>%
+    dplyr::select(ID1, ID2, sri)
+  # 20260104: I do not understand what this "optional pre-SRI" thing is doing. Is there ever a situation where allPairs_entire_season_output would have SRI values? Need to go back to when that was created and check.
+
+  #---------------------------------------------
+  #Create wide format matrix:
+  #  rows = timegroups, cols = individuals
+  #  TRUE if present, FALSE otherwise
+  #---------------------------------------------
+  datasetWide <- dataset %>%
+    sf::st_drop_geometry() %>%  #drop spatial geometry if exists
+    dplyr::select(tidyselect::all_of(c(timegroupCol, idCol))) %>%  #keep ID and timegroup cols
+    dplyr::distinct() %>%
+    dplyr::mutate(val = TRUE) %>%  #add flag val = TRUE
+    tidyr::pivot_wider(id_cols = tidyselect::all_of(timegroupCol),
+                       names_from = tidyselect::all_of(idCol),
+                       values_from = "val", values_fill = FALSE)  #pivot wide
+
+  #---------------------------------------------
+  #Prepare edge list: ensure ID1, ID2 columns
+  #---------------------------------------------
+  allPairs_edges <- as.data.frame(edges)  #convert edges to dataframe
+  allPairs_edges <- as.data.frame(cbind(edges$ID1, edges$ID2))  #keep ID1, ID2
+  colnames(allPairs_edges) <- c("ID1", "ID2")  #set column names
+
+  #---------------------------------------------
+  #Merge edges and allPairs to get full dyad list
+  #  keep unique rows only
+  #---------------------------------------------
+  merged_df_allPairs <- bind_rows(allPairs_day_sri, allPairs_edges) %>%
+    dplyr::distinct(ID1, ID2, .keep_all = TRUE)
+
+
+  #---------------------------------------------
+  #Get list of valid IDs (colnames from datasetWide except timegroup)
+  #---------------------------------------------
+  ids_datasetWide <- colnames(datasetWide)[-1]  #remove timegroup col
+
+  #---------------------------------------------
+  #Initialize output dataframe (copy merged list)
+  #---------------------------------------------
+  dfSRI <- merged_df_allPairs
+
+  #---------------------------------------------
+  #LOOP over dyads to calculate SRI
+  #---------------------------------------------
+  #Loop through each row of dfSRI to calculate/update the sri column
+  for(k in seq_len(nrow(dfSRI))) {
+    a <- dfSRI$ID1[k]  #Extract ID1 for the k-th row
+    b <- dfSRI$ID2[k]  #Extract ID2 for the k-th row
+
+    #Check if either ID is missing
+    if(is.na(a) || is.na(b)) {
+      dfSRI$sri[k] <- NA  #Set sri to NA if either ID is missing
+      next  #Skip to the next iteration
+    }
+
+    #Check if either ID is not found in the list of valid IDs
+    if(!(a %in% ids_datasetWide) || !(b %in% ids_datasetWide)) {
+      dfSRI$sri[k] <- NA  #Optional: set to NA if IDs not found
+      next  #Skip to the next iteration
+    }
+
+    #Extract columns corresponding to a and b from datasetWide
+    colA <- datasetWide[, a, drop = FALSE]  #Get column a
+    colB <- datasetWide[, b, drop = FALSE]  #Get column b
+
+    #Count the number of rows where both columns are TRUE (logical AND)
+    nBoth <- sum(colA & colB, na.rm = TRUE)
+
+    #--- Count number of unique co-occurrences in edges ---
+    #Subset edges to rows where IDs match either a or b in ID1/ID2 columns
+    #Then count unique occurrences across timegroupCol
+    x <- nrow(unique(edges[edges$ID1 %in% c(a, b) & edges$ID2 %in% c(a, b), timegroupCol]))
+
+    #--- Compute yab ---
+    #yab = number of joint occurrences in datasetWide minus number of co-occurrences recorded in edges
+    yab <- nBoth - x
+
+    #--- Individual occurrence counts ---
+    #Total number of TRUE (or 1) values for each individual ID, ignoring NAs
+    ya <- sum(colA, na.rm = TRUE)
+    yb <- sum(colB, na.rm = TRUE)
+
+    #--- SRI calculation ---
+    #Calculate the Simple Ratio Index (SRI) using the formula:
+    sri <- x / (x + yab + ya + yb)
+
+    #If SRI is infinite (e.g., division by zero), set it to 0
+    if (is.infinite(sri)) {
+      sri <- 0
+    }
+
+    #--- Save result ---
+    #Store the calculated SRI value back into the dfSRI data frame
+    dfSRI$sri[k] <- sri
+  }
+
+  #---------------------------------------------
+  #(Optional: preview first rows)
+  #---------------------------------------------
+  head(dfSRI)
+
+  # complete the time message
+  end <- Sys.time()
+  duration <- difftime(end, start, units = "secs")
+  cat(paste0("SRI computation completed in ", duration, " seconds.\n"))
+
+  if (nrow(dfSRI) == 0) {
+    message("Warning: `calcSRI()` returned an empty dataframe. Check dataset and edge list.")
+  }
+  return(dfSRI)
+}
+
+orig_test <- getEdges(test, roostBuffer = 1000, consecThreshold = 1, distThreshold = 1000, speedThreshUpper = NULL, speedThreshLower = 5, roostPolygons = rp, return = "sri")
+edb_test <- getEdges_EDB(test, roostBuffer = 1000, consecThreshold = 1, distThreshold = 1000, speedThreshUpper = NULL, speedThreshLower = 5, roostPolygons = rp, allPairs_entire_season = ap, return = "sri")
 
 dim(orig_test)
 dim(edb_test)

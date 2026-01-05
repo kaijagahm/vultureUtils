@@ -643,7 +643,7 @@ spaceTimeGroups_EDB <- function(dataset,
                               coords = c("utmE", "utmN"),
                               timegroup = "timegroup",
                               returnDist = returnDist,
-                              fillNA = TRUE)
+                              fillNA = TRUE) # whether to return NAs for individuals that were not within the threshold distance of any other. If TRUE, NAs are returned.
 
   #-----------------------------
   #REMOVE SELF-LOOPS AND DUPLICATES
@@ -694,7 +694,7 @@ spaceTimeGroups_EDB <- function(dataset,
   }
 
   #-----------------------------
-  #ALCULATE INTERACTION LOCATIONS
+  #CALCULATE INTERACTION LOCATIONS
   #-----------------------------
   locs <- dataset %>%
     tibble::as_tibble() %>%

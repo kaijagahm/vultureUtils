@@ -837,7 +837,6 @@ getEdges_EDB <- function(dataset,
                               sri = FALSE,
                               idCol = idCol,
                               timegroupData = timegroupData)))
-        # JJJ start here with debugging why this has NAs.
       }else{
         ###EDGES ONLY, WARNINGS
         #compute edges without suppressing warnings
@@ -890,7 +889,6 @@ getEdges_EDB <- function(dataset,
       }
     }
   } #close the if(nrow(filteredData) != 0)
-  # JJJ START HERE
 
   #------------------------------------------------------------
   #HANDLE EMPTY DATA AFTER FILTERING # JJJ need to test this--not sure it actually works

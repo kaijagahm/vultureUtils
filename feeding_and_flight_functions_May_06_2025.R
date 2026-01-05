@@ -36,7 +36,7 @@ library(geosphere)         #Spherical trigonometry (e.g., geographic distances)
 #-------------------------------------------------------------------------------
 #Function: convertAndBuffer
 #-------------------------------------------------------------------------------
-#Purpose: 
+#Purpose:
 #- Convert an 'sf' spatial object from its original CRS to a CRS using meters
 #- Apply a buffer (in meters)
 #- Convert the buffered object back to the original CRS
@@ -58,38 +58,38 @@ library(geosphere)         #Spherical trigonometry (e.g., geographic distances)
 convertAndBuffer <- function(obj, dist = 50, crsMeters = 32636){
   #Validate that 'obj' is an 'sf' (simple features) object
   checkmate::assertClass(obj, "sf")
-  
+
   #Validate that 'dist' is a single numeric value >= 0
   checkmate::assertNumeric(dist, len = 1, lower = 0)
-  
+
   originalCRS <- sf::st_crs(obj)
   if(is.null(originalCRS)|is.na(originalCRS)){
     stop("Object does not have a valid CRS.")
   }
-  
+
   #Extract the current CRS of the object
   originalCRS <- sf::st_crs(obj)
-  
+
   #Check if the CRS is missing or invalid; stop execution if so
   if (is.null(originalCRS) | is.na(originalCRS)) {
     stop("Object does not have a valid CRS.")
   }
-  
+
   #Convert geometry from original CRS to meter-based CRS (e.g., UTM)
   converted <- obj %>%
     sf::st_transform(crsMeters)
-  
+
   #Apply buffer operation in meters
   buffered <- converted %>%
     sf::st_buffer(dist = dist)
-  
+
   #Convert buffered object back to its original CRS
   convertedBack <- buffered %>%
     sf::st_transform(originalCRS)
-  
+
   #Return the buffered object (in original CRS)
   return(convertedBack)
-  
+
 }
 
 #-------------------------------------------------------------------------------
@@ -119,37 +119,37 @@ filterLocs <- function(df, speedThreshLower = NULL, speedThreshUpper = NULL, spe
   #-----------------------------
   #Validate function arguments
   #-----------------------------
-  
+
   #Check that speedThreshLower is a single numeric value or NULL
   checkmate::assertNumeric(speedThreshLower, null.ok = TRUE, len = 1)
-  
+
   #Check that speedThreshUpper is a single numeric value or NULL
   checkmate::assertNumeric(speedThreshUpper, null.ok = TRUE, len = 1)
-  
+
   #Check that speedCol exists as a column name in df
   checkmate::assertChoice(speedCol, choices = names(df))
-  
+
   #-----------------------------
   #Apply speed filtering
   #-----------------------------
-  
+
   #If both thresholds are NULL, warn the user: no filtering will occur
   if (is.null(speedThreshLower) & is.null(speedThreshUpper)) {
     warning("No speed thresholds set, so data will not be filtered for speed.")
   }
-  
+
   #If lower threshold is specified: filter rows with speed > speedThreshLower
   if (!is.null(speedThreshLower)) {
     df <- df %>%
       dplyr::filter(.data[[speedCol]] > speedThreshLower)
   }
-  
+
   #If upper threshold is specified: filter rows with speed < speedThreshUpper
   if (!is.null(speedThreshUpper)) {
     df <- df %>%
       dplyr::filter(.data[[speedCol]] < speedThreshUpper)
   }
-  
+
   #Return the filtered dataframe
   return(df)
 }
@@ -159,7 +159,7 @@ filterLocs <- function(df, speedThreshLower = NULL, speedThreshUpper = NULL, spe
 #Description: Keeps edges present in >= consecThreshold consecutive timegroups
 #-------------------------------------------------------------------------------
 #Purpose:
-#- Filters an edge list to keep only edges that occur in at least 
+#- Filters an edge list to keep only edges that occur in at least
 #  `consecThreshold` consecutive time groups.
 #
 #Inputs:
@@ -183,16 +183,16 @@ filterLocs <- function(df, speedThreshLower = NULL, speedThreshUpper = NULL, spe
 #' @param timegroupCol Character. Name of the column containing time groups (integer values), returned by spatsoc functions
 #' @return An edge list (data frame) containing only edges that occurred in at least `consecThreshold` consecutive time groups.
 #' @export
-consecEdges <- function(edgeList, 
-                        consecThreshold = 2, 
-                        ID1Col = "ID1", 
-                        ID2Col = "ID2", 
+consecEdges <- function(edgeList,
+                        consecThreshold = 2,
+                        ID1Col = "ID1",
+                        ID2Col = "ID2",
                         timegroupCol = "timegroup"){
 
   #-----------------------------
   #Validate function arguments
   #-----------------------------
-  
+
   checkmate::assertDataFrame(edgeList)               #Ensure edgeList is a data frame
   checkmate::assertNumeric(consecThreshold, len = 1) #Ensure threshold is numeric scalar
   checkmate::assertCharacter(ID1Col, len = 1)        #Ensure ID1Col is a string
@@ -202,7 +202,7 @@ consecEdges <- function(edgeList,
   checkmate::assertCharacter(timegroupCol, len = 1)  #Ensure timegroupCol is a string
   checkmate::assertChoice(timegroupCol, names(edgeList)) #Ensure timegroupCol exists
   checkmate::assertInteger(edgeList[[timegroupCol]]) #Ensure timegroupCol values are integers
-  
+
   #-----------------------------
   #Create unique edge-time combinations
   #-----------------------------
@@ -211,34 +211,34 @@ consecEdges <- function(edgeList,
     dplyr::distinct(.data[[timegroupCol]], .data[[ID1Col]], .data[[ID2Col]]) %>%  #Keep unique timegroup-ID1-ID2 rows
     dplyr::group_by(.data[[ID1Col]], .data[[ID2Col]]) %>%  #Group by edge (ID1-ID2)
     dplyr::arrange(.data[[timegroupCol]], .by_group = TRUE) %>%  #Sort timegroups chronologically within each pair
-    
+
     #Create a grouping variable (`grp`) to identify consecutive sequences
     #When consecutive → same group; when time gap → new group
     dplyr::mutate("grp" = cumsum(c(1, diff(.data[[timegroupCol]]) != 1))) %>%
-    
+
     dplyr::ungroup()  #Ungroup for next steps
-  
+
   #-----------------------------
   #Filter edges that meet consecutive threshold
   #-----------------------------
-  
+
   uniquePairs_toKeep <- uniquePairs %>%
     dplyr::group_by(.data[[ID1Col]], .data[[ID2Col]], grp) %>%  #Group by ID1, ID2, and consecutive group
     dplyr::filter(dplyr::n() >= consecThreshold) %>%             #Keep groups with >= consecThreshold rows
     dplyr::ungroup() %>%
     dplyr::select(-grp)  #Drop the helper column
-  
+
   #-----------------------------
   #Join filtered edges back with original edgeList to restore all columns
   #-----------------------------
-  
+
   consec <- uniquePairs_toKeep %>%
     dplyr::left_join(edgeList, by = c(ID1Col, ID2Col, timegroupCol))
-  
+
   #-----------------------------
   #Return filtered edge list
   #-----------------------------
-  
+
   return(consec)
 }
 
@@ -270,17 +270,17 @@ consecEdges <- function(edgeList,
 #' @return A data frame containing ID1, ID2, and SRI value.
 #' @export
 
-calcSRI <- function(dataset, 
-                    edges, 
+calcSRI <- function(dataset,
+                    edges,
                     allPairs_entire_season_output,
-                    idCol = "Nili_id", 
+                    idCol = "Nili_id",
                     timegroupCol = "timegroup"){
   #---------------------------------------------
   #Notify user that computation is starting
   #---------------------------------------------
   cat("\nComputing SRI... this may take a while if your dataset is large.\n")
   start <- Sys.time()  #track start time
-  
+
   #---------------------------------------------
   #INPUT VALIDATION
   #---------------------------------------------
@@ -288,9 +288,9 @@ calcSRI <- function(dataset,
   checkmate::assertSubset(idCol, names(dataset))         #ensure idCol exists
   checkmate::assertDataFrame(dataset)                    #check dataset is dataframe
   checkmate::assertDataFrame(edges)                      #check edges is dataframe
-  
+
   edges <- dplyr::as_tibble(edges)  #ensure edges is tibble for dplyr
-  
+
   #---------------------------------------------
   #Create list of individuals per timegroup
   #(for info; not directly used in loop later)
@@ -302,19 +302,19 @@ calcSRI <- function(dataset,
     dplyr::group_by(.data[[timegroupCol]]) %>%                     #group by timegroup
     dplyr::group_split() %>%                                       #split into list of dfs per timegroup
     purrr::map(~.x[[idCol]])                                       #map to vector of IDs per timegroup
-  
+
   #---------------------------------------------
   #Get unique set of timegroups
   #---------------------------------------------
   timegroups <- unique(dataset[[timegroupCol]])
-  
+
   #---------------------------------------------
   #Extract relevant columns from allPairs
   # (existing list of ID1, ID2, optional pre-SRI)
   #---------------------------------------------
-  allPairs_day_sri <- allPairs_entire_season_output %>% 
+  allPairs_day_sri <- allPairs_entire_season_output %>%
     dplyr::select(ID1, ID2, sri)
-  
+
   #---------------------------------------------
   #Create wide format matrix:
   #  rows = timegroups, cols = individuals
@@ -325,35 +325,35 @@ calcSRI <- function(dataset,
     dplyr::select(tidyselect::all_of(c(timegroupCol, idCol))) %>%  #keep ID and timegroup cols
     dplyr::distinct() %>%
     dplyr::mutate(val = TRUE) %>%  #add flag val = TRUE
-    tidyr::pivot_wider(id_cols = tidyselect::all_of(timegroupCol), 
+    tidyr::pivot_wider(id_cols = tidyselect::all_of(timegroupCol),
                        names_from = tidyselect::all_of(idCol),
                        values_from = "val", values_fill = FALSE)  #pivot wide
-  
+
   #---------------------------------------------
   #Prepare edge list: ensure ID1, ID2 columns
   #---------------------------------------------
   allPairs_edges <- as.data.frame(edges)  #convert edges to dataframe
   allPairs_edges <- as.data.frame(cbind(edges$ID1, edges$ID2))  #keep ID1, ID2
   colnames(allPairs_edges) <- c("ID1", "ID2")  #set column names
-  
+
   #---------------------------------------------
   #Merge edges and allPairs to get full dyad list
   #  keep unique rows only
   #---------------------------------------------
   merged_df_allPairs <- bind_rows(allPairs_day_sri, allPairs_edges) %>%
     dplyr::distinct(ID1, ID2, .keep_all = TRUE)
-  
-  
+
+
   #---------------------------------------------
   #Get list of valid IDs (colnames from datasetWide except timegroup)
   #---------------------------------------------
   ids_datasetWide <- colnames(datasetWide)[-1]  #remove timegroup col
-  
+
   #---------------------------------------------
   #Initialize output dataframe (copy merged list)
   #---------------------------------------------
   dfSRI <- merged_df_allPairs
-  
+
   #---------------------------------------------
   #LOOP over dyads to calculate SRI
   #---------------------------------------------
@@ -361,49 +361,49 @@ calcSRI <- function(dataset,
   for(k in seq_len(nrow(dfSRI))) {
     a <- dfSRI$ID1[k]  #Extract ID1 for the k-th row
     b <- dfSRI$ID2[k]  #Extract ID2 for the k-th row
-    
+
     #Check if either ID is missing
     if(is.na(a) || is.na(b)) {
       dfSRI$sri[k] <- NA  #Set sri to NA if either ID is missing
       next  #Skip to the next iteration
     }
-    
+
     #Check if either ID is not found in the list of valid IDs
     if(!(a %in% ids_datasetWide) || !(b %in% ids_datasetWide)) {
       dfSRI$sri[k] <- NA  #Optional: set to NA if IDs not found
       next  #Skip to the next iteration
     }
-    
+
     #Extract columns corresponding to a and b from datasetWide
     colA <- datasetWide[, a, drop = FALSE]  #Get column a
     colB <- datasetWide[, b, drop = FALSE]  #Get column b
-    
+
     #Count the number of rows where both columns are TRUE (logical AND)
     nBoth <- sum(colA & colB, na.rm = TRUE)
-    
+
     #--- Count number of unique co-occurrences in edges ---
     #Subset edges to rows where IDs match either a or b in ID1/ID2 columns
     #Then count unique occurrences across timegroupCol
     x <- nrow(unique(edges[edges$ID1 %in% c(a, b) & edges$ID2 %in% c(a, b), timegroupCol]))
-    
+
     #--- Compute yab ---
     #yab = number of joint occurrences in datasetWide minus number of co-occurrences recorded in edges
     yab <- nBoth - x
-    
+
     #--- Individual occurrence counts ---
     #Total number of TRUE (or 1) values for each individual ID, ignoring NAs
     ya <- sum(colA, na.rm = TRUE)
     yb <- sum(colB, na.rm = TRUE)
-    
+
     #--- SRI calculation ---
     #Calculate the Simple Ratio Index (SRI) using the formula:
     sri <- x / (x + yab + ya + yb)
-    
+
     #If SRI is infinite (e.g., division by zero), set it to 0
     if (is.infinite(sri)) {
       sri <- 0
     }
-    
+
     #--- Save result ---
     #Store the calculated SRI value back into the dfSRI data frame
     dfSRI$sri[k] <- sri
@@ -413,19 +413,18 @@ calcSRI <- function(dataset,
   #(Optional: preview first rows)
   #---------------------------------------------
   head(dfSRI)
-  
+
   # complete the time message
   end <- Sys.time()
   duration <- difftime(end, start, units = "secs")
   cat(paste0("SRI computation completed in ", duration, " seconds.\n"))
-  
+
   if (nrow(dfSRI) == 0) {
     message("Warning: `calcSRI()` returned an empty dataframe. Check dataset and edge list.")
   }
   return(dfSRI)
-  
-  }
-   
+}
+
 #-------------------------------------------------------------------------------
 #Function: spaceTimeGroups - group points by space and time
 #-------------------------------------------------------------------------------
@@ -472,27 +471,27 @@ calcSRI <- function(dataset,
 #Convert to UTM
 
 spaceTimeGroups <- function(dataset,
-                            sriDenominatorDataset, 
-                            distThreshold, 
+                            sriDenominatorDataset,
+                            distThreshold,
                             #add it here, too
                             allPairs_entire_season_output,
                             allPairs_day,
-                            consecThreshold = 2, 
+                            consecThreshold = 2,
                             crsToSet = "WGS84",
-                            crsToTransform = 32636, 
+                            crsToTransform = 32636,
                             timestampCol = "timestamp",
-                            timeThreshold = "10 minutes", 
-                            idCol = "Nili_id", 
-                            latCol = "location_lat", 
-                            longCol = "location_long", 
-                            returnDist = TRUE, 
+                            timeThreshold = "10 minutes",
+                            idCol = "Nili_id",
+                            latCol = "location_lat",
+                            longCol = "location_long",
+                            returnDist = TRUE,
                             fillNA = FALSE,
-                            sri = T, 
+                            sri = T,
                             timegroupData){
   #-----------------------------
   #CHECK AND PREPARE sf OBJECT
   #-----------------------------
-  
+
   if ("sf" %in% class(dataset)) {            #If input is already an sf object
     if (is.na(sf::st_crs(dataset))) {        #But CRS is missing
       message(paste0("`dataset` is already an sf object but has no CRS. Setting CRS to ", crsToSet, "."))
@@ -501,11 +500,11 @@ spaceTimeGroups <- function(dataset,
   } else if (is.data.frame(dataset)) {       #If input is a regular data frame
     checkmate::assertChoice(latCol, names(dataset))  #Ensure lat column exists
     checkmate::assertChoice(longCol, names(dataset)) #Ensure long column exists
-    
+
     if (nrow(dataset) == 0) {
       stop("Dataset passed to spaceTimeGroups has 0 rows. Cannot proceed with grouping.")
     }
-    
+
     #Convert to sf object using coordinates
     dataset <- dataset %>%
       sf::st_as_sf(coords = c(.data[[longCol]], .data[[latCol]]), remove = FALSE) %>%
@@ -513,7 +512,7 @@ spaceTimeGroups <- function(dataset,
   } else {
     stop("`dataset` must be a data frame or an sf object.")
   }
-  
+
   #-----------------------------
   #TRANSFORM TO UTM & EXTRACT COORDS
   #-----------------------------
@@ -521,51 +520,51 @@ spaceTimeGroups <- function(dataset,
   dataset$utmE <- purrr::map_dbl(dataset$geometry, 1)      #Extract UTM Easting
   dataset$utmN <- purrr::map_dbl(dataset$geometry, 2)      #Extract UTM Northing
   dataset <- sf::st_drop_geometry(dataset)                 #Remove geometry for spatsoc compatibility
-  
+
   #-----------------------------
   #BUILD INITIAL EDGE LIST (per timegroup)
   #-----------------------------
-  edges <- spatsoc::edge_dist(DT = dataset, 
-                              threshold = distThreshold, 
+  edges <- spatsoc::edge_dist(DT = dataset,
+                              threshold = distThreshold,
                               id = idCol,
-                              coords = c("utmE", "utmN"), 
+                              coords = c("utmE", "utmN"),
                               timegroup = "timegroup",
-                              returnDist = returnDist, 
+                              returnDist = returnDist,
                               fillNA = TRUE)
-  
+
   #-----------------------------
   #REMOVE SELF-LOOPS AND DUPLICATES
   #-----------------------------
   edges_without_duplicate <- edges %>%
     dplyr::filter(is.na(ID1) | is.na(ID2) | as.character(ID1) < as.character(ID2))
-  
+
   #-----------------------------
   #FILTER EDGES BY CONSECUTIVE APPEARANCES
   #-----------------------------
-  edgesFiltered <- consecEdges(edgeList = edges_without_duplicate, 
+  edgesFiltered <- consecEdges(edgeList = edges_without_duplicate,
                                consecThreshold = consecThreshold) %>%
     dplyr::ungroup()
-  
+
   #-----------------------------
   #HANDLE EMPTY RESULT (no valid interactions)
   #-----------------------------
   if (nrow(edgesFiltered) == 0) {
     warning("After edgesFiltered, the dataset had 0 rows.")
-    
+
     #Prepare output dataframes with NA or 0 SRI
     allPairs_day_no_interaction <- allPairs_day
     colnames(allPairs_day_no_interaction)[3] <- "pair_no_interaction"   #Rename 3rd column
-    
+
     allPairs_day_season <- allPairs_entire_season_output                #Copy full season pairs
-    
+
     if (!"edges" %in% names(allPairs_day_season)) {                     #Add edges column if missing
       allPairs_day_season$edges <- NA
     }
-    
+
     #Set SRI = 0 for pairs with no interaction
     matching_indices <- allPairs_day_season$pair %in% allPairs_day_no_interaction$pair_no_interaction
     allPairs_day_season$sri[matching_indices] <- 0
-    
+
     #Return empty but valid output
     return(list(
       "edges" = data.frame(
@@ -580,7 +579,7 @@ spaceTimeGroups <- function(dataset,
       )
     ))
   }
-  
+
   #-----------------------------
   #ALCULATE INTERACTION LOCATIONS
   #-----------------------------
@@ -589,13 +588,13 @@ spaceTimeGroups <- function(dataset,
     dplyr::select(tidyselect::all_of(c(idCol, "timegroup", latCol, longCol))) %>%
     dplyr::distinct() %>%
     dplyr::mutate(across(tidyselect::all_of(c(latCol, longCol)), as.numeric))
-  
+
   #Take mean lat/long if multiple records per individual/timegroup
   meanLocs <- locs %>%
     dplyr::group_by(across(all_of(c(idCol, "timegroup")))) %>%
     dplyr::summarize(mnLat = mean(.data[[latCol]], na.rm = TRUE),
                      mnLong = mean(.data[[longCol]], na.rm = TRUE))
-  
+
   #Join mean locations for ID1 and ID2 in edges
   ef <- edgesFiltered %>%
     dplyr::left_join(meanLocs, by = c("ID1" = idCol, "timegroup")) %>%
@@ -604,14 +603,14 @@ spaceTimeGroups <- function(dataset,
     dplyr::rename("latID2" = mnLat, "longID2" = mnLong) %>%
     dplyr::mutate(interactionLat = (latID1 + latID2)/2,
                   interactionLong = (longID1 + longID2)/2)
-  
+
   #Ensure row counts match
   if (nrow(ef) != nrow(edgesFiltered)) {
     stop("wrong number of rows")
   }
-  
+
   edgesFiltered <- ef
-  
+
   #-----------------------------
   #OPTIONAL: CALCULATE SRI
   #-----------------------------
@@ -625,13 +624,13 @@ spaceTimeGroups <- function(dataset,
       warning("No edges to calculate SRI on.")
       dfSRI <- data.frame(ID1 = character(), ID2 = character(), sri = numeric())
     }
-    
+
     outList <- list("edges" = edgesFiltered, "sri" = dfSRI)
-    
+
   } else {
     outList <- list("edges" = edgesFiltered)
   }
-  
+
   #-----------------------------
   #RETURN OUTPUT
   #-----------------------------
@@ -687,7 +686,7 @@ spaceTimeGroups <- function(dataset,
 #' @param speedCol Name of the column containing ground speed values. Default is "ground_speed".
 #' @return An edge list containing the following columns: `timegroup` gives the numeric index of the timegroup during which the interaction takes place. `minTimestamp` and `maxTimestamp` give the beginning and end times of that timegroup. `ID1` is the id of the first individual in this edge, and `ID2` is the id of the second individual in this edge.
 #' @export
-#' 
+#'
 
 getEdges <- function(dataset,
                      roostPolygons = roostPolygons,
@@ -705,30 +704,30 @@ getEdges <- function(dataset,
                      getLocs = FALSE,
                      speedCol = "ground_speed",
                      timestampCol = "timestamp"){
-  
+
   #------------------------------------------------------------
   #SAVE RAW DATASET COPY
   #------------------------------------------------------------
   dataset_rawdata <- dataset  #backup raw dataset
-  
+
   #------------------------------------------------------------
   #CONVERT timestampCol to POSIXct datetime
   #------------------------------------------------------------
   dataset <- dataset %>%
     dplyr::mutate({{ timestampCol }} := as.POSIXct(.data[[timestampCol]], format = "%Y-%m-%d %H:%M:%OS", tz = "UTC"))
-  
+
   #------------------------------------------------------------
   #Convert dataset to data.table (needed for spatsoc functions)
   #------------------------------------------------------------
   data.table::setDT(dataset)
-  
+
   #------------------------------------------------------------
   #GROUP POINTS INTO TIMEGROUPS (using spatsoc)
   #------------------------------------------------------------
   dataset <- spatsoc::group_times(dataset, datetime = timestampCol, threshold = timeThreshold)
-  
+
   dataset_denominator <- dataset  #save a copy for SRI denominator
-  
+
   #------------------------------------------------------------
   #RECORD START/END TIME PER TIMEGROUP
   #------------------------------------------------------------
@@ -737,13 +736,13 @@ getEdges <- function(dataset,
     dplyr::group_by(timegroup) %>%
     dplyr::summarize(minTimestamp = min(.data[[timestampCol]], na.rm = TRUE),
                      maxTimestamp = max(.data[[timestampCol]], na.rm = TRUE))
-  
+
   #------------------------------------------------------------
   #CONVERT TO sf OBJECT WITH LAT/LONG GEOMETRY
   #(needed for spatial filtering later)
   #------------------------------------------------------------
   dataset_sf <- sf::st_as_sf(dataset, coords = c("location_long", "location_lat"), crs = "WGS84", remove = FALSE)
-  
+
   #------------------------------------------------------------
   #VALIDATE CRS / CONVERT TO sf IF NEEDED
   #------------------------------------------------------------
@@ -762,29 +761,29 @@ getEdges <- function(dataset,
   } else {
     stop("`dataset_sf` must be a data frame or sf object.")
   }
-  
-  
+
+
   #------------------------------------------------------------
   #WARN IF GETLOCS + return="sri" (invalid combination)
   #------------------------------------------------------------
   if (getLocs & return == "sri") {
     warning("Cannot return interaction locations when return = 'sri'. Use return = 'edges' or 'both'.")
   }
-  
+
   #------------------------------------------------------------
   #SAVE UNIQUE INDIVIDUALS BEFORE FILTERING (optional)
   #------------------------------------------------------------
   if (includeAllVertices) {
     uniqueIndivs <- unique(dataset_sf[[idCol]])
   }
-  
- 
+
+
   #------------------------------------------------------------
   #FILTER OUT POINTS INSIDE ROOST POLYGONS
   #------------------------------------------------------------
-  #Check if the dataset is already an sf object 
+  #Check if the dataset is already an sf object
   is_sf <- checkmate::testClass(dataset_sf, "sf")
-  
+
   #if not, convert it to an sf object
   if(is_sf == FALSE){
     #Convert to sf object
@@ -792,7 +791,7 @@ getEdges <- function(dataset,
   }else{
     dataset_sf <- dataset_sf
   }
-  
+
   if (!is.null(roostPolygons)) {
     if (!is.null(roostBuffer)) {
       roostPolygons <- convertAndBuffer(roostPolygons, dist = roostBuffer)  #buffer polygons
@@ -811,16 +810,16 @@ getEdges <- function(dataset,
                                        lat = 31.434306, lon = 34.991889,
                                        keep = c("sunrise", "sunset")) %>%
       dplyr::select(date, sunrise, sunset)
-    
+
     removedRoosts_dataset <- removedRoosts_dataset %>%
       #remove leftover sunrise/sunset cols just in case
       {if("sunrise" %in% names(.)) dplyr::select(., -sunrise) else .}%>%
       {if("sunset" %in% names(.)) dplyr::select(., -sunset) else .}%>%
       dplyr::left_join(times, by = c("dateOnly" = "date")) %>%
-      dplyr::mutate(daytime = dplyr::case_when(timestamp > .data$sunrise & 
-                                                 timestamp < .data$sunset ~ TRUE, 
-                                                 TRUE ~ FALSE))
-    
+      dplyr::mutate(daytime = dplyr::case_when(timestamp > .data$sunrise &
+                                                 timestamp < .data$sunset ~ TRUE,
+                                               TRUE ~ FALSE))
+
     #Filter out nighttimes
     nNightPoints <- nrow(removedRoosts_dataset[removedRoosts_dataset$daytime == F,])
     dataset_dayonly <- removedRoosts_dataset %>%
@@ -831,7 +830,7 @@ getEdges <- function(dataset,
                  nDayPoints, " points.\n"))
     }
   }
-  
+
   #------------------------------------------------------------
   #FILTER BASED ON SPEED (if thresholds set)
   #------------------------------------------------------------
@@ -839,8 +838,8 @@ getEdges <- function(dataset,
                              speedThreshUpper = speedThreshUpper,
                              speedThreshLower = speedThreshLower,
                              speedCol = speedCol)
-  
-  
+
+
   #------------------------------------------------------------
   #BUILD ALL POSSIBLE PAIRS (DYADS) FOR THE DAY
   #------------------------------------------------------------
@@ -848,7 +847,7 @@ getEdges <- function(dataset,
   allPairs_day <- expand.grid(ID1 = all_ids_day, ID2 = all_ids_day, stringsAsFactors = FALSE) %>%
     dplyr::mutate(pair = paste(ID1, ID2, sep = "_")) %>%
     dplyr::filter(ID1 != ID2)
-  
+
   #------------------------------------------------------------
   #PREPARE SEASONAL PAIR LIST
   #------------------------------------------------------------
@@ -856,7 +855,7 @@ getEdges <- function(dataset,
     dplyr::mutate(pair = paste(ID1, ID2, sep = "_")) %>%
     dplyr::filter(ID1 != ID2) %>%
     dplyr::mutate(sri = ifelse(pair %in% allPairs_day$pair, NA, NA))
-  
+
 
   #------------------------------------------------------------
   #HANDLE EMPTY DATA AFTER FILTERING
@@ -867,26 +866,26 @@ getEdges <- function(dataset,
     allPairs_day_filteredData <- expand.grid(ID1 = all_ids_day_filteredData, ID2 = all_ids_day_filteredData, stringsAsFactors = FALSE) %>%
       dplyr::mutate(pair_filteredData = paste(ID1, ID2, sep = "_"), sri = NA) %>%
       dplyr::filter(ID1 != ID2)
-    
+
     if (nrow(allPairs_day_filteredData) == 0) {
       allPairs_day_filteredData <- allPairs_entire_season_output %>% dplyr::select(ID1, ID2, sri)
     } else {
       matching_indices <- allPairs_day_filteredData$pair_filteredData %in% allPairs_entire_season_output$pair
       allPairs_day_filteredData$sri[matching_indices] <- 0
     }
-    
+
     return(data.frame(ID1 = allPairs_day_filteredData$ID1,
                       ID2 = allPairs_day_filteredData$ID2,
                       sri = allPairs_day_filteredData$sri))
   }
-  
-  
+
+
   #------------------------------------------------------------
   #CALL spaceTimeGroups() FUNCTION
   #- return either edges or SRI
   #------------------------------------------------------------
   if(nrow(filteredData) != 0){
-    
+
     ##Do we need to compute SRI?
     if(return == "edges"){ #if SRI is not needed, we can save time by not computing it.
       if(quiet){
@@ -915,13 +914,13 @@ getEdges <- function(dataset,
                                idCol = idCol,
                                timegroupData = timegroupData)
       }
-      
+
     }else if(return %in% c("sri", "both")){ #otherwise we need to compute SRI.
       if(quiet){
         ###EDGES AND SRI, QUIET
         #suppress warnings while computing edges and SRI, returning a list of edges+sri
         out <- suppressMessages(suppressWarnings(spaceTimeGroups(dataset = filteredData,
-                                                                 sriDenominatorDataset = dataset_denominator, #XXX added this                  
+                                                                 sriDenominatorDataset = dataset_denominator, #XXX added this
                                                                  distThreshold = distThreshold,
                                                                  allPairs_entire_season_output= allPairs_entire_season_output,
                                                                  allPairs_day=allPairs_day,
@@ -952,7 +951,7 @@ getEdges <- function(dataset,
       }
     }
   } #close the if(nrow(filteredData) != 0)
-  
+
   #------------------------------------------------------------
   #REMOVE LOCATION COLUMNS IF getLocs = FALSE
   #------------------------------------------------------------
@@ -964,8 +963,8 @@ getEdges <- function(dataset,
       out$edges <- dplyr::select(out$edges, -any_of(locsColNames))
     }
   }
-  
-  
+
+
   #------------------------------------------------------------
   #OPTIONALLY APPEND VERTEX LIST
   #------------------------------------------------------------
@@ -974,7 +973,7 @@ getEdges <- function(dataset,
   } else {
     toReturn <- out
   }
-  
+
   #------------------------------------------------------------
   #RETURN FINAL OUTPUT
   #------------------------------------------------------------
@@ -992,7 +991,7 @@ roostPolygons <- sf::st_read(here::here("Z:/Elvira/Ergm_manuscript/raw_data/roos
 load(here::here("Z:/Elvira/Ergm_manuscript/raw_data/data_cut_preBreeding_2020.Rda"))
 
 # What are the different time windows we want to test?
-timewindows <- c(1) 
+timewindows <- c(1)
 
 total_seasons <- 1
 
@@ -1012,19 +1011,19 @@ remove_prefix <- function(strings) {
 # Run a for loop across all the seasons
 for(j in 1:total_seasons) {
   season <- seasons_names[j]
-  
+
   print(season)
-  
+
   season_name_file <- remove_prefix(season)
   print(season_name_file)
-  
+
   datalist <- base::get(season)  # Assuming season names correspond to variable names in the environment
-  
+
   for(i in 1:length(timewindows)) {
     cat("Working on data split into", timewindows[i], "day intervals\n")
-    
+
     data_season_list <- datalist[[i]]
-    
+
     # Extract unique Nili_id values from all lists in data_season_list
     all_Nili_ids_season <- unique(unlist(lapply(data_season_list, function(x) x$Nili_id)))
     # Convert to character (if necessary)
@@ -1032,73 +1031,73 @@ for(j in 1:total_seasons) {
     # Print or view
     print(all_Nili_ids_season)
     # Create all possible pairs (dyads)
-    allPairs_entire_season <- expand.grid(ID1 = all_Nili_ids_season, ID2 = all_Nili_ids_season, stringsAsFactors = FALSE) 
-    dim(allPairs_entire_season) 
-    
+    allPairs_entire_season <- expand.grid(ID1 = all_Nili_ids_season, ID2 = all_Nili_ids_season, stringsAsFactors = FALSE)
+    dim(allPairs_entire_season)
+
     cat("Working on flight\n")
-    
+
     fl <- suppressWarnings(furrr::future_map(data_season_list, ~{
       library(sf) # have to have this here; it's a quirk of future::purrr::map().
       getEdges(.x, roostPolygons = roostPolygons,
-               roostBuffer = 50, 
+               roostBuffer = 50,
                consecThreshold = 2,
-               distThreshold = 1000, 
-               speedThreshUpper = NULL, 
-               speedThreshLower = 5, 
-               timeThreshold = "10 minutes", 
-               idCol = "Nili_id", 
+               distThreshold = 1000,
+               speedThreshUpper = NULL,
+               speedThreshLower = 5,
+               timeThreshold = "10 minutes",
+               idCol = "Nili_id",
                quiet = T,
-               includeAllVertices = F, 
-               daytimeOnly = T, 
-               return = "sri", 
+               includeAllVertices = F,
+               daytimeOnly = T,
+               return = "sri",
                getLocs = FALSE)
-      
-      
+
+
     }, .progress = T))
-    
+
     cat("Working on feeding\n")
     fe <- suppressWarnings(furrr::future_map(data_season_list, ~{
       library(sf) # have to have this here; it's a quirk of future::purrr::map().
       getEdges(.x,
-               roostPolygons = roostPolygons, 
-               roostBuffer = 50, 
-               consecThreshold = 2, 
-               distThreshold = 50, 
-               speedThreshUpper = 5, 
-               speedThreshLower = NULL, 
-               timeThreshold = "10 minutes", 
-               idCol = "Nili_id", 
-               quiet = T, 
-               includeAllVertices = F, 
-               daytimeOnly = T, 
-               return = "sri", 
-               getLocs = F, 
+               roostPolygons = roostPolygons,
+               roostBuffer = 50,
+               consecThreshold = 2,
+               distThreshold = 50,
+               speedThreshUpper = 5,
+               speedThreshLower = NULL,
+               timeThreshold = "10 minutes",
+               idCol = "Nili_id",
+               quiet = T,
+               includeAllVertices = F,
+               daytimeOnly = T,
+               return = "sri",
+               getLocs = F,
                speedCol = "ground_speed",
                timestampCol = "timestamp")
-      
+
     }, .progress = T))
-    
+
     # Save the results to their lists
     sris_flight[[i]] <- fl
     sris_feeding[[i]] <- fe
-    
-    # Clean up memory 
+
+    # Clean up memory
     rm(list = c("datalist", "fl", "fe"))
     gc()
   }
-  
+
   ##save the season files sris_flight, sris_feeding
-  
+
   #flight
   object_name_sris_flight <- paste0("sri_flight_", season_name_file)
   assign(object_name_sris_flight, sris_flight)
   save(list = object_name_sris_flight, file = here::here(paste0("Z:/Elvira/Ergm_manuscript/raw_data/social_behaviors/", object_name_sris_flight, ".Rda")))
-  
+
   #feeding
   object_name_sris_feeding <- paste0("sri_feeding_", season_name_file)
   assign(object_name_sris_feeding, sris_feeding)
   save(list = object_name_sris_feeding, file = here::here(paste0("Z:/Elvira/Ergm_manuscript/raw_data/social_behaviors/", object_name_sris_feeding, ".Rda")))
-  
+
 }
 
 
