@@ -8,8 +8,8 @@ library(vultureUtils)
 
 test <- readRDS(here("tests/testDataKaija/test.RDS"))
 dates <- unique(test$dateOnly)
-smallertest <- test[test$dateOnly %in% dates[1:2],]
-dim(smallertest)
+# smallertest <- test[test$dateOnly %in% dates[1:2],]
+# dim(smallertest)
 
 #--------
 # Some code from Elvira's script to satisfy the getEdges_EDB function, which isn't entirely working/self-contained.
@@ -20,7 +20,7 @@ allPairs_entire_season <- expand.grid(ID1 = all_Nili_ids, ID2 = all_Nili_ids, st
 ap <- allPairs_entire_season
 
 getEdges_EDB <- function(dataset,
-                     roostPolygons = roostPolygons, # 20260104: this part of the function def throws an error. Need to have an object called "roostPolygons" created globally if not otherwise specifying. For now, going to read in the roost polygons and call it "rp".
+                     roostPolygons = NULL, # 20260105 KG change--this needs to be NULL so we don't get an error.
                      roostBuffer,
                      consecThreshold,
                      distThreshold,
@@ -38,47 +38,32 @@ getEdges_EDB <- function(dataset,
                      allPairs_entire_season = allPairs_entire_season # 20260104: I added this argument because it was otherwise just drawing from the global environment.
                      ){
 
-  #------------------------------------------------------------
-  #SAVE RAW DATASET COPY
-  #------------------------------------------------------------
+  #SAVE RAW DATASET COPY for later use
   dataset_rawdata <- dataset  #backup raw dataset
 
-  #------------------------------------------------------------
   #CONVERT timestampCol to POSIXct datetime
-  #------------------------------------------------------------
   dataset <- dataset %>%
     dplyr::mutate({{ timestampCol }} := as.POSIXct(.data[[timestampCol]], format = "%Y-%m-%d %H:%M:%OS", tz = "UTC"))
 
-  #------------------------------------------------------------
   #Convert dataset to data.table (needed for spatsoc functions)
-  #------------------------------------------------------------
   data.table::setDT(dataset)
 
-  #------------------------------------------------------------
   #GROUP POINTS INTO TIMEGROUPS (using spatsoc)
-  #------------------------------------------------------------
   dataset <- spatsoc::group_times(dataset, datetime = timestampCol, threshold = timeThreshold)
+  dataset_denominator <- dataset  #save a copy of the timegrouped dataset for the SRI denominator, since we need to know how many timegroups individuals appear in vs. interact in
 
-  dataset_denominator <- dataset  #save a copy for SRI denominator
-
-  #------------------------------------------------------------
   #RECORD START/END TIME PER TIMEGROUP
-  #------------------------------------------------------------
   timegroupData <- dataset %>%
     dplyr::select(tidyselect::all_of(timestampCol), timegroup) %>%
     dplyr::group_by(timegroup) %>%
     dplyr::summarize(minTimestamp = min(.data[[timestampCol]], na.rm = TRUE),
                      maxTimestamp = max(.data[[timestampCol]], na.rm = TRUE))
 
-  #------------------------------------------------------------
-  #CONVERT TO sf OBJECT WITH LAT/LONG GEOMETRY
+  #CONVERT (back) TO sf OBJECT WITH LAT/LONG GEOMETRY
   #(needed for spatial filtering later)
-  #------------------------------------------------------------
   dataset_sf <- sf::st_as_sf(dataset, coords = c("location_long", "location_lat"), crs = "WGS84", remove = FALSE)
 
-  #------------------------------------------------------------
   #VALIDATE CRS / CONVERT TO sf IF NEEDED
-  #------------------------------------------------------------
   if ("sf" %in% class(dataset_sf)) {
     if (is.na(sf::st_crs(dataset_sf))) {
       message(paste0("`dataset_sf` has no CRS. Setting CRS to WGS84."))
@@ -95,10 +80,7 @@ getEdges_EDB <- function(dataset,
     stop("`dataset_sf` must be a data frame or sf object.")
   }
 
-
-  #------------------------------------------------------------
   #WARN IF GETLOCS + return="sri" (invalid combination)
-  #------------------------------------------------------------
   if (getLocs & return == "sri") {
     warning("Cannot return interaction locations when return = 'sri'. Use return = 'edges' or 'both'.")
   }
@@ -135,9 +117,7 @@ getEdges_EDB <- function(dataset,
     removedRoosts_dataset <- dataset_sf
   }
 
-  #------------------------------------------------------------
   #FILTER FOR DAYTIME ONLY (if requested)
-  #------------------------------------------------------------
   if (daytimeOnly) {
     times <- suncalc::getSunlightTimes(date = unique(lubridate::date(removedRoosts_dataset$timestamp)),
                                        lat = 31.434306, lon = 34.991889,
@@ -153,7 +133,7 @@ getEdges_EDB <- function(dataset,
                                                  timestamp < .data$sunset ~ TRUE,
                                                TRUE ~ FALSE))
 
-    #Filter out nighttimes
+    # Remove nighttime points
     nNightPoints <- nrow(removedRoosts_dataset[removedRoosts_dataset$daytime == F,])
     dataset_dayonly <- removedRoosts_dataset %>%
       dplyr::filter(daytime == TRUE)
@@ -164,34 +144,26 @@ getEdges_EDB <- function(dataset,
     }
   }
 
-  #------------------------------------------------------------
   #FILTER BASED ON SPEED (if thresholds set)
-  #------------------------------------------------------------
   filteredData <- filterLocs(df = dataset_dayonly,
                              speedThreshUpper = speedThreshUpper,
                              speedThreshLower = speedThreshLower,
                              speedCol = speedCol)
 
 
-  #------------------------------------------------------------
   #BUILD ALL POSSIBLE PAIRS (DYADS) FOR THE DAY
-  #------------------------------------------------------------
   all_ids_day <- as.character(unique(dataset[[idCol]]))
   allPairs_day <- expand.grid(ID1 = all_ids_day, ID2 = all_ids_day, stringsAsFactors = FALSE) %>%
     dplyr::mutate(pair = paste(ID1, ID2, sep = "_")) %>%
     dplyr::filter(ID1 != ID2)
 
-  #------------------------------------------------------------
   #PREPARE SEASONAL PAIR LIST
-  #------------------------------------------------------------
   allPairs_entire_season_output <- allPairs_entire_season %>%
     dplyr::mutate(pair = paste(ID1, ID2, sep = "_")) %>%
     dplyr::filter(ID1 != ID2) %>%
     dplyr::mutate(sri = ifelse(pair %in% allPairs_day$pair, NA, NA))
 
-  #------------------------------------------------------------
   #HANDLE EMPTY DATA AFTER FILTERING
-  #------------------------------------------------------------
   if (nrow(filteredData) == 0) {
     warning("After filtering, no data remains.")
     all_ids_day_filteredData <- unique(dataset_rawdata[[idCol]])
