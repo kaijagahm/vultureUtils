@@ -12,7 +12,7 @@ smallertest <- test[test$dateOnly %in% dates[1:2],]
 dim(smallertest)
 
 #--------
-# Some code from Elvira's script to satisfy the getEdges_EDB function, which isn't entirealy working/self-contained.
+# Some code from Elvira's script to satisfy the getEdges_EDB function, which isn't entirely working/self-contained.
 rp <- sf::st_read("tests/testthat/testdata/roosts50_kde95_cutOffRegion.kml") # needs to have roosts passed to it, because the default is not NULL
 
 all_Nili_ids <- as.character(unique(test$Nili_id))
@@ -704,11 +704,13 @@ calcSRI_EDB <- function(dataset,
     dplyr::select(ID1, ID2, sri)
   # 20260104: I do not understand what this "optional pre-SRI" thing is doing. Is there ever a situation where allPairs_entire_season_output would have SRI values? Need to go back to when that was created and check.
 
+  # Denominator -------------------------------------------------------------
+  # Here we're talking about timegroups when an individual was *present.*
   #Create wide format matrix:
   #  rows = timegroups, cols = individuals
   #  TRUE if present, FALSE otherwise
   datasetWide <- dataset %>%
-    sf::st_drop_geometry() %>%  #drop spatial geometry if exists
+    sf::st_drop_geometry() %>%
     dplyr::select(tidyselect::all_of(c(timegroupCol, idCol))) %>%  #keep ID and timegroup cols
     dplyr::distinct() %>%
     dplyr::mutate(val = TRUE) %>%  #add flag val = TRUE
@@ -716,48 +718,38 @@ calcSRI_EDB <- function(dataset,
                        names_from = tidyselect::all_of(idCol),
                        values_from = "val", values_fill = FALSE)  #pivot wide
 
-  #---------------------------------------------
-  #Prepare edge list: ensure ID1, ID2 columns
-  #---------------------------------------------
-  allPairs_edges <- as.data.frame(edges)  #convert edges to dataframe
-  allPairs_edges <- as.data.frame(cbind(edges$ID1, edges$ID2))  #keep ID1, ID2
-  colnames(allPairs_edges) <- c("ID1", "ID2")  #set column names
-
-  #---------------------------------------------
-  #Merge edges and allPairs to get full dyad list
-  #  keep unique rows only
-  #---------------------------------------------
-  merged_df_allPairs <- bind_rows(allPairs_day_sri, allPairs_edges) %>%
-    dplyr::distinct(ID1, ID2, .keep_all = TRUE)
-
-
-  #---------------------------------------------
-  #Get list of valid IDs (colnames from datasetWide except timegroup)
-  #---------------------------------------------
-  ids_datasetWide <- colnames(datasetWide)[-1]  #remove timegroup col
-
-  #---------------------------------------------
-  #Initialize output dataframe (copy merged list)
-  #---------------------------------------------
-  dfSRI <- merged_df_allPairs
+  # Get full dyad list, removing any where one individual of the dyad is NA because it doesn't make sense to calculate SRI for one individual.
+  allPairs_edges <- as.data.frame(edges)[,c("ID1", "ID2")]
+  dfSRI <- bind_rows(allPairs_day_sri, allPairs_edges) %>%
+    dplyr::distinct(ID1, ID2, .keep_all = TRUE) # initialize output data frame
+  dfSRI <- dfSRI[!is.na(dfSRI$ID1) & !is.na(dfSRI$ID2),]
 
   #---------------------------------------------
   #LOOP over dyads to calculate SRI
   #---------------------------------------------
+  #Formula:
+  # sri <- x / (x + yab + ya + yb)
+  # where...
+  #   a and b are the individuals
+  #   x = in how many timegroups did these two individuals *interact*?
+  #   nboth = in how many timegroups were both individuals *present*?
+  #   yab = nBoth - x
+  #   ya = n timegroups when individual a was present
+  #   yb = n timegroups when individual b was present
   #Loop through each row of dfSRI to calculate/update the sri column
-  for(k in seq_len(nrow(dfSRI))) {
-    a <- dfSRI$ID1[k]  #Extract ID1 for the k-th row
-    b <- dfSRI$ID2[k]  #Extract ID2 for the k-th row
+  for(i in seq_len(nrow(dfSRI))) {
+    a <- dfSRI$ID1[i]  #ID1 (individual a of dyad k)
+    b <- dfSRI$ID2[i]  #ID2 (individual b of dyad k)
 
     #Check if either ID is missing
     if(is.na(a) || is.na(b)) {
-      dfSRI$sri[k] <- NA  #Set sri to NA if either ID is missing
+      dfSRI$sri[i] <- NA  #Set sri to NA if either ID is missing
       next  #Skip to the next iteration
-    }
+    } # 20260105 KG this is where I think we should have removed the NAs ahead of time.
 
     #Check if either ID is not found in the list of valid IDs
-    if(!(a %in% ids_datasetWide) || !(b %in% ids_datasetWide)) {
-      dfSRI$sri[k] <- NA  #Optional: set to NA if IDs not found
+    if(!(a %in% unique(dataset[[idCol]])) || !(b %in% unique(dataset[[idCol]]))) {
+      dfSRI$sri[i] <- NA  #Set to NA if IDs not found
       next  #Skip to the next iteration
     }
 
@@ -765,20 +757,16 @@ calcSRI_EDB <- function(dataset,
     colA <- datasetWide[, a, drop = FALSE]  #Get column a
     colB <- datasetWide[, b, drop = FALSE]  #Get column b
 
-    #Count the number of rows where both columns are TRUE (logical AND)
+    # nBoth = in how many timegroups were both individuals *present*?
     nBoth <- sum(colA & colB, na.rm = TRUE)
 
-    #--- Count number of unique co-occurrences in edges ---
-    #Subset edges to rows where IDs match either a or b in ID1/ID2 columns
-    #Then count unique occurrences across timegroupCol
-    x <- nrow(unique(edges[edges$ID1 %in% c(a, b) & edges$ID2 %in% c(a, b), timegroupCol]))
+    # x = in how many timegroups did these two individuals *interact*?
+    x <- nrow(unique(edges[edges$ID1 %in% c(a, b) & edges$ID2 %in% c(a, b), timegroupCol])) # in how many unique timegroups did individuals a and b interact?
 
-    #--- Compute yab ---
-    #yab = number of joint occurrences in datasetWide minus number of co-occurrences recorded in edges
+    #yab = number of joint occurrences in datasetWide minus number of co-occurrences recorded in edges (i.e. simultaneous/joint/same-timegroup occurrences without co-occurrence/interaction)
     yab <- nBoth - x
 
-    #--- Individual occurrence counts ---
-    #Total number of TRUE (or 1) values for each individual ID, ignoring NAs
+    #ya and yb = in how many timegroups was *each* individual present?
     ya <- sum(colA, na.rm = TRUE)
     yb <- sum(colB, na.rm = TRUE)
 
@@ -793,18 +781,12 @@ calcSRI_EDB <- function(dataset,
 
     #--- Save result ---
     #Store the calculated SRI value back into the dfSRI data frame
-    dfSRI$sri[k] <- sri
+    dfSRI$sri[i] <- sri
   }
-
-  #---------------------------------------------
-  #(Optional: preview first rows)
-  #---------------------------------------------
-  head(dfSRI)
 
   # complete the time message
   end <- Sys.time()
-  duration <- difftime(end, start, units = "secs")
-  cat(paste0("SRI computation completed in ", duration, " seconds.\n"))
+  cat(paste0("SRI computation completed in ", difftime(end, start, units = "secs"), " seconds.\n"))
 
   if (nrow(dfSRI) == 0) {
     message("Warning: `calcSRI()` returned an empty dataframe. Check dataset and edge list.")
