@@ -534,3 +534,36 @@ calcSRI_new <- function(fulldataset,
   }
   return(out)
 }
+
+test <- readRDS(here("tests/testDataKaija/test.RDS"))
+dates <- unique(test$dateOnly)
+# smallertest <- test[test$dateOnly %in% dates[1:2],]
+# dim(smallertest)
+
+#--------
+# Some code from Elvira's script to satisfy the getEdges_EDB function, which isn't entirely working/self-contained.
+rp <- sf::st_read("tests/testthat/testdata/roosts50_kde95_cutOffRegion.kml") # needs to have roosts passed to it, because the default is not NULL
+
+orig_test <- getEdges(test, roostBuffer = 1000, consecThreshold = 1, distThreshold = 1000, speedThreshUpper = NULL, speedThreshLower = 5, roostPolygons = rp, return = "sri")
+new_test <- getEdges_new(test, roostBuffer = 1000, consecThreshold = 1, distThreshold = 1000, speedThreshUpper = NULL, speedThreshLower = 5, roostPolygons = rp, return = "both") # XXX something is wrong with the distance calculation! Why are the distance values so small?
+
+# The new version is slightly slower, but not drastically--3.08 secs vs. 3.5 secs.
+
+# What does 0 mean?
+# What does NA mean? We have no NAs in this dataset
+# What if we wanted to pass in a bunch of individuals that weren't included in the dataset?
+
+# Case 1: Two individuals that are both detected during at least some of the same timegroups in the dataset but never interact during the focal period
+# Case 2: Two individuals that are both present at some point in the dataset but not during the same timegroups.
+test_indivs <- c("galway", "anderson")
+tt <- test %>%
+  filter(Nili_id %in% test_indivs)
+
+test_tt <- getEdges_new(tt, roostBuffer = 1000, consecThreshold = 1, distThreshold = 1000, speedThreshUpper = NULL, speedThreshLower = 5, roostPolygons = rp, return = "sri")
+test_tt # yay, better!
+
+# Okay now time to test where we specifically eliminate dates of overlap for these individuals
+tt2 <- tt %>%
+  filter((dateOnly <= lubridate::ymd("2022-11-18") & Nili_id == "anderson") | (dateOnly > lubridate::ymd("2022-11-18") & Nili_id == "galway"))
+getEdges_new(tt2, roostBuffer = 1000, consecThreshold = 1, distThreshold = 1000, speedThreshUpper = NULL, speedThreshLower = 5, roostPolygons = rp, return = "sri")
+table(tt2$dateOnly, tt2$Nili_id) # so, this has them not overlapping at all, but then the SRI value is being returned as 0, not NA.
