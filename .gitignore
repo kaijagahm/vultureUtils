@@ -17,3 +17,4 @@ script_example.R
 inst/
 vignettes/data-prep.Rmd
 tests/testDataKaija/
+tests/testthat/_snaps/
