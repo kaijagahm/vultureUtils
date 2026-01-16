@@ -1,9 +1,3 @@
-# 2026-01-04 test script
-library(here)
-library(tidyverse)
-library(sf)
-library(vultureUtils)
-
 # New version of the getEdges function, following Elvira's logic (i.e., updated version of the function)
 #' @param dataset a cleaned GPS dataset. Should be an sf object. Must have columns "location_long" and "location_lat" for conversion back to sf
 #' @param roostPolygons an sf object containing roost polygons, to be used for excluding GPS points, or NULL
